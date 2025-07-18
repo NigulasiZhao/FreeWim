@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8"/>
+    <title>个人考勤打卡趋势看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5"></script>
+    <style>
+        body {
+            font-family: "Microsoft YaHei", sans-serif;
+            margin: 0;
+            padding: 20px 260px;
+            background-color: #f5f7fa;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-auto-rows: minmax(360px, auto);
+            gap: 20px;
+            padding: 0 10px;
+        }
+
+        .full-width {
+            grid-column: span 2;
+        }
+
+        .card {
+            background-color: #fff;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .chart {
+            width: 100%;
+            height: 100%;
+        }
+
+        .card.full-width {
+            display: flex;
+            justify-content: center;
+            height: 200px;
+        }
+
+        #punchHeatmap {
+            width: 100%;
+            max-width: 1000px;
+            height: 200px;
+            font-family: 'Arial', 'Helvetica', sans-serif;
+        }
+    </style>
+</head>
+<body>
+
+<h1>📊 个人考勤打卡趋势看板</h1>
+
+<div class="dashboard">
+    <div class="card">
+        <div id="lineChart" class="chart"></div>
+    </div>
+    <div class="card">
+        <div id="barChart" class="chart"></div>
+    </div>
+    <div class="card">
+        <div id="checkInLine" class="chart"></div>
+    </div>
+    <div class="card">
+        <div id="checkOutLine" class="chart"></div>
+    </div>
+    <div class="card full-width">
+        <div id="punchHeatmap" class="chart"></div>
+    </div>
+</div>
+
+<script>
+    async function fetchData() {
+        const res = await fetch('/api/AttendanceRecord/GetBoardData');
+        const data = await res.json();
+
+        initLineChart(data.monthTrend);
+        initBarChart(data.monthBar);
+        initCheckInChart(data.checkIn);
+        initCheckOutChart(data.checkOut);
+        //initCompareChart(data.compare); // 新增同比环比图表
+        initPunchHeatmap(data.punchHeatmap);
+    }
+
+    function timeToNumber(timeStr) {
+        const [h, m] = timeStr.split(":").map(Number);
+        return h + m / 60;
+    }
+
+    function initLineChart(monthTrend) {
+        const chart = echarts.init(document.getElementById("lineChart"));
+        chart.setOption({
+            title: {text: "📈 本月 vs 上月 每日累计工时趋势", left: "center"},
+            tooltip: {trigger: "axis"},
+            legend: {data: ["上月", "本月"], top: 30},
+            xAxis: {type: "category", data: monthTrend.labels},
+            yAxis: {type: "value", name: "累计工时"},
+            series: [
+                {name: "上月", type: "line", smooth: true, data: monthTrend.lastMonth},
+                {name: "本月", type: "line", smooth: true, data: monthTrend.thisMonth}
+            ]
+        });
+    }
+
+    function initBarChart(monthBar) {
+        const chart = echarts.init(document.getElementById("barChart"));
+        chart.setOption({
+            title: {text: "📈 近 6 个月总工时趋势", left: "center"},
+            tooltip: {trigger: "axis"},
+            legend: {data: ["总工时", "非工作时间工时"], top: 30},
+            grid: {left: "10%", right: "10%", bottom: "15%", top: "20%"},
+            xAxis: {type: "category", data: monthBar.months},
+            yAxis: {type: "value", name: "小时"},
+            series: [
+                {
+                    name: "总工时",
+                    type: "line",
+                    data: monthBar.totals,
+                    areaStyle: {color: "#5470C6", opacity: 0.4},
+                    lineStyle: {color: "#5470C6"},
+                    symbol: "circle"
+                },
+                {
+                    name: "非工作时间工时",
+                    type: "line",
+                    data: monthBar.overtimes,
+                    areaStyle: {color: "#91cc75", opacity: 0.4},
+                    lineStyle: {color: "#91cc75"},
+                    symbol: "triangle",
+                    label: {
+                        show: true,
+                        position: "top",
+                        formatter: function (params) {
+                            const total = monthBar.totals[params.dataIndex];
+                            const overtime = params.data;
+                            const percent = total > 0 ? (overtime / total) * 100 : 0;
+                            return `${percent.toFixed(1)}%`;
+                        }
+                    }
+                }
+            ]
+        });
+    }
+
+    function initCheckInChart(checkIn) {
+        const chart = echarts.init(document.getElementById("checkInLine"));
+        const times = checkIn.times.map(timeToNumber);
+        chart.setOption({
+            title: {text: "⏰ 上班打卡时间趋势", left: "center"},
+            tooltip: {
+                trigger: "axis",
+                formatter: function (params) {
+                    const hour = Math.floor(params[0].data);
+                    const minute = Math.round((params[0].data % 1) * 60);
+                    return `${params[0].axisValue}<br/>${params[0].seriesName}：${hour}:${minute.toString().padStart(2, '0')}`;
+                }
+            },
+            xAxis: {type: 'category', data: checkIn.dates},
+            yAxis: {
+                type: 'value',
+                name: '打卡时间（小时）',
+                min: 7.75,
+                max: 9,
+                interval: 0.25,
+                axisLabel: {
+                    formatter: function (value) {
+                        const hour = Math.floor(value);
+                        const minute = Math.round((value % 1) * 60);
+                        return `${hour}:${minute.toString().padStart(2, '0')}`;
+                    }
+                }
+            },
+            series: [
+                {
+                    data: times,
+                    type: 'line',
+                    name: '上班打卡',
+                    smooth: true,
+                    symbol: 'circle',
+                    itemStyle: {color: '#91cc75'},
+                    markLine: {
+                        data: [{yAxis: 8.25, name: '08:15参考线'}],
+                        label: {formatter: '08:15'},
+                        lineStyle: {type: 'dashed', color: 'blue'}
+                    }
+                }
+            ]
+        });
+    }
+
+    function initCheckOutChart(checkOut) {
+        const chart = echarts.init(document.getElementById("checkOutLine"));
+        const times = checkOut.times.map(timeToNumber);
+        chart.setOption({
+            title: {text: "⏰ 下班打卡时间趋势", left: "center"},
+            tooltip: {
+                trigger: "axis",
+                formatter: function (params) {
+                    const hour = Math.floor(params[0].data);
+                    const minute = Math.round((params[0].data % 1) * 60);
+                    return `${params[0].axisValue}<br/>${params[0].seriesName}：${hour}:${minute.toString().padStart(2, '0')}`;
+                }
+            },
+            xAxis: {type: 'category', data: checkOut.dates},
+            yAxis: {
+                type: 'value',
+                name: '打卡时间（小时）',
+                min: 17,
+                max: 22,
+                interval: 1,
+                axisLabel: {
+                    formatter: function (value) {
+                        const hour = Math.floor(value);
+                        const minute = Math.round((value % 1) * 60);
+                        return `${hour}:${minute.toString().padStart(2, '0')}`;
+                    }
+                }
+            },
+            series: [
+                {
+                    data: times,
+                    type: 'line',
+                    name: '下班打卡',
+                    smooth: true,
+                    symbol: 'circle',
+                    itemStyle: {color: '#fac858'},
+                    markLine: {
+                        data: [{yAxis: 18.5, name: '18:30参考线'}],
+                        label: {formatter: '18:30'},
+                        lineStyle: {type: 'dashed', color: 'blue'}
+                    }
+                }
+            ]
+        });
+    }
+
+
+    function getLastYearDateRange() {
+        const end = new Date();
+        const start = new Date();
+        start.setFullYear(end.getFullYear() - 1);
+        return [start.toISOString().split('T')[0], end.toISOString().split('T')[0]];
+    }
+
+    function initPunchHeatmap(data) {
+        const chart = echarts.init(document.getElementById("punchHeatmap"));
+        const [startDate, endDate] = getLastYearDateRange();
+        chart.setOption({
+            title: {
+                top: 0,
+                text: '📅 打卡热力图 (近一年)',
+                left: 'center'
+            },
+            tooltip: {
+                position: 'top',
+                formatter: function (p) {
+                    return `${p.data[0]}: 工时 ${p.data[1]} 小时`;
+                }
+            },
+            visualMap: {
+                min: 2,
+                max: 13,
+                inRange: {
+                    color: ['#ebedf0', '#c6e48b', '#7bc96f', '#239a3b', '#196127']
+                },
+                show: false
+            },
+            calendar: {
+                range: [startDate, endDate],
+                cellSize: [16, 16],
+                orient: 'horizontal',
+                splitLine: {
+                    show: false,
+                    lineStyle: {
+                        color: '#e0e0e0',
+                        width: 1
+                    }
+                },
+                itemStyle: {
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                },
+                dayLabel: {
+                    nameMap: 'cn',
+                    fontWeight: '400',
+                    color: '#666',
+                    fontSize: 12
+                },
+                monthLabel: {
+                    nameMap: 'cn',
+                    color: '#666',
+                    fontSize: 12
+                },
+                yearLabel: {show: false}
+            },
+            series: {
+                type: 'heatmap',
+                coordinateSystem: 'calendar',
+                data: data
+            }
+        });
+    }
+
+    fetchData();
+</script>
+
+</body>
+</html>
