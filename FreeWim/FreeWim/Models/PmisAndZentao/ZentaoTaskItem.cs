@@ -25,9 +25,9 @@ public class ZentaoTaskItem
     public string type { get; set; }
     public string mode { get; set; }
     public int? pri { get; set; }
-    public int? estimate { get; set; }
-    public int? consumed { get; set; }
-    public int? left { get; set; }
+    public double? estimate { get; set; }
+    public double? consumed { get; set; }
+    public double? left { get; set; }
     public string deadline { get; set; }
     public string status { get; set; }
     public string subStatus { get; set; }
