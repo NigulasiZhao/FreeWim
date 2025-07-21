@@ -39,13 +39,13 @@ public class HangFireHelper(
             foreach (var job in recurringJobs) RecurringJob.RemoveIfExists(job.Id);
         }
 
-        RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "0 0/10 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "5,35 * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("Keep数据同步", () => KeepRecord(), "0 0 */3 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("高危人员打卡预警", () => CheckInWarning(), "0 0/10 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("高危人员打卡预警", () => CheckInWarning(), "5,35 * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("同步禅道任务", () => SynchronizationZentaoTask(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("执行禅道完成任务、日报、周报发送", () => ExecuteAllWork(), "0 0/40 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("自动加班申请", () => CommitOvertimeWork(), "0 0/10 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("禅道衡量目标、计划完成成果、实际从事工作与成果信息补全", () => TaskDescriptionComplete(), "0 0/10 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("自动加班申请", () => CommitOvertimeWork(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("禅道衡量目标、计划完成成果、实际从事工作与成果信息补全", () => TaskDescriptionComplete(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("DeepSeek余额预警", () => DeepSeekBalance(), "0 0 */2 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
     }
 
@@ -92,6 +92,8 @@ public class HangFireHelper(
 
     /// <summary>
     /// 考勤数据同步
+    /// 每小时的5分，35分调用一次查询当月考勤数据接口；接口结果对比本地库中数据，如果接口返回有新数据，则更新本地数据库
+    /// 考勤获取到当日签退记录后，则执行禅道关闭工单，日报发送，周报发送任务
     /// </summary>
     public void AttendanceRecord()
     {
@@ -281,6 +283,7 @@ public class HangFireHelper(
 
     /// <summary>
     /// 高危人员打卡预警
+    /// 每小时的5分，35分执行一次，查询当前是否为休息日，如果是休息日则进行token伪造，同时根据配置中的人员名单查询名单内人员的考勤记录；如存在高危人员打卡，则进行消息提醒，同时将提醒过的内容写入缓存，缓存有效期20小时，避免重复提醒
     /// </summary>
     public void CheckInWarning()
     {
@@ -377,7 +380,7 @@ public class HangFireHelper(
                                                DateTime.Parse(day.ClockInTime).ToString("HH:mm:ss") + "\n";
                                 Cache.Set(cacheKey, true, new MemoryCacheEntryOptions
                                 {
-                                    AbsoluteExpiration = DateTime.Today.AddDays(1).AddSeconds(-1)
+                                    AbsoluteExpiration = DateTime.Today.AddDays(1).AddHours(-4)
                                 });
                                 break;
                             // case "1" when day.ClockInStatus != 999:
@@ -404,6 +407,7 @@ public class HangFireHelper(
 
     /// <summary>
     /// 同步禅道任务
+    /// 每30分钟一次，获取禅道token,并从禅道任务列表读取我的任务，通过获取到的我的任务列表中的projectid字段，通过禅道项目名循环查询接口获取每条任务的所属项目编码，并将处理完成的任务插入进本地禅道任务表，该任务具有幂等性。
     /// </summary>
     public void SynchronizationZentaoTask()
     {
@@ -412,6 +416,10 @@ public class HangFireHelper(
 
     /// <summary>
     /// 执行禅道完成任务、日报、周报发送
+    /// 每40分钟一次，获取到当日工时大于0以后，查询当日是否已发送日报，如未发送，则执行禅道完成任务接口，登记工时时，会根据当日总工时，分摊至当日所有禅道工单内，每条工单被分配的工时不会超过预估工时上限，禅道处理完成后会进行推送通知，
+    /// 同时继续执行日报发送工作，判断当日禅道工单数量大于0且工单状态都已处于"done"完成状态，则发送日报；日报发送成功后会进行推送通知；
+    /// 判断当日的后一天是否为休息日，如果是休息日，则判断本周是否已发送周报，如果周报未发送，则发送周报，周报总结会使用DeepSeek结合本周所有工作内容进行生成，发送成功后会进行推送通知。
+    /// 该任务具有幂等性
     /// </summary>
     public void ExecuteAllWork()
     {
@@ -420,12 +428,13 @@ public class HangFireHelper(
 
     /// <summary>
     /// 自动提交加班申请
+    /// 每30分钟一次，每日13：30至17：30内执行，如果当时不为休息日，且加班记录表内没有当时加班信息，则通过查询禅道任务表，并按照剩余工时倒序排列第一次条，按照该条任务内容，通过deepseek生成加班事由提交加班申请；申请成功后会进行推送通知
     /// </summary>
     public void CommitOvertimeWork()
     {
         try
         {
-            var workStart = new TimeSpan(8, 30, 0); // 08:30
+            var workStart = new TimeSpan(13, 30, 0); // 08:30
             var workEnd = new TimeSpan(17, 30, 0); // 17:30
             if (DateTime.Now.TimeOfDay < workStart || DateTime.Now.TimeOfDay > workEnd) return;
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
@@ -509,6 +518,7 @@ public class HangFireHelper(
 
     /// <summary>
     /// 禅道衡量目标、计划完成成果、实际从事工作与成果信息补全
+    /// 查询已同步的禅道工单，如存在衡量目标、计划完成成果、实际从事工作与成果字段为空的数据，则根据任务内容，通过deepseek生成补全信息，进行补全。补全后会在提交日报时使用，补全完成后会进行推送通知
     /// </summary>
     public void TaskDescriptionComplete()
     {
@@ -553,6 +563,7 @@ public class HangFireHelper(
 
     /// <summary>
     /// DeepSeek余额预警
+    /// 每2小时一次，调用deepseek余额查询接口，如可用余额低于1元则进行推送通知
     /// </summary>
     public void DeepSeekBalance()
     {
