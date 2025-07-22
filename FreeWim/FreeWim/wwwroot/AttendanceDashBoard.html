@@ -1,93 +1,705 @@
-<!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
+
 <head>
-    <meta charset="UTF-8"/>
-    <title>个人考勤打卡趋势看板</title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5"></script>
-    <style>
-        body {
-            font-family: "Microsoft YaHei", sans-serif;
-            margin: 0;
-            padding: 20px 260px;
-            background-color: #f5f7fa;
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>考勤数据总览</title>
+    <script src="reload.js"></script>
+    <script src="tailwindcss.js"></script>
+    <link href="all.min.css" rel="stylesheet"/>
+    <script src="echarts.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#165DFF',
+                        secondary: '#36CFC9',
+                        success: '#52C41A',
+                        warning: '#FAAD14',
+                        danger: '#FF4D4F',
+                        info: '#8C8C8C',
+                        light: '#F5F5F5',
+                        dark: '#1D2129'
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        };
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+
+            .card-shadow {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            }
+
+            .card-hover {
+                transition: all 0.3s ease;
+            }
+
+            .card-hover:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            }
+
+            .gradient-bg {
+                background: linear-gradient(135deg, #165DFF 0%, #36CFC9 100%);
+            }
         }
 
-        h1 {
-            text-align: center;
-            margin-bottom: 30px;
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
         }
 
-        .dashboard {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            grid-auto-rows: minmax(360px, auto);
-            gap: 20px;
-            padding: 0 10px;
+        .toast {
+            background-color: #4caf50; /* 成功提示绿色 */
+            color: white;
+            padding: 10px 16px;
+            margin-top: 10px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            font-size: 14px;
+            animation: fadein 0.3s, fadeout 0.3s 2.5s;
         }
 
-        .full-width {
-            grid-column: span 2;
+        @keyframes fadein {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
-        .card {
-            background-color: #fff;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-        }
-
-        .chart {
-            width: 100%;
-            height: 100%;
-        }
-
-        .card.full-width {
-            display: flex;
-            justify-content: center;
-            height: 200px;
-        }
-
-        #punchHeatmap {
-            width: 100%;
-            max-width: 1000px;
-            height: 200px;
-            font-family: 'Arial', 'Helvetica', sans-serif;
+        @keyframes fadeout {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
         }
     </style>
 </head>
-<body>
 
-<h1>📊 个人考勤打卡趋势看板</h1>
+<body class="bg-gray-50 font-inter text-dark">
+<!-- 顶部导航栏 -->
+<header class="bg-white shadow-sm sticky top-0 z-50">
+    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+            <i class="fas fa-clock text-primary text-2xl"> </i>
+            <h1 class="text-xl font-bold text-gray-800">考勤数据总览</h1>
+        </div>
+    </div>
+</header>
+<!-- 主要内容区域 -->
+<main class="container mx-auto px-4 py-6">
+    <!-- 统计卡片区域 -->
+    <section class="mb-8">
+        <div id="toast-container"></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- 本月工时卡片 -->
+            <!-- 本月工时卡片 -->
+            <div class="bg-white rounded-xl p-6 card-shadow card-hover">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium">本月累计工时</p>
+                        <h3 class="text-3xl font-bold mt-1">
+                            <span id="this-month-hours">--</span>
+                            <span class="text-sm font-normal text-gray-500"> 小时 </span>
+                        </h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full gradient-bg flex items-center justify-center text-white">
+                        <i class="fas fa-clock text-xl"> </i>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                        <span id="this-vs-last" class="flex items-center text-sm">
+                            <i id="this-vs-last-icon" class="fas mr-1"> </i>
+                            <span id="this-vs-last-value">--%</span>
+                        </span>
+                    <span class="text-gray-500 text-sm ml-2"> 较上月 </span>
+                </div>
+            </div>
 
-<div class="dashboard">
-    <div class="card">
-        <div id="lineChart" class="chart"></div>
-    </div>
-    <div class="card">
-        <div id="barChart" class="chart"></div>
-    </div>
-    <div class="card">
-        <div id="checkInLine" class="chart"></div>
-    </div>
-    <div class="card">
-        <div id="checkOutLine" class="chart"></div>
-    </div>
-    <div class="card full-width">
-        <div id="punchHeatmap" class="chart"></div>
-    </div>
-</div>
+            <!-- 上月工时卡片 -->
+            <div class="bg-white rounded-xl p-6 card-shadow card-hover">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium">上月累计工时</p>
+                        <h3 class="text-3xl font-bold mt-1">
+                            <span id="last-month-hours">--</span>
+                            <span class="text-sm font-normal text-gray-500"> 小时 </span>
+                        </h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-primary">
+                        <i class="fas fa-history text-xl"> </i>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                        <span id="last-vs-before-last" class="flex items-center text-sm">
+                            <i id="last-vs-before-last-icon" class="fas mr-1"> </i>
+                            <span id="last-vs-before-last-value">--%</span>
+                        </span>
+                    <span class="text-gray-500 text-sm ml-2"> 较上上月 </span>
+                </div>
+            </div>
 
+
+            <!-- 平均工时卡片 -->
+            <div class="bg-white rounded-xl p-6 card-shadow card-hover">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium">日均工时</p>
+                        <h3 class="text-3xl font-bold mt-1">
+                            <span id="avgHours">--</span>
+                            <span class="text-sm font-normal text-gray-500"> 小时 </span>
+                        </h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-success">
+                        <i class="fas fa-calendar-check text-xl"> </i>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                        <span id="trendValue" class="text-success flex items-center text-sm">
+                            <i class="fas fa-arrow-up mr-1"> </i>
+                            <span id="trendHours">--</span>h
+                        </span>
+                    <span class="text-gray-500 text-sm ml-2"> 较上月平均 </span>
+                </div>
+            </div>
+            <!-- 打卡率卡片 -->
+            <div class="bg-white rounded-xl p-6 card-shadow card-hover">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium">本月加班率</p>
+                        <h3 class="text-3xl font-bold mt-1">
+                            <span id="currentCheckinRate">--</span>
+                            <span class="text-sm font-normal text-gray-500"> % </span>
+                        </h3>
+                    </div>
+                    <div
+                            class="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-purple-600">
+                        <i class="fas fa-check-circle text-xl"> </i>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                        <span id="checkinTrend" class="text-success flex items-center text-sm">
+                            <i class="fas fa-arrow-up mr-1"> </i>
+                            <span id="checkinTrendValue">--</span>%
+                        </span>
+                    <span class="text-gray-500 text-sm ml-2"> 较上月 </span>
+                </div>
+            </div>
+
+        </div>
+    </section>
+    <!-- 本月与上月累计工时趋势 -->
+    <section class="mb-8">
+        <div class="bg-white rounded-xl p-6 card-shadow">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-gray-800">
+                    本月与上月累计工时趋势
+                </h2>
+            </div>
+            <div class="h-[300px]" id="monthlyTrendChart"></div>
+        </div>
+    </section>
+    <!-- 近6个月工时总趋势和打卡时间趋势 -->
+    <section class="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- 近6个月工时总趋势 -->
+        <div class="bg-white rounded-xl p-6 card-shadow">
+            <h2 class="text-xl font-bold text-gray-800 mb-6">
+                近6个月工时总趋势
+            </h2>
+            <div class="h-[300px]" id="sixMonthsTrendChart"></div>
+        </div>
+        <!-- 打卡时间趋势 -->
+        <div class="bg-white rounded-xl p-6 card-shadow">
+            <h2 class="text-xl font-bold text-gray-800 mb-6">打卡时间趋势</h2>
+            <div class="h-[350px]" id="checkInOutTimeChart"></div>
+        </div>
+    </section>
+    <!-- 打卡热力图 -->
+    <section class="mb-8">
+        <div class="bg-white rounded-xl p-6 card-shadow">
+            <h2 class="text-xl font-bold text-gray-800 mb-6">近一年打卡热力图</h2>
+            <div class="h-[300px]" id="checkInHeatmap"></div>
+        </div>
+    </section>
+    <!-- 加班申请列表 -->
+    <section class="mt-8">
+        <div class="bg-white rounded-xl p-6 card-shadow">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-gray-800">加班申请记录</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead>
+                    <tr class="border-b border-gray-200">
+                        <th class="text-left py-3 px-4 font-semibold text-gray-700">
+                            日期
+                        </th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-700">
+                            所属项目
+                        </th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-700">
+                            开始时间
+                        </th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-700">
+                            结束时间
+                        </th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-700">
+                            时长
+                        </th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-700">
+                            状态
+                        </th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-700">
+                            操作
+                        </th>
+                    </tr>
+                    </thead>
+                    <tbody id="overtimeTbody">
+
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</main>
+<!-- 页脚 -->
+<footer class="bg-white border-t border-gray-200 mt-12 py-6">
+    <div class="container mx-auto px-4">
+        <div class="flex flex-col md:flex-row justify-between items-center">
+            <div class="text-gray-500 text-sm mb-4 md:mb-0">
+                © 2025 FreeWim. 保留所有权利.
+            </div>
+            <div class="flex space-x-6">
+            </div>
+        </div>
+    </div>
+</footer>
 <script>
-    async function fetchData() {
+    // 页面加载时初始化渲染
+    document.addEventListener('DOMContentLoaded', async function () {
         const res = await fetch('/api/AttendanceRecord/GetBoardData');
         const data = await res.json();
+        initHeaderData(data);
+        initMonthlyTrendChart(data.monthTrend);
+        initSixMonthsTrendChart(data.monthBar);
+        initCheckInOutTimeChart(data.checkIn, data.checkOut);
+        initCheckInHeatmap(data.punchHeatmap);
 
-        initLineChart(data.monthTrend);
-        initBarChart(data.monthBar);
-        initCheckInChart(data.checkIn);
-        initCheckOutChart(data.checkOut);
-        //initCompareChart(data.compare); // 新增同比环比图表
-        initPunchHeatmap(data.punchHeatmap);
+        initOvertimeRecord(data.overTimeRecord);
+        initOvertimeButtons();
+    });
+
+    function initOvertimeRecord(data) {
+        const tbody = document.getElementById('overtimeTbody');
+        let html = '';
+
+        data.forEach(item => {
+            let statusHtml = '';
+            let actionHtml = '';
+
+            // 根据状态渲染状态标签和操作按钮
+            switch (item.status) {
+                case '已申请':
+                    statusHtml = `<span class="px-2 py-1 bg-green-100 text-success rounded-full text-xs font-medium">已申请</span>`;
+                    actionHtml = `<span class="text-gray-400 text-sm"> - </span>`;
+                    break;
+                case '待申请':
+                    statusHtml = `<span class="px-2 py-1 bg-yellow-100 text-warning rounded-full text-xs font-medium">待申请</span>`;
+                    actionHtml = `<button class="px-3 py-1 bg-danger text-white rounded-full text-xs font-medium hover:bg-danger/90 transition-colors overtime-toggle-btn" data-status="0">取消申请</button>`;
+                    break;
+                case '未申请':
+                    statusHtml = `<span class="px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">未申请</span>`;
+
+                    if (item.date === new Date().toISOString().slice(0, 10)) {
+                        actionHtml = `<button class="px-3 py-1 bg-primary text-white rounded-full text-xs font-medium hover:bg-primary/90 transition-colors overtime-toggle-btn" data-status="1">恢复申请</button>`;
+                    } else {
+                        actionHtml = `<span class="text-gray-400 text-sm"> - </span>`;
+                    }
+                    break;
+                default:
+                    statusHtml = `<span class="px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">未知</span>`;
+                    actionHtml = `<span class="text-gray-400 text-sm"> - </span>`;
+            }
+
+            html += `
+            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              <td class="py-4 px-4 text-gray-800">${item.date}</td>
+              <td class="py-4 px-4 text-gray-800">${item.contractunit}</td>
+              <td class="py-4 px-4 text-gray-800">${item.start}</td>
+              <td class="py-4 px-4 text-gray-800">${item.end}</td>
+              <td class="py-4 px-4 text-gray-800">${item.duration}h</td>
+              <td class="py-4 px-4">${statusHtml}</td>
+              <td class="py-4 px-4">${actionHtml}</td>
+            </tr>
+          `;
+        });
+
+        tbody.innerHTML = html;
+
+        // 这里可以给取消申请按钮绑定事件，比如：
+        tbody.querySelectorAll('.cancel-overtime-btn').forEach(btn => {
+            btn.addEventListener('click', e => {
+                const id = e.target.getAttribute('data-id');
+                // 调用取消接口等
+                alert('取消申请，id=' + id);
+            });
+        });
+    }
+
+    function initHeaderData(data) {
+        // 设置本月工时
+        document.getElementById('this-month-hours').innerText = data.header.thismonth.toFixed(1);
+        // 设置上月工时
+        document.getElementById('last-month-hours').innerText = data.header.lastmonth.toFixed(1);
+
+        // 本月 vs 上月 百分比
+        const isUp1 = data.header.thisvslastpercent >= 0;
+        document.getElementById('this-vs-last').classList.add(isUp1 ? 'text-success' : 'text-danger');
+        document.getElementById('this-vs-last-icon').classList.add(isUp1 ? 'fa-arrow-up' : 'fa-arrow-down');
+        document.getElementById('this-vs-last-value').innerText = Math.abs(data.header.thisvslastpercent || 0).toFixed(1) + '%';
+
+        // 上月 vs 上上月 百分比
+        const isUp2 = data.header.lastvsbeforelastpercent >= 0;
+        document.getElementById('last-vs-before-last').classList.add(isUp2 ? 'text-success' : 'text-danger');
+        document.getElementById('last-vs-before-last-icon').classList.add(isUp2 ? 'fa-arrow-up' : 'fa-arrow-down');
+        document.getElementById('last-vs-before-last-value').innerText = Math.abs(data.header.lastvsbeforelastpercent || 0).toFixed(1) + '%';
+        //绑定日均工时
+        const avgHours = data.avgWorkHours.thismonth || 0;
+        const lastHours = data.avgWorkHours.lastmonth || 0;
+        const diff = avgHours - lastHours;
+
+        // 绑定日均工时
+        document.getElementById('avgHours').innerText = avgHours.toFixed(2);
+
+        // 设置变化值
+        const trendValue = document.getElementById('trendValue');
+        const trendIcon = trendValue.querySelector('i');
+        const trendHours = document.getElementById('trendHours');
+        trendHours.innerText = Math.abs(diff).toFixed(2);
+
+        if (diff >= 0) {
+            trendValue.classList.remove('text-danger');
+            trendValue.classList.add('text-success');
+            trendIcon.classList.remove('fa-arrow-down');
+            trendIcon.classList.add('fa-arrow-up');
+        } else {
+            trendValue.classList.remove('text-success');
+            trendValue.classList.add('text-danger');
+            trendIcon.classList.remove('fa-arrow-up');
+            trendIcon.classList.add('fa-arrow-down');
+        }
+        //加班率
+        const overCurrentRate = data.avgOverTime.thismonth || 0;
+        const overLastRate = data.avgOverTime.lastmonth || 0;
+        const overDiff = overCurrentRate - overLastRate;
+
+        // 绑定当前打卡率
+        document.getElementById('currentCheckinRate').innerText = overCurrentRate.toFixed(1);
+
+        // 绑定涨跌幅
+        const overtrendSpan = document.getElementById('checkinTrend');
+        const overtrendIcon = overtrendSpan.querySelector('i');
+        const overtrendValue = document.getElementById('checkinTrendValue');
+        overtrendValue.innerText = Math.abs(overDiff).toFixed(1);
+
+        if (overDiff >= 0) {
+            overtrendSpan.classList.remove('text-danger');
+            overtrendSpan.classList.add('text-success');
+            overtrendIcon.classList.remove('fa-arrow-down');
+            overtrendIcon.classList.add('fa-arrow-up');
+        } else {
+            overtrendSpan.classList.remove('text-success');
+            overtrendSpan.classList.add('text-danger');
+            overtrendIcon.classList.remove('fa-arrow-up');
+            overtrendIcon.classList.add('fa-arrow-down');
+        }
+    }
+
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        if (type === 'error') {
+            toast.style.backgroundColor = '#f44336'; // 红色
+        } else if (type === 'info') {
+            toast.style.backgroundColor = '#2196f3'; // 蓝色
+        }
+        toast.innerText = message;
+
+        const container = document.getElementById('toast-container');
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
+    }
+
+    // 初始化本月与上月累计工时趋势图表
+    function initMonthlyTrendChart(monthTrend) {
+        var chartDom = document.getElementById('monthlyTrendChart');
+        var myChart = echarts.init(chartDom);
+        var option = {
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: {
+                    type: 'shadow'
+                }
+            },
+            legend: {
+                data: ['本月工时', '上月工时'],
+                top: 0
+            },
+            grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '3%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: monthTrend.labels
+            },
+            yAxis: {
+                type: 'value',
+                name: '工时(小时)'
+            },
+            series: [{
+                name: '本月工时',
+                type: 'line',
+                data: monthTrend.thisMonth,
+                smooth: true,
+                symbol: 'circle',
+                symbolSize: 8,
+                lineStyle: {
+                    width: 3,
+                    color: '#36CFC9'
+                },
+                itemStyle: {
+                    color: '#36CFC9'
+                },
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{
+                        offset: 0,
+                        color: 'rgba(54, 207, 201, 0.3)'
+                    }, {
+                        offset: 1,
+                        color: 'rgba(54, 207, 201, 0)'
+                    }])
+                }
+            }, {
+                name: '上月工时',
+                type: 'line',
+                data: monthTrend.lastMonth,
+                smooth: true,
+                symbol: 'circle',
+                symbolSize: 8,
+                lineStyle: {
+                    width: 3,
+                    color: '#165DFF'
+                },
+                itemStyle: {
+                    color: '#165DFF'
+                },
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{
+                        offset: 0,
+                        color: 'rgba(22, 93, 255, 0.3)'
+                    }, {
+                        offset: 1,
+                        color: 'rgba(22, 93, 255, 0)'
+                    }])
+                }
+            }]
+        };
+        myChart.setOption(option);
+
+        // 响应窗口大小变化
+        window.addEventListener('resize', function () {
+            myChart.resize();
+        });
+    }
+
+    // 初始化近6个月工时总趋势图表
+    function initSixMonthsTrendChart(monthBar) {
+        var chartDom = document.getElementById('sixMonthsTrendChart');
+        var myChart = echarts.init(chartDom);
+        var option = {
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: {
+                    type: 'shadow'
+                }
+            },
+            legend: {data: ["总工时", "非工作时间工时"], top: 30},
+            grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '3%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: monthBar.months,
+                axisTick: {
+                    alignWithLabel: true
+                }
+            },
+            yAxis: {
+                type: 'value',
+                name: '工时(小时)'
+            },
+            series: [{
+                name: "总工时",
+                type: "line",
+                data: monthBar.totals,
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{
+                        offset: 0,
+                        color: 'rgba(22, 93, 255, 0.3)'
+                    }, {
+                        offset: 1,
+                        color: 'rgba(22, 93, 255, 0)'
+                    }])
+                },
+                lineStyle: {color: "#165DFF"},
+                symbol: "circle"
+            }, {
+                name: "非工作时间工时",
+                type: "line",
+                data: monthBar.overtimes,
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{
+                        offset: 0,
+                        color: 'rgba(54, 207, 201, 0.3)'
+                    }, {
+                        offset: 1,
+                        color: 'rgba(54, 207, 201, 0)'
+                    }])
+                },
+                lineStyle: {color: "#36CFC9"},
+                symbol: "triangle",
+                label: {
+                    show: true,
+                    position: "top",
+                    formatter: function (params) {
+                        const total = monthBar.totals[params.dataIndex];
+                        const overtime = params.data;
+                        const percent = total > 0 ? (overtime / total) * 100 : 0;
+                        return `${percent.toFixed(1)}%`;
+                    }
+                }
+            }]
+        };
+        myChart.setOption(option);
+
+        // 响应窗口大小变化
+        window.addEventListener('resize', function () {
+            myChart.resize();
+        });
+    }
+
+    // 初始化打卡时间趋势图表
+    function initCheckInOutTimeChart(checkIn, checkOut) {
+        var chartDom = document.getElementById('checkInOutTimeChart');
+        var myChart = echarts.init(chartDom);
+        var option = {
+            tooltip: {
+                trigger: 'axis',
+                formatter: function (params) {
+                    let result = params[0].axisValue + "<br/>";
+                    params.forEach(p => {
+                        const value = p.value[1]; // y轴值
+                        const hours = Math.floor(value);
+                        const minutes = Math.round((value - hours) * 60);
+                        const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                        result += `${p.marker} ${p.seriesName}：${timeStr}<br/>`;
+                    });
+                    return result;
+                }
+            },
+            legend: {
+                data: ['上班打卡', '下班打卡'],
+                top: 0
+            },
+            grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '15%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: checkIn.dates, // 使用真实的日期
+                axisLabel: {
+                    interval: 2,
+                    rotate: 30
+                }
+            },
+            yAxis: {
+                type: 'value',
+                min: 6,
+                max: 24,
+                interval: 3,
+                axisLabel: {
+                    formatter: function (value) {
+                        var hours = Math.floor(value);
+                        var minutes = Math.round((value - hours) * 60);
+                        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                    }
+                },
+                splitLine: {
+                    lineStyle: {
+                        type: 'dashed'
+                    }
+                }
+            },
+            series: [
+                {
+                    name: '上班打卡',
+                    type: 'line',
+                    data: checkIn.dates.map((date, i) => [date, timeToNumber(checkIn.times[i])]),
+                    showSymbol: true,
+                    symbolSize: 12,
+                    itemStyle: {
+                        color: '#165DFF'
+                    }
+                },
+                {
+                    name: '下班打卡',
+                    type: 'line',
+                    data: checkOut.dates.map((date, i) => [date, timeToNumber(checkOut.times[i])]),
+                    showSymbol: true,
+                    symbolSize: 12,
+                    itemStyle: {
+                        color: '#36CFC9'
+                    }
+                }
+            ]
+        };
+        myChart.setOption(option);
+
+        // 响应窗口大小变化
+        window.addEventListener('resize', function () {
+            myChart.resize();
+        });
     }
 
     function timeToNumber(timeStr) {
@@ -95,168 +707,120 @@
         return h + m / 60;
     }
 
-    function initLineChart(monthTrend) {
-        const chart = echarts.init(document.getElementById("lineChart"));
-        chart.setOption({
-            title: {text: "📈 本月 vs 上月 每日累计工时趋势", left: "center"},
-            tooltip: {trigger: "axis"},
-            legend: {data: ["上月", "本月"], top: 30},
-            xAxis: {type: "category", data: monthTrend.labels},
-            yAxis: {type: "value", name: "累计工时"},
-            series: [
-                {name: "上月", type: "line", smooth: true, data: monthTrend.lastMonth},
-                {name: "本月", type: "line", smooth: true, data: monthTrend.thisMonth}
-            ]
+    // 初始化加班申请按钮事件
+    function initOvertimeButtons() {
+        // 加班申请切换按钮
+        document.querySelectorAll('.overtime-toggle-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var status = this.getAttribute('data-status');
+                var tr = this.closest('tr');
+                var tds = tr.getElementsByTagName('td');
+                var data = {
+                    date: tds[0].textContent.trim(),
+                    contractunit: tds[1].textContent.trim(),
+                    start: tds[2].textContent.trim(),
+                    end: tds[3].textContent.trim(),
+                    duration: tds[4].textContent.trim(),
+                    status: tds[5].textContent.trim()
+                };
+                if (status === '0') {
+                    // 发送 POST 请求
+                    fetch('/api/AttendanceRecord/CancelOverTimeWork', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    })
+                        .then(response => {
+                            if (!response.ok) throw new Error('请求失败');
+                            return response.json();
+                        })
+                        .then(result => {
+                            showToast('取消自动申请成功');
+                            var statusElement = tr.querySelector('td:nth-child(6) span');
+                            this.textContent = '恢复申请';
+                            this.className = 'px-3 py-1 bg-primary text-white rounded-full text-xs font-medium hover:bg-primary/90 transition-colors overtime-toggle-btn';
+                            this.setAttribute('data-status', '1');
+                            statusElement.textContent = '未申请';
+                            statusElement.className = 'px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium';
+
+                            tds[1].innerText = '';
+                            tds[2].innerText = '';
+                            tds[3].innerText = '';
+                            tds[4].innerText = '0h';
+
+                        })
+                        .catch(error => {
+                            console.error('错误:', error);
+                        });
+                } else {
+                    fetch('/api/AttendanceRecord/RestoreOverTimeWork', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    })
+                        .then(response => {
+                            if (!response.ok) throw new Error('请求失败');
+                            return response.json();
+                        })
+                        .then(result => {
+                            showToast('恢复自动申请成功');
+                            var statusElement = tr.querySelector('td:nth-child(6) span');
+                            this.textContent = '取消申请';
+                            this.className = 'px-3 py-1 bg-danger text-white rounded-full text-xs font-medium hover:bg-danger/90 transition-colors overtime-toggle-btn';
+                            this.setAttribute('data-status', '0');
+                            statusElement.textContent = '待申请';
+                            statusElement.className = 'px-2 py-1 bg-yellow-100 text-warning rounded-full text-xs font-medium';
+
+                            tds[1].innerText = '待定';
+                            tds[2].innerText = result.overStartTime;
+                            tds[3].innerText = result.overEndTime;
+                            tds[4].innerText = result.totalHours;
+
+                        })
+                        .catch(error => {
+                            console.error('错误:', error);
+                        });
+                }
+
+                // if (status === '0') {
+                //     // 申请加班
+                //    
+                // } else {
+                //     // 取消加班申请
+                //     this.textContent = '自动申请';
+                //     this.className = 'px-3 py-1 bg-primary text-white rounded-full text-xs font-medium hover:bg-primary/90 transition-colors overtime-toggle-btn';
+                //     this.setAttribute('data-status', '0');
+                //     statusElement.textContent = '未申请';
+                //     statusElement.className = 'px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium';
+                // }
+            });
         });
+
+        // 取消加班申请按钮
+        // document.querySelectorAll('.cancel-overtime-btn').forEach(function (btn) {
+        //     btn.addEventListener('click', function () {
+        //         var row = this.closest('tr');
+        //         var statusElement = row.querySelector('td:nth-child(5) span');
+        //         var actionElement = row.querySelector('td:nth-child(6)');
+        //         statusElement.textContent = '已取消';
+        //         statusElement.className = 'px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium';
+        //         actionElement.innerHTML = "<span class=\"text-gray-400 text-sm\">-</span>";
+        //     });
+        // });
     }
 
-    function initBarChart(monthBar) {
-        const chart = echarts.init(document.getElementById("barChart"));
-        chart.setOption({
-            title: {text: "📈 近 6 个月总工时趋势", left: "center"},
-            tooltip: {trigger: "axis"},
-            legend: {data: ["总工时", "非工作时间工时"], top: 30},
-            grid: {left: "10%", right: "10%", bottom: "15%", top: "20%"},
-            xAxis: {type: "category", data: monthBar.months},
-            yAxis: {type: "value", name: "小时"},
-            series: [
-                {
-                    name: "总工时",
-                    type: "line",
-                    data: monthBar.totals,
-                    areaStyle: {color: "#5470C6", opacity: 0.4},
-                    lineStyle: {color: "#5470C6"},
-                    symbol: "circle"
-                },
-                {
-                    name: "非工作时间工时",
-                    type: "line",
-                    data: monthBar.overtimes,
-                    areaStyle: {color: "#91cc75", opacity: 0.4},
-                    lineStyle: {color: "#91cc75"},
-                    symbol: "triangle",
-                    label: {
-                        show: true,
-                        position: "top",
-                        formatter: function (params) {
-                            const total = monthBar.totals[params.dataIndex];
-                            const overtime = params.data;
-                            const percent = total > 0 ? (overtime / total) * 100 : 0;
-                            return `${percent.toFixed(1)}%`;
-                        }
-                    }
-                }
-            ]
-        });
-    }
-
-    function initCheckInChart(checkIn) {
-        const chart = echarts.init(document.getElementById("checkInLine"));
-        const times = checkIn.times.map(timeToNumber);
-        chart.setOption({
-            title: {text: "⏰ 上班打卡时间趋势", left: "center"},
-            tooltip: {
-                trigger: "axis",
-                formatter: function (params) {
-                    const hour = Math.floor(params[0].data);
-                    const minute = Math.round((params[0].data % 1) * 60);
-                    return `${params[0].axisValue}<br/>${params[0].seriesName}：${hour}:${minute.toString().padStart(2, '0')}`;
-                }
-            },
-            xAxis: {type: 'category', data: checkIn.dates},
-            yAxis: {
-                type: 'value',
-                name: '打卡时间（小时）',
-                min: 7.75,
-                max: 9,
-                interval: 0.25,
-                axisLabel: {
-                    formatter: function (value) {
-                        const hour = Math.floor(value);
-                        const minute = Math.round((value % 1) * 60);
-                        return `${hour}:${minute.toString().padStart(2, '0')}`;
-                    }
-                }
-            },
-            series: [
-                {
-                    data: times,
-                    type: 'line',
-                    name: '上班打卡',
-                    smooth: true,
-                    symbol: 'circle',
-                    itemStyle: {color: '#91cc75'},
-                    markLine: {
-                        data: [{yAxis: 8.25, name: '08:15参考线'}],
-                        label: {formatter: '08:15'},
-                        lineStyle: {type: 'dashed', color: 'blue'}
-                    }
-                }
-            ]
-        });
-    }
-
-    function initCheckOutChart(checkOut) {
-        const chart = echarts.init(document.getElementById("checkOutLine"));
-        const times = checkOut.times.map(timeToNumber);
-        chart.setOption({
-            title: {text: "⏰ 下班打卡时间趋势", left: "center"},
-            tooltip: {
-                trigger: "axis",
-                formatter: function (params) {
-                    const hour = Math.floor(params[0].data);
-                    const minute = Math.round((params[0].data % 1) * 60);
-                    return `${params[0].axisValue}<br/>${params[0].seriesName}：${hour}:${minute.toString().padStart(2, '0')}`;
-                }
-            },
-            xAxis: {type: 'category', data: checkOut.dates},
-            yAxis: {
-                type: 'value',
-                name: '打卡时间（小时）',
-                min: 17,
-                max: 22,
-                interval: 1,
-                axisLabel: {
-                    formatter: function (value) {
-                        const hour = Math.floor(value);
-                        const minute = Math.round((value % 1) * 60);
-                        return `${hour}:${minute.toString().padStart(2, '0')}`;
-                    }
-                }
-            },
-            series: [
-                {
-                    data: times,
-                    type: 'line',
-                    name: '下班打卡',
-                    smooth: true,
-                    symbol: 'circle',
-                    itemStyle: {color: '#fac858'},
-                    markLine: {
-                        data: [{yAxis: 18.5, name: '18:30参考线'}],
-                        label: {formatter: '18:30'},
-                        lineStyle: {type: 'dashed', color: 'blue'}
-                    }
-                }
-            ]
-        });
-    }
-
-
-    function getLastYearDateRange() {
-        const end = new Date();
-        const start = new Date();
-        start.setFullYear(end.getFullYear() - 1);
-        return [start.toISOString().split('T')[0], end.toISOString().split('T')[0]];
-    }
-
-    function initPunchHeatmap(data) {
-        const chart = echarts.init(document.getElementById("punchHeatmap"));
+    // 初始化打卡热力图
+    function initCheckInHeatmap(data) {
         const [startDate, endDate] = getLastYearDateRange();
-        chart.setOption({
+        const chartDom = document.getElementById('checkInHeatmap');
+        const myChart = echarts.init(chartDom);
+        const option = {
             title: {
                 top: 0,
-                text: '📅 打卡热力图 (近一年)',
                 left: 'center'
             },
             tooltip: {
@@ -266,19 +830,31 @@
                 }
             },
             visualMap: {
-                min: 2,
+                min: 0,
                 max: 13,
-                inRange: {
-                    color: ['#ebedf0', '#c6e48b', '#7bc96f', '#239a3b', '#196127']
+                calculable: true,
+                orient: 'horizontal',
+                left: 'center',
+                bottom: 0,
+                rippleEffect: {
+                    scale: 10,        // 动画波纹放大
+                    brushType: 'stroke'
                 },
-                show: false
+                itemStyle: {
+                    color: '#ff5722',    // 明亮橙红
+                    shadowBlur: 10,
+                    shadowColor: '#ff5722'
+                },
+                inRange: {
+                    color: ['#ebedf0', '#d6e685', '#c6e48b', '#8cc665', '#7bc96f', '#44a340', '#239a3b', '#196127']
+                }
             },
             calendar: {
                 range: [startDate, endDate],
-                cellSize: [16, 16],
+                cellSize: [25, 25],
                 orient: 'horizontal',
                 splitLine: {
-                    show: false,
+                    show: true,
                     lineStyle: {
                         color: '#e0e0e0',
                         width: 1
@@ -306,11 +882,23 @@
                 coordinateSystem: 'calendar',
                 data: data
             }
+        };
+
+        myChart.setOption(option);
+        window.addEventListener('resize', function () {
+            myChart.resize();
         });
     }
 
-    fetchData();
-</script>
+    function getLastYearDateRange() {
+        const end = new Date();
+        const start = new Date();
+        start.setFullYear(end.getFullYear() - 1);
+        return [start.toISOString().split('T')[0], end.toISOString().split('T')[0]];
+    }
 
+
+</script>
 </body>
+
 </html>

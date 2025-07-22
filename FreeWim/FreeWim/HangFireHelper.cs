@@ -434,6 +434,7 @@ public class HangFireHelper(
     {
         try
         {
+            var projectInfo = new ProjectInfo();
             var workStart = new TimeSpan(13, 30, 0); // 08:30
             var workEnd = new TimeSpan(17, 30, 0); // 17:30
             if (DateTime.Now.TimeOfDay < workStart || DateTime.Now.TimeOfDay > workEnd) return;
@@ -462,8 +463,17 @@ public class HangFireHelper(
 
             if (zentaoInfo?.project == null || zentaoInfo?.id == null || string.IsNullOrEmpty(zentaoInfo?.projectcode)) return;
             if (string.IsNullOrEmpty(zentaoInfo?.projectcode)) return;
-            var projectInfo = pmisHelper.GetProjectInfo(zentaoInfo?.projectcode);
-            if (string.IsNullOrEmpty(projectInfo.contract_id) || string.IsNullOrEmpty(projectInfo.contract_unit) || string.IsNullOrEmpty(projectInfo.project_name)) return;
+            if (zentaoInfo?.projectcode == "GIS-Product")
+                projectInfo = new ProjectInfo
+                {
+                    contract_id = "",
+                    contract_unit = "",
+                    project_name = "GIS外业管理系统"
+                };
+            else
+                projectInfo = pmisHelper.GetProjectInfo(zentaoInfo?.projectcode);
+
+            if (string.IsNullOrEmpty(projectInfo.project_name)) return;
             var chatOptions = new ChatOptions { Tools = [] };
             var chatHistory = new List<ChatMessage>
             {

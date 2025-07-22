@@ -227,7 +227,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
             { "order_no", orderNo },
             { "remark", "" },
             { "work_overtime_type$$text", "延时加班" },
-            { "work_type$$text", "项目开发/测试/设计" },
+            { "work_type$$text", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "产品开发/测试/设计" : "项目开发/测试/设计" },
             { "position$$text", "公司" },
             { "reason$$text", "上线支撑" },
             { "product_name", null } // 明确声明为 null
@@ -283,7 +283,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
             { "order_no", orderNo },
             { "remark", "" },
             { "work_overtime_type$$text", "延时加班" },
-            { "work_type$$text", "项目开发/测试/设计" },
+            { "work_type$$text", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "产品开发/测试/设计" : "项目开发/测试/设计" },
             { "position$$text", "公司" },
             { "reason$$text", "上线支撑" },
             { "product_name", null }, // null 明确声明
@@ -390,7 +390,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
             { "order_no", orderNo },
             { "remark", "" },
             { "work_overtime_type$$text", "延时加班" },
-            { "work_type$$text", "项目开发/测试/设计" },
+            { "work_type$$text", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "产品开发/测试/设计" : "项目开发/测试/设计" },
             { "position$$text", "公司" },
             { "reason$$text", "上线支撑" },
             { "id", id },

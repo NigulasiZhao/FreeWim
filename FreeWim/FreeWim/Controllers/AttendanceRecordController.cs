@@ -5,6 +5,7 @@ using FreeWim.Models;
 using FreeWim.Models.Attendance;
 using System.Data;
 using Dapper;
+using FreeWim.Models.PmisAndZentao;
 using Npgsql;
 
 namespace FreeWim.Controllers;
@@ -82,10 +83,50 @@ public class AttendanceRecordController : Controller
     }
 
     [Tags("考勤")]
+    [EndpointSummary("取消加班")]
+    [HttpPost]
+    public ActionResult CancelOverTimeWork([FromBody] CancelOverTimeWorkInput input)
+    {
+        var rowsCount = 0;
+        IDbConnection dbConnection = new NpgsqlConnection(_Configuration["Connection"]);
+        var cancelCount = dbConnection.Query<int>($@"SELECT COUNT(0) FROM public.overtimerecord WHERE work_date = '{DateTime.Now:yyyy-MM-dd}';").FirstOrDefault();
+        if (cancelCount == 0)
+            rowsCount = dbConnection.Execute($@"insert
+														into
+														public.overtimerecord
+													(id,
+														work_date,contract_unit)
+													values('{Guid.NewGuid()}', '{DateTime.Now:yyyy-MM-dd}','');");
+        dbConnection.Dispose();
+        return Json(new { rowsCount });
+    }
+
+    [Tags("考勤")]
+    [EndpointSummary("恢复自动加班")]
+    [HttpPost]
+    public ActionResult RestoreOverTimeWork([FromBody] CancelOverTimeWorkInput input)
+    {
+        var pmisInfo = _Configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        IDbConnection dbConnection = new NpgsqlConnection(_Configuration["Connection"]);
+        var rowsCount = dbConnection.Execute($@"DELETE FROM 
+														public.overtimerecord
+													WHERE work_date = '{DateTime.Now:yyyy-MM-dd}';");
+        dbConnection.Dispose();
+        return Json(new
+        {
+            rowsCount, pmisInfo.OverStartTime, pmisInfo.OverEndTime,
+            TotalHours = (DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime) - DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime))
+                .TotalHours
+                .ToString() + "h"
+        });
+    }
+
+    [Tags("考勤")]
     [EndpointSummary("获取考勤面板数据")]
     [HttpGet]
     public ActionResult GetBoardData()
     {
+        var pmisInfo = _Configuration.GetSection("PMISInfo").Get<PMISInfo>();
         IDbConnection _DbConnection = new NpgsqlConnection(_Configuration["Connection"]);
         var sqlThisMonth = @"
 							        SELECT
@@ -120,7 +161,7 @@ ORDER BY attendancedate";
         var result = _DbConnection.Query<(string Month, double TotalHours, double OvertimeHours)>(sql);
 
         var sqlCheckIn = @"SELECT
-    TO_CHAR(attendancedate::date, 'MM月DD日') AS DayLabel,
+    TO_CHAR(attendancedate::date, 'DD日') AS DayLabel,
     TO_CHAR(MIN(clockintime), 'HH24:MI') AS CheckInTime
 FROM attendancerecorddaydetail
 WHERE clockintype = '0'
@@ -133,7 +174,7 @@ ORDER BY attendancedate::date
 
         var sqlCheckOut = @"
         SELECT
-            TO_CHAR(attendancedate::date, 'MM月DD日') AS DayLabel,
+            TO_CHAR(attendancedate::date, 'DD日') AS DayLabel,
             TO_CHAR(MAX(clockintime), 'HH24:MI') AS CheckOutTime
         FROM attendancerecorddaydetail
         WHERE clockintype = '1'
@@ -159,8 +200,204 @@ ORDER BY attendancedate::date
 
         var punchHeatresult = _DbConnection.Query<(string Date, decimal Total)>(punchHeatsql);
         var punchHeatmap = punchHeatresult.Select(r => new object[] { r.Date, (double)r.Total }).ToList();
+
+        var sqlforHeader = @"SELECT
+    -- 本月总工时
+    (SELECT SUM(workhours)
+     FROM attendancerecordday
+     WHERE yearmonth = to_char(current_date, 'YYYY-MM')) AS this_month,
+
+    -- 上月总工时
+    (SELECT SUM(workhours)
+     FROM attendancerecordday
+     WHERE yearmonth = to_char(current_date - interval '1 month', 'YYYY-MM')) AS last_month,
+
+    -- 上上月总工时
+    (SELECT SUM(workhours)
+     FROM attendancerecordday
+     WHERE yearmonth = to_char(current_date - interval '2 month', 'YYYY-MM')) AS before_last_month,
+
+    -- 本月 vs 上月 百分比变化
+    CASE
+        WHEN (SELECT SUM(workhours)
+              FROM attendancerecordday
+              WHERE yearmonth = to_char(current_date - interval '1 month', 'YYYY-MM')) > 0
+        THEN ROUND(
+            (
+                (SELECT SUM(workhours)
+                 FROM attendancerecordday
+                 WHERE yearmonth = to_char(current_date, 'YYYY-MM'))
+                -
+                (SELECT SUM(workhours)
+                 FROM attendancerecordday
+                 WHERE yearmonth = to_char(current_date - interval '1 month', 'YYYY-MM'))
+            ) / 
+            (SELECT SUM(workhours)
+             FROM attendancerecordday
+             WHERE yearmonth = to_char(current_date - interval '1 month', 'YYYY-MM')) * 100, 2)
+        ELSE NULL
+    END AS this_vs_last_percent,
+
+    -- 上月 vs 上上月 百分比变化
+    CASE
+        WHEN (SELECT SUM(workhours)
+              FROM attendancerecordday
+              WHERE yearmonth = to_char(current_date - interval '2 month', 'YYYY-MM')) > 0
+        THEN ROUND(
+            (
+                (SELECT SUM(workhours)
+                 FROM attendancerecordday
+                 WHERE yearmonth = to_char(current_date - interval '1 month', 'YYYY-MM'))
+                -
+                (SELECT SUM(workhours)
+                 FROM attendancerecordday
+                 WHERE yearmonth = to_char(current_date - interval '2 month', 'YYYY-MM'))
+            ) /
+            (SELECT SUM(workhours)
+             FROM attendancerecordday
+             WHERE yearmonth = to_char(current_date - interval '2 month', 'YYYY-MM')) * 100, 2)
+        ELSE NULL
+    END AS last_vs_before_last_percent;
+";
+        var HeaderResult = _DbConnection.Query<(double thismonth, double lastmonth, double beforelastmonth, double thisvslastpercent, double lastvsbeforelastpercent)>(sqlforHeader);
+
+        var sqlforavgworkhours = @"select
+	round(this_avg.workhours / nullif(this_avg.days, 0), 2) as thisavghours,
+	round(last_avg.workhours / nullif(last_avg.days, 0), 2) as lastavghours,
+	ROUND(
+        case 
+            when last_avg.workhours is null or last_avg.days = 0 then null
+            else 
+                ((this_avg.workhours / nullif(this_avg.days, 0)) - (last_avg.workhours / nullif(last_avg.days, 0))) 
+                / nullif((last_avg.workhours / last_avg.days), 0) * 100
+        end, 
+    2) as improve_percent
+from
+	(
+	select
+		SUM(workhours) as workhours,
+		COUNT(distinct attendancedate::date) as days
+	from
+		attendancerecordday
+	where
+		yearmonth = to_char(current_date, 'YYYY-MM')
+		and workhours > 0
+) as this_avg,
+	(
+	select
+		SUM(workhours) as workhours,
+		COUNT(distinct attendancedate::date) as days
+	from
+		attendancerecordday
+	where
+		yearmonth = to_char(current_date - interval '1 month', 'YYYY-MM')
+			and workhours > 0
+) as last_avg;";
+        var avgworkhoursResult = _DbConnection.Query<(double thisavghours, double lastavghours, double improvepercent)>(sqlforavgworkhours);
+
+        var sqlforavgovertime = @"select
+	round(this_avg.overtimeday::numeric / nullif(this_avg.days, 0) * 100, 2) as thisavghours,
+	round(last_avg.overtimeday::numeric / nullif(last_avg.days, 0) * 100, 2) as lastavghours,
+	ROUND(
+        case 
+            when last_avg.overtimeday is null or last_avg.days = 0 then null
+            else 
+                ((this_avg.overtimeday::numeric / nullif(this_avg.days, 0)) - (last_avg.overtimeday::numeric / nullif(last_avg.days, 0))) 
+                / nullif((last_avg.overtimeday::numeric / last_avg.days), 0) * 100
+        end, 
+    2) as improve_percent
+from
+	(
+	select
+		sum(case when workhours >= 8.5 then 1 else 0 end) as overtimeday,
+		COUNT(distinct attendancedate::date) as days
+	from
+		attendancerecordday
+	where
+		yearmonth = to_char(current_date, 'YYYY-MM') and  to_char(attendancedate,'yyyy-MM-dd') <= to_char(now(),'yyyy-MM-dd') and checkinrule <> '休息'
+) as this_avg,
+	(
+	select
+		sum(case when workhours >= 8.5 then 1 else 0 end) as overtimeday,
+		COUNT(distinct attendancedate::date) as days
+	from
+		attendancerecordday
+	where
+		yearmonth = to_char(current_date - interval '1 month', 'YYYY-MM') and checkinrule <> '休息'
+) as last_avg;";
+        var avgovertimeResult = _DbConnection.Query<(double thisavghours, double lastavghours, double improvepercent)>(sqlforavgovertime);
+
+
+        var sqlforovertimerecord = @"select
+	id,
+	work_date as date,
+	contract_unit as contractunit,
+	coalesce ( to_char(plan_start_time , 'HH24:MI'),
+	'') as start,
+	coalesce (to_char(plan_end_time , 'HH24:MI') ,
+	'') as
+end,
+	coalesce ( plan_work_overtime_hour ,
+0) as duration,
+	case
+	when plan_start_time is null then '未申请'
+	else '已申请'
+end as status
+from
+	public.overtimerecord
+order by
+work_date desc
+limit 10;";
+        var overtimerecord = _DbConnection.Query<(string id, string date, string contractunit, string start, string end, string duration, string status)>(sqlforovertimerecord).ToList();
+        if (!overtimerecord.Exists(e => e.date == DateTime.Now.ToString("yyyy-MM-dd")))
+        {
+            overtimerecord.RemoveAt(overtimerecord.Count - 1);
+            overtimerecord.Add(
+                (
+                    Guid.NewGuid().ToString(),
+                    DateTime.Now.ToString("yyyy-MM-dd"),
+                    "待定",
+                    pmisInfo.OverStartTime,
+                    pmisInfo.OverEndTime,
+                    (DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime) - DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime)).TotalHours
+                    .ToString(),
+                    "待申请"
+                ));
+        }
+
+
         var endresult = new
         {
+            header = new
+            {
+                thismonth = HeaderResult.FirstOrDefault().thismonth,
+                lastmonth = HeaderResult.FirstOrDefault().lastmonth,
+                beforelastmonth = HeaderResult.FirstOrDefault().beforelastmonth,
+                thisvslastpercent = HeaderResult.FirstOrDefault().thisvslastpercent,
+                lastvsbeforelastpercent = HeaderResult.FirstOrDefault().lastvsbeforelastpercent
+            },
+            avgWorkHours = new
+            {
+                thismonth = avgworkhoursResult.FirstOrDefault().thisavghours,
+                lastmonth = avgworkhoursResult.FirstOrDefault().lastavghours,
+                beforelastmonth = avgworkhoursResult.FirstOrDefault().improvepercent
+            },
+            avgOverTime = new
+            {
+                thismonth = avgovertimeResult.FirstOrDefault().thisavghours,
+                lastmonth = avgovertimeResult.FirstOrDefault().lastavghours,
+                beforelastmonth = avgovertimeResult.FirstOrDefault().improvepercent
+            },
+            overTimeRecord = overtimerecord.Select(e => new
+            {
+                id = e.id,
+                date = e.date,
+                contractunit = e.contractunit,
+                start = e.start,
+                end = e.end,
+                duration = e.duration,
+                status = e.status
+            }).OrderByDescending(e => e.date).ToList(),
             monthTrend = new
             {
                 labels = thisMonthData.Select(d => $"{d.Day}日").ToList(),
