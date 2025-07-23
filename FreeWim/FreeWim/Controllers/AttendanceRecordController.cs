@@ -161,7 +161,7 @@ ORDER BY attendancedate";
         var result = _DbConnection.Query<(string Month, double TotalHours, double OvertimeHours)>(sql);
 
         var sqlCheckIn = @"SELECT
-    TO_CHAR(attendancedate::date, 'DD日') AS DayLabel,
+    TO_CHAR(attendancedate::date, 'MM.DD') AS DayLabel,
     TO_CHAR(MIN(clockintime), 'HH24:MI') AS CheckInTime
 FROM attendancerecorddaydetail
 WHERE clockintype = '0'
@@ -174,7 +174,7 @@ ORDER BY attendancedate::date
 
         var sqlCheckOut = @"
         SELECT
-            TO_CHAR(attendancedate::date, 'DD日') AS DayLabel,
+            TO_CHAR(attendancedate::date, 'MM.DD') AS DayLabel,
             TO_CHAR(MAX(clockintime), 'HH24:MI') AS CheckOutTime
         FROM attendancerecorddaydetail
         WHERE clockintype = '1'

@@ -56,6 +56,9 @@
         <Content Update="wwwroot\webfonts\fa-solid-900.woff2">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
+        <Content Update="wwwroot\favicon.ico">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
 
     <ItemGroup>

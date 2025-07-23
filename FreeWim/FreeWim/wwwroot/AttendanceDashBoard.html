@@ -650,7 +650,10 @@
                 data: checkIn.dates, // 使用真实的日期
                 axisLabel: {
                     interval: 2,
-                    rotate: 30
+                    rotate: 30,
+                    formatter: function (value) {
+                        return value.split('.')[1] + '日';
+                    }
                 }
             },
             yAxis: {
@@ -785,32 +788,8 @@
                             console.error('错误:', error);
                         });
                 }
-
-                // if (status === '0') {
-                //     // 申请加班
-                //    
-                // } else {
-                //     // 取消加班申请
-                //     this.textContent = '自动申请';
-                //     this.className = 'px-3 py-1 bg-primary text-white rounded-full text-xs font-medium hover:bg-primary/90 transition-colors overtime-toggle-btn';
-                //     this.setAttribute('data-status', '0');
-                //     statusElement.textContent = '未申请';
-                //     statusElement.className = 'px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium';
-                // }
             });
         });
-
-        // 取消加班申请按钮
-        // document.querySelectorAll('.cancel-overtime-btn').forEach(function (btn) {
-        //     btn.addEventListener('click', function () {
-        //         var row = this.closest('tr');
-        //         var statusElement = row.querySelector('td:nth-child(5) span');
-        //         var actionElement = row.querySelector('td:nth-child(6)');
-        //         statusElement.textContent = '已取消';
-        //         statusElement.className = 'px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium';
-        //         actionElement.innerHTML = "<span class=\"text-gray-400 text-sm\">-</span>";
-        //     });
-        // });
     }
 
     // 初始化打卡热力图
