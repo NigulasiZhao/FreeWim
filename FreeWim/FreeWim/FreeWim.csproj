@@ -4,7 +4,7 @@
         <TargetFramework>net9.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
-        <RootNamespace>SpeedTest_CN</RootNamespace>
+        <RootNamespace>FreeWim</RootNamespace>
         <UserSecretsId>f8c8cabd-cc7a-42b8-94ae-83a4c23a1895</UserSecretsId>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     </PropertyGroup>
