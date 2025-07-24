@@ -47,6 +47,7 @@ public class HangFireHelper(
         RecurringJob.AddOrUpdate("自动加班申请", () => CommitOvertimeWork(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("禅道衡量目标、计划完成成果、实际从事工作与成果信息补全", () => TaskDescriptionComplete(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("DeepSeek余额预警", () => DeepSeekBalance(), "0 0 */2 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("提交所有待处理实际加班申请", () => RealOverTime(), "0 0 9 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
     }
 
     private static readonly MemoryCache Cache = new(new MemoryCacheOptions());
@@ -147,8 +148,14 @@ public class HangFireHelper(
                     if (item.DetailList != null)
                         foreach (var daydetail in item.DetailList)
                             dbConnection.Execute($"""
-                                                  INSERT INTO public.attendancerecorddaydetail(id,recordid,clockintype,clockintime,attendancedate)
-                                                                                                          VALUES({daydetail.Id},{daydetail.RecordId},'{daydetail.ClockInType}',to_timestamp('{daydetail.ClockInTime}', 'yyyy-mm-dd hh24:mi:ss'),to_timestamp('{flagedate:yyyy-MM-dd 00:00:00}', 'yyyy-mm-dd hh24:mi:ss'));
+                                                      INSERT INTO public.attendancerecorddaydetail
+                                                          (id, recordid, clockintype, clockintime, attendancedate)
+                                                      VALUES
+                                                          ({daydetail.Id},
+                                                           {daydetail.RecordId},
+                                                           '{daydetail.ClockInType}',
+                                                           {(string.IsNullOrEmpty(daydetail.ClockInTime) ? "null" : $"to_timestamp('{daydetail.ClockInTime:yyyy-MM-dd HH:mm:ss}', 'yyyy-mm-dd hh24:mi:ss')")},
+                                                           to_timestamp('{flagedate:yyyy-MM-dd 00:00:00}', 'yyyy-mm-dd hh24:mi:ss'));
                                                   """);
                 }
 
@@ -600,5 +607,14 @@ public class HangFireHelper(
 
             if (!bool.Parse(json["is_available"].ToString()) || total_balance <= 1) pushMessageHelper.Push("余额提醒", pushMessage, PushMessageHelper.PushIcon.DeepSeek);
         }
+    }
+
+    /// <summary>
+    /// 实际加班任务处理
+    /// 每天9点一次，提交所有待处理实际加班，关闭超2天无效加班
+    /// </summary>
+    public void RealOverTime()
+    {
+        pmisHelper.RealOverTimeList();
     }
 }

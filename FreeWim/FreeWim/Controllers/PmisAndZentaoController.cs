@@ -6,6 +6,7 @@ using Microsoft.Extensions.AI;
 using Npgsql;
 using FreeWim.Common;
 using FreeWim.Models.PmisAndZentao;
+using Newtonsoft.Json.Linq;
 
 namespace FreeWim.Controllers;
 
@@ -249,5 +250,13 @@ public class PmisAndZentaoController(
             overtime
             //DayAvg = Math.Round(uniqueCommits / (double)commitDates, 2)
         });
+    }
+
+    [Tags("PMIS")]
+    [EndpointSummary("获取实际加班待处理列表")]
+    [HttpGet]
+    public string RealOverTimeList()
+    {
+        return pmisHelper.RealOverTimeList().ToString(Newtonsoft.Json.Formatting.Indented);
     }
 }
