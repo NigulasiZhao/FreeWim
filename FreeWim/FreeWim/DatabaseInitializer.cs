@@ -8,6 +8,7 @@ using Npgsql;
 using LibGit2Sharp;
 using System.IO;
 using FreeWim.Common;
+using FreeWim.Models.PmisAndZentao;
 
 namespace FreeWim;
 
@@ -24,6 +25,7 @@ public class DatabaseInitializer
 
     public void Initialize()
     {
+        var pmisInfo = _Configuration.GetSection("PMISInfo").Get<PMISInfo>();
         IDbConnection _dbConnection = new NpgsqlConnection(_Configuration["Connection"]);
         if (TableExists("speedrecord", _dbConnection))
         {
@@ -202,7 +204,7 @@ public class DatabaseInitializer
             var StartDate = DateTime.Parse("2023-07-01");
             while (StartDate < DateTime.Now)
             {
-                var response = client.GetAsync("http://122.225.71.14:10001/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + StartDate.ToString("yyyy-MM")).Result;
+                var response = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + StartDate.ToString("yyyy-MM")).Result;
                 var result = response.Content.ReadAsStringAsync().Result;
                 var ResultModel = JsonConvert.DeserializeObject<AttendanceResponse>(result);
                 if (ResultModel.Code == 200)
@@ -265,6 +267,18 @@ public class DatabaseInitializer
                         @$"INSERT INTO public.gogsrecord(id,commitsdate) VALUES('{commit.Id}',to_timestamp('{commit.Committer.When.ToString("yyyy-MM-dd HH:MM:ss")}', 'yyyy-mm-dd hh24:mi:ss'));";
                 if (!string.IsNullOrEmpty(dataSql)) _dbConnection.Execute(dataSql);
             }
+        }
+
+        if (TableExists("checkinwarning", _dbConnection))
+        {
+            var createTableSql = @"
+                                   CREATE TABLE public.checkinwarning (
+														id varchar(100) NULL,
+														name varchar(200) NULL,
+														clockintime timestamp NULL
+													);
+                                                ";
+            _dbConnection.Execute(createTableSql);
         }
 
         _dbConnection.Execute(@"do $$

@@ -6,10 +6,13 @@ using Dapper;
 using Newtonsoft.Json.Linq;
 using Npgsql;
 using FreeWim.Models.PmisAndZentao;
+using Microsoft.Extensions.AI;
+using Newtonsoft.Json;
+using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace FreeWim.Common;
 
-public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> logger, PushMessageHelper pushMessageHelper)
+public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> logger, PushMessageHelper pushMessageHelper, IChatClient chatClient)
 {
     /// <summary>
     /// 获取禅道token
@@ -104,7 +107,13 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
             }
 
             var updateRows = dbConnection.Execute(sql);
-            if (updateRows > 0) pushMessageHelper.Push("禅道", $"任务数据同步成功\n本次同步 {updateRows} 条任务", PushMessageHelper.PushIcon.Zentao);
+            if (updateRows > 0)
+            {
+                pushMessageHelper.Push("禅道", $"任务数据同步成功\n本次同步 {updateRows} 条任务", PushMessageHelper.PushIcon.Zentao);
+                //禅道衡量目标、计划完成成果、实际从事工作与成果信息补全
+                TaskDescriptionComplete();
+            }
+
             return true;
         }
         catch (Exception e)
@@ -230,5 +239,46 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// 禅道衡量目标、计划完成成果、实际从事工作与成果信息补全
+    /// </summary>
+    public void TaskDescriptionComplete()
+    {
+        try
+        {
+            var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+            IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            var taskList = dbConnection
+                .Query<(int id, string taskname, string taskdesc)>(
+                    "select id,taskname,taskdesc from public.zentaotask where to_char(eststarted,'yyyy-MM-dd') = to_char(now(),'yyyy-MM-dd') and (target is null or planfinishact is  null or realjob is  null)")
+                .ToList();
+            var chatOptions = new ChatOptions { Tools = [] };
+            foreach (var task in taskList)
+            {
+                var chatHistory = new List<ChatMessage>
+                {
+                    new(ChatRole.System, pmisInfo.DailyWorkPrompt),
+                    new(ChatRole.User, "任务内容：" + task.taskname + ":" + task.taskdesc)
+                };
+                var res = chatClient.GetResponseAsync(chatHistory, chatOptions).Result;
+                if (string.IsNullOrWhiteSpace(res?.Text)) return;
+                var taskContent = JsonConvert.DeserializeObject<dynamic>(res.Text.Replace("```json", "").Replace("```", "").Trim());
+                dbConnection.Execute($"UPDATE public.zentaotask SET target= '{taskContent.target}',planfinishact= '{taskContent.planFinishAct}',realjob= '{taskContent.realJob}' where id = {task.id}");
+
+                string target = taskContent.target.ToString();
+                string planFinishAct = taskContent.planFinishAct.ToString();
+                string realJob = taskContent.realJob.ToString();
+                var shortTarget = target.Length > 10 ? target.Substring(0, 10) + "..." : target;
+                var shortPlan = planFinishAct.Length > 10 ? planFinishAct.Substring(0, 10) + "..." : planFinishAct;
+                var shortReal = realJob.Length > 10 ? realJob.Substring(0, 10) + "..." : realJob;
+                pushMessageHelper.Push("禅道", $"任务信息已完善\n衡量目标:{shortTarget}\n计划完成成果:{shortPlan}\n实际从事工作与成果:{shortReal}", PushMessageHelper.PushIcon.Zentao);
+            }
+        }
+        catch (Exception e)
+        {
+            pushMessageHelper.Push("禅道任务异常", e.Message, PushMessageHelper.PushIcon.Alert);
+        }
     }
 }

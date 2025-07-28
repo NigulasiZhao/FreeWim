@@ -42,7 +42,7 @@ public class HangFireHelper(
         RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "5,35 * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("Keep数据同步", () => KeepRecord(), "0 0 */3 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("高危人员打卡预警", () => CheckInWarning(), "5,35 * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("同步禅道任务", () => SynchronizationZentaoTask(), "0 11,14,16 * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("同步禅道任务", () => SynchronizationZentaoTask(), "0 15,17,19 * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("执行禅道完成任务、日报、周报发送", () => ExecuteAllWork(), "0 0/40 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("自动加班申请", () => CommitOvertimeWork(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("禅道衡量目标、计划完成成果、实际从事工作与成果信息补全", () => TaskDescriptionComplete(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
@@ -50,7 +50,7 @@ public class HangFireHelper(
         RecurringJob.AddOrUpdate("提交所有待处理实际加班申请", () => RealOverTime(), "0 0 9 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
     }
 
-    private static readonly MemoryCache Cache = new(new MemoryCacheOptions());
+    //private static readonly MemoryCache Cache = new(new MemoryCacheOptions());
 
     public void SpeedTest()
     {
@@ -101,11 +101,12 @@ public class HangFireHelper(
         var signout = false;
         var pushMessage = "";
         var insertIdent = false;
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
         IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var client = new HttpClient();
         client.DefaultRequestHeaders.Add("Authorization", tokenService.GetTokenAsync());
         var startDate = DateTime.Now;
-        var response = client.GetAsync("http://122.225.71.14:10001/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.ToString("yyyy-MM")).Result;
+        var response = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.ToString("yyyy-MM")).Result;
         var result = response.Content.ReadAsStringAsync().Result;
         var resultModel = JsonConvert.DeserializeObject<AttendanceResponse>(result);
         if (resultModel is { Code: 200 })
@@ -160,7 +161,11 @@ public class HangFireHelper(
                 }
 
                 pushMessageHelper.Push("考勤", pushMessage, PushMessageHelper.PushIcon.Attendance);
-                if (signout) workFlowExecutor.ExecuteAll();
+                if (signout)
+                {
+                    workFlowExecutor.ExecuteAll();
+                    pmisHelper.RealOverTimeList();
+                }
             }
         }
 
@@ -294,6 +299,7 @@ public class HangFireHelper(
     /// </summary>
     public void CheckInWarning()
     {
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
         IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var lastDay = dbConnection.Query<string>($@"select
                                                                                                 	checkinrule
@@ -326,9 +332,9 @@ public class HangFireHelper(
             var startDate = DateTime.Now;
             foreach (var addressBookItem in addressBookList)
             {
-                var cacheKey = $"CheckInWarned:{addressBookItem.Id}:{DateTime.Today:yyyyMMdd}";
-                if (Cache.TryGetValue(cacheKey, out _)) continue;
-
+                var waringcount = dbConnection.Query<int>(
+                    $@"SELECT COUNT(0) FROM public.checkinwarning WHERE name = '{addressBookItem.Name}' AND TO_CHAR(clockintime,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}'").First();
+                if (waringcount > 0) continue;
                 var payload = new
                 {
                     iat = 1734922017,
@@ -371,7 +377,7 @@ public class HangFireHelper(
                 var jwt = $"{headerBase64}.{payloadBase64}.{fakeSignature}";
                 var client = new HttpClient();
                 client.DefaultRequestHeaders.Add("Authorization", jwt);
-                var response = client.GetAsync("http://122.225.71.14:10001/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.ToString("yyyy-MM")).Result;
+                var response = client.GetAsync(pmisInfo.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.ToString("yyyy-MM")).Result;
                 var result = response.Content.ReadAsStringAsync().Result;
                 var resultModel = JsonConvert.DeserializeObject<AttendanceResponse>(result);
                 if (resultModel is not { Code: 200 }) continue;
@@ -385,15 +391,8 @@ public class HangFireHelper(
                             case "0" when day.ClockInStatus == 1 && day.ClockInStatus != 999:
                                 pushMessage += listOfPersonnel.FirstOrDefault(e => e.RealName == addressBookItem.Name)?.FlowerName + "-上班时间:" +
                                                DateTime.Parse(day.ClockInTime).ToString("HH:mm:ss") + "\n";
-                                Cache.Set(cacheKey, true, new MemoryCacheEntryOptions
-                                {
-                                    AbsoluteExpiration = DateTime.Today.AddDays(1).AddHours(-4)
-                                });
+                                dbConnection.Execute($@"INSERT INTO public.checkinwarning(id,name,clockintime) VALUES('{Guid.NewGuid()}','{addressBookItem.Name}','{day.ClockInTime}')");
                                 break;
-                            // case "1" when day.ClockInStatus != 999:
-                            //     pushMessage += listOfPersonnel.FirstOrDefault(e => e.RealName == addressBookItem.Name)?.FlowerName + "-签退时间:" +
-                            //                    DateTime.Parse(day.ClockInTime).ToString("HH:mm:ss") + ";";
-                            //     break;
                         }
                 }
             }
@@ -435,7 +434,7 @@ public class HangFireHelper(
 
     /// <summary>
     /// 自动提交加班申请
-    /// 每30分钟一次，每日13：30至17：30内执行，如果当时不为休息日，且加班记录表内没有当时加班信息，则通过查询禅道任务表，并按照剩余工时倒序排列第一次条，按照该条任务内容，通过deepseek生成加班事由提交加班申请；申请成功后会进行推送通知
+    /// 每30分钟一次，每日13：30至20：30内执行，如果当时不为休息日，且加班记录表内没有当时加班信息，则通过查询禅道任务表，并按照剩余工时倒序排列第一次条，按照该条任务内容，通过deepseek生成加班事由提交加班申请；申请成功后会进行推送通知
     /// </summary>
     public void CommitOvertimeWork()
     {
@@ -443,13 +442,20 @@ public class HangFireHelper(
         {
             var projectInfo = new ProjectInfo();
             var workStart = new TimeSpan(13, 30, 0); // 08:30
-            var workEnd = new TimeSpan(17, 30, 0); // 17:30
+            var workEnd = new TimeSpan(20, 30, 0); // 20:30
             if (DateTime.Now.TimeOfDay < workStart || DateTime.Now.TimeOfDay > workEnd) return;
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
             IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            //判断休息日不提交加班
             var checkinrule = dbConnection.Query<string>($@"select checkinrule from public.attendancerecordday where to_char(attendancedate,'yyyy-MM-dd')  = to_char(now(),'yyyy-MM-dd')")
                 .FirstOrDefault();
             if (checkinrule == "休息") return;
+            //查询是否打卡上班
+            var clockinCount = dbConnection
+                .Query<int>($@"SELECT COUNT(0) FROM public.attendancerecorddaydetail WHERE clockintype= '0' AND TO_CHAR(clockintime,'yyyy-MM-dd') = to_char(now(),'yyyy-MM-dd')")
+                .FirstOrDefault();
+            if (clockinCount == 0) return;
+            //查询是否已提交加班申请
             var hasOvertime = dbConnection.Query<int>($@"select count(0) from  public.overtimerecord where work_date = '{DateTime.Now:yyyy-MM-dd}'").FirstOrDefault();
             if (hasOvertime != 0) return;
             var zentaoInfo = dbConnection.Query<dynamic>($@"select
@@ -535,47 +541,11 @@ public class HangFireHelper(
 
     /// <summary>
     /// 禅道衡量目标、计划完成成果、实际从事工作与成果信息补全
-    /// 查询已同步的禅道工单，如存在衡量目标、计划完成成果、实际从事工作与成果字段为空的数据，则根据任务内容，通过deepseek生成补全信息，进行补全。补全后会在提交日报时使用，补全完成后会进行推送通知
+    /// 每30分钟一次，查询已同步的禅道工单，如存在衡量目标、计划完成成果、实际从事工作与成果字段为空的数据，则根据任务内容，通过deepseek生成补全信息，进行补全。补全后会在提交日报时使用，补全完成后会进行推送通知
     /// </summary>
     public void TaskDescriptionComplete()
     {
-        try
-        {
-            var workStart = new TimeSpan(8, 30, 0); // 08:30
-            var workEnd = new TimeSpan(17, 30, 0); // 17:30
-            if (DateTime.Now.TimeOfDay < workStart || DateTime.Now.TimeOfDay > workEnd) return;
-            var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
-            IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
-            var taskList = dbConnection
-                .Query<(int id, string taskname, string taskdesc)>(
-                    "select id,taskname,taskdesc from public.zentaotask where to_char(eststarted,'yyyy-MM-dd') = to_char(now(),'yyyy-MM-dd') and (target is null or planfinishact is  null or realjob is  null)")
-                .ToList();
-            var chatOptions = new ChatOptions { Tools = [] };
-            foreach (var task in taskList)
-            {
-                var chatHistory = new List<ChatMessage>
-                {
-                    new(ChatRole.System, pmisInfo.DailyWorkPrompt),
-                    new(ChatRole.User, "任务内容：" + task.taskname + ":" + task.taskdesc)
-                };
-                var res = chatClient.GetResponseAsync(chatHistory, chatOptions).Result;
-                if (string.IsNullOrWhiteSpace(res?.Text)) return;
-                var taskContent = JsonConvert.DeserializeObject<dynamic>(res.Text.Replace("```json", "").Replace("```", "").Trim());
-                dbConnection.Execute($"UPDATE public.zentaotask SET target= '{taskContent.target}',planfinishact= '{taskContent.planFinishAct}',realjob= '{taskContent.realJob}' where id = {task.id}");
-
-                string target = taskContent.target.ToString();
-                string planFinishAct = taskContent.planFinishAct.ToString();
-                string realJob = taskContent.realJob.ToString();
-                var shortTarget = target.Length > 10 ? target.Substring(0, 10) + "..." : target;
-                var shortPlan = planFinishAct.Length > 10 ? planFinishAct.Substring(0, 10) + "..." : planFinishAct;
-                var shortReal = realJob.Length > 10 ? realJob.Substring(0, 10) + "..." : realJob;
-                pushMessageHelper.Push("禅道", $"任务信息已完善\n衡量目标:{shortTarget}\n计划完成成果:{shortPlan}\n实际从事工作与成果:{shortReal}", PushMessageHelper.PushIcon.Zentao);
-            }
-        }
-        catch (Exception e)
-        {
-            pushMessageHelper.Push("禅道任务异常", e.Message, PushMessageHelper.PushIcon.Alert);
-        }
+        zentaoHelper.TaskDescriptionComplete();
     }
 
     /// <summary>
