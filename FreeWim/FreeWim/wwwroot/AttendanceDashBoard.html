@@ -706,9 +706,18 @@
     }
 
     function timeToNumber(timeStr) {
+        if (!timeStr || typeof timeStr !== "string" || !timeStr.includes(":")) {
+            return null; // 或者 return 0，根据业务需要
+        }
+
         const [h, m] = timeStr.split(":").map(Number);
+        if (isNaN(h) || isNaN(m)) {
+            return null; // 避免 NaN 进入计算
+        }
+
         return h + m / 60;
     }
+
 
     // 初始化加班申请按钮事件
     function initOvertimeButtons() {

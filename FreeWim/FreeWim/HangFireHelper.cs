@@ -441,7 +441,7 @@ public class HangFireHelper(
         try
         {
             var projectInfo = new ProjectInfo();
-            var workStart = new TimeSpan(13, 30, 0); // 08:30
+            var workStart = new TimeSpan(13, 30, 0); // 13:30
             var workEnd = new TimeSpan(20, 30, 0); // 20:30
             if (DateTime.Now.TimeOfDay < workStart || DateTime.Now.TimeOfDay > workEnd) return;
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();

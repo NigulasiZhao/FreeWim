@@ -1,5 +1,6 @@
 ﻿using System.Data;
 using System.Globalization;
+using System.Text.Json;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.AI;
@@ -36,9 +37,9 @@ public class PmisAndZentaoController(
     [Tags("禅道")]
     [EndpointSummary("获取我的任务列表")]
     [HttpGet]
-    public List<ZentaoTaskItem> GetMyWorkTask()
+    public string GetMyWorkTask()
     {
-        return zentaoHelper.GetZentaoTask();
+        return zentaoHelper.GetZentaoTask().ToString();
     }
 
     [Tags("禅道")]

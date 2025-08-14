@@ -37,7 +37,7 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
     /// 获取禅道任务
     /// </summary>
     /// <returns></returns>
-    public List<ZentaoTaskItem> GetZentaoTask()
+    public JObject GetZentaoTask()
     {
         var zentaoInfo = configuration.GetSection("ZentaoInfo").Get<ZentaoInfo>();
         var zentaoToken = GetZentaoToken();
@@ -51,8 +51,10 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
         };
         var jsonDoc = JsonDocument.Parse(outer.data); // 内层是个 JSON 字符串
         var prettyJson = JsonSerializer.Serialize(jsonDoc.RootElement, options);
-        var zentaoTaskResult = JsonSerializer.Deserialize<ZentaoTaskResponse>(prettyJson);
-        return zentaoTaskResult.tasks;
+        var json = JObject.Parse(prettyJson);
+        return json;
+        //var zentaoTaskResult = JsonSerializer.Deserialize<ZentaoTaskResponse>(prettyJson);
+        //return zentaoTaskResult.tasks;
     }
 
     /// <summary>
@@ -63,54 +65,70 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
     {
         try
         {
-            var TaskList = GetZentaoTask();
-            var sql = string.Empty;
-            IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
-            foreach (var zentaoTaskItem in TaskList)
+            var taskObject = GetZentaoTask();
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            dbConnection.Open();
+
+            using var transaction = dbConnection.BeginTransaction();
+            var updateRows = 0;
+
+            if (!taskObject.TryGetValue("tasks", out var tasksToken) || tasksToken?.Type != JTokenType.Array)
             {
-                var projectCode = GetProjectCodeForProjectId(zentaoTaskItem.project.ToString());
-                sql += $@"insert
-                            	into
-                            	public.zentaotask
-                            (id,
-                            	project,
-                            	execution,
-                            	taskname,
-                            	estimate,
-                            	timeleft,
-                                eststarted,
-                                consumed,
-                                taskstatus,
-                            	deadline,
-                            	taskdesc,
-                            	openedby,
-                            	openeddate,
-                            	qiwangriqi,
-                            	executionname,
-                            	projectname,registerhours,projectcode)
-                            values({zentaoTaskItem.id},
-                            {zentaoTaskItem.project},
-                            {zentaoTaskItem.execution},
-                            '{zentaoTaskItem.name}',
-                            {zentaoTaskItem.estimate},
-                            {zentaoTaskItem.left},
-                            '{zentaoTaskItem.estStarted}',
-                             {zentaoTaskItem.consumed},
-                                   '{zentaoTaskItem.status}',
-                            '{zentaoTaskItem.deadline}',
-                            '{zentaoTaskItem.desc}',
-                            '{zentaoTaskItem.openedBy}',
-                            '{zentaoTaskItem.openedDate}',
-                            '{zentaoTaskItem.qiwangriqi}',
-                            '{zentaoTaskItem.executionName}',
-                            '{zentaoTaskItem.projectName}',0,'{projectCode}') ON CONFLICT (id) DO NOTHING;";
+                logger.LogWarning("Invalid or missing 'tasks' field");
+                return false;
             }
 
-            var updateRows = dbConnection.Execute(sql);
+            var dataArray = tasksToken as JArray;
+            if (dataArray == null || !dataArray.Any())
+            {
+                logger.LogWarning("'tasks' array is empty or invalid");
+                return false;
+            }
+
+            foreach (var zentaoTaskItem in dataArray)
+            {
+                var projectCode = GetProjectCodeForProjectId(zentaoTaskItem["project"]?.ToString());
+                var sql = @"
+                    INSERT INTO public.zentaotask (
+                        id, project, execution, taskname, estimate, timeleft, consumed, registerhours,
+                        taskstatus, eststarted, deadline, taskdesc, openedby, openeddate, qiwangriqi,
+                        executionname, projectname, projectcode
+                    ) VALUES (
+                        @id, @project, @execution, @taskname, @estimate, @timeleft, @consumed, @registerhours,
+                        @taskstatus, @eststarted, @deadline, @taskdesc, @openedby, @openeddate, @qiwangriqi,
+                        @executionname, @projectname, @projectcode
+                    ) ON CONFLICT (id) DO NOTHING;";
+
+                var parameters = new
+                {
+                    id = zentaoTaskItem["id"]?.ToObject<int>() ?? 0,
+                    project = zentaoTaskItem["project"]?.ToObject<int?>(),
+                    execution = zentaoTaskItem["execution"]?.ToObject<int?>(),
+                    taskname = zentaoTaskItem["name"]?.ToString(),
+                    // float8字段空值转0
+                    estimate = zentaoTaskItem["estimate"]?.ToObject<double?>() ?? 0,
+                    timeleft = zentaoTaskItem["left"]?.ToObject<double?>() ?? 0,
+                    consumed = zentaoTaskItem["consumed"]?.ToObject<double?>() ?? 0,
+                    registerhours = 0.0, // 固定值
+                    taskstatus = zentaoTaskItem["status"]?.ToString(),
+                    eststarted = zentaoTaskItem["estStarted"]?.ToObject<DateTime?>(),
+                    deadline = zentaoTaskItem["deadline"]?.ToObject<DateTime?>(),
+                    taskdesc = zentaoTaskItem["desc"]?.ToString(),
+                    openedby = zentaoTaskItem["openedBy"]?.ToString(),
+                    openeddate = zentaoTaskItem["openedDate"]?.ToObject<DateTime?>(),
+                    qiwangriqi = zentaoTaskItem["qiwangriqi"]?.ToObject<DateTime?>(),
+                    executionname = zentaoTaskItem["executionName"]?.ToString(),
+                    projectname = zentaoTaskItem["projectName"]?.ToString(),
+                    projectcode = projectCode
+                };
+
+                updateRows += dbConnection.Execute(sql, parameters, transaction);
+            }
+
+            transaction.Commit();
             if (updateRows > 0)
             {
                 pushMessageHelper.Push("禅道", $"任务数据同步成功\n本次同步 {updateRows} 条任务", PushMessageHelper.PushIcon.Zentao);
-                //禅道衡量目标、计划完成成果、实际从事工作与成果信息补全
                 TaskDescriptionComplete();
             }
 
@@ -198,8 +216,9 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
     {
         var result = new List<TaskItem>();
         IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
-        var registerhours = dbConnection.Query<float>($@"select sum(registerhours) from public.zentaotask where to_char(eststarted,'yyyy-MM-dd') = '{startDate:yyyy-MM-dd}'").First();
-        totalHours -= registerhours;
+        var registerhours = dbConnection.Query<float?>($@"select sum(registerhours) from public.zentaotask where to_char(eststarted,'yyyy-MM-dd') = '{startDate:yyyy-MM-dd}'").FirstOrDefault();
+        if (registerhours == null) return result;
+        totalHours -= registerhours.Value;
         var tasks = dbConnection
             .Query<TaskItem>($@"select id,timeleft from public.zentaotask where (taskstatus ='wait' or taskstatus = 'doing') and to_char(eststarted,'yyyy-MM-dd') = '{startDate:yyyy-MM-dd}'").ToList();
         var current = new DateTime(startDate.Year, startDate.Month, startDate.Day, 8, 30, 0);
