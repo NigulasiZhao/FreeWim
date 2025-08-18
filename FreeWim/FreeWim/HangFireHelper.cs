@@ -125,9 +125,11 @@ public class HangFireHelper(
                 foreach (var daydetail in resultModel.Data.DayVoList.Where(e => e.Day == DateTime.Today.Day))
                     if (daydetail.DetailList != null)
                         foreach (var daydetailitem in daydetail.DetailList)
-                            if (todayAttendanceList.Where(e => e.ClockInType == int.Parse(daydetailitem.ClockInType) && e.ClockInTime == DateTime.Parse(daydetailitem.ClockInTime)).Count() == 0)
+                            if (!todayAttendanceList.Any(e => e.ClockInType == int.Parse(daydetailitem.ClockInType) &&
+                                                              e.ClockInTime == (DateTime.TryParse(daydetailitem.ClockInTime, out var parsedDate) ? parsedDate : null)))
                             {
                                 insertIdent = true;
+                                if (string.IsNullOrEmpty(daydetailitem.ClockInTime)) continue;
                                 pushMessage = "数据已同步\n" + (int.Parse(daydetailitem.ClockInType) == 0 ? "签到时间:" : "签退时间:") + daydetailitem.ClockInTime;
                                 if (int.Parse(daydetailitem.ClockInType) == 1) signout = true;
                             }
@@ -160,7 +162,7 @@ public class HangFireHelper(
                                                   """);
                 }
 
-                pushMessageHelper.Push("考勤", pushMessage, PushMessageHelper.PushIcon.Attendance);
+                if (!string.IsNullOrEmpty(pushMessage)) pushMessageHelper.Push("考勤", pushMessage, PushMessageHelper.PushIcon.Attendance);
                 if (signout)
                 {
                     workFlowExecutor.ExecuteAll();

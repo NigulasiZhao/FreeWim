@@ -705,118 +705,114 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                         pushMessageHelper.Push("实际加班", result["work_date"]?.ToString() + " 加班时长不足1小时已作废\n", PushMessageHelper.PushIcon.OverTime);
                     }
                 }
-                else
-                {
-                    continue;
-                }
             }
-
-
-            //获取实际加班下一步处理人相关信息
-            var realApplyResponse = httpHelper.PostAsync(
-                pmisInfo.Url + $@"/hddev/form/formobjectdata/oa_work_overtime_real_apply:13/detail.json", new
-                {
-                    id = result["id"]?.ToString()
-                }, new Dictionary<string, string> { { "uniwater_utoken", tokenService.GetTokenAsync() } }).Result;
-            var realApplyResult = JObject.Parse(realApplyResponse.Content.ReadAsStringAsync().Result);
-            if (int.Parse(realApplyResult["Code"]?.ToString() ?? string.Empty) != 0 || realApplyResult["Message"]?.ToString().ToLower() != "ok") continue;
-            //获取$$formHtmlId参数信息
-            var historyResponse = httpHelper.GetAsync(
-                pmisInfo.Url + $@"/bpm/customize-api/instance/{obj["instance"]?["id"]?.ToString()}/history?formHtmlId={result["$$formHtmlId"]?.ToString()}&noSubformField=1",
-                new Dictionary<string, string> { { "uniwater_utoken", tokenService.GetTokenAsync() } }).Result;
-            if (!historyResponse.IsSuccessStatusCode) continue;
-            var historyjsonArray = JArray.Parse(historyResponse.Content.ReadAsStringAsync().Result);
-            var targetTaskId = realApplyResult["Response"]?["hddev_proc_task_code"]?.ToString();
-            string outFormId = null;
-            foreach (var historyitem in historyjsonArray)
+            else
             {
-                var taskId = historyitem["task"]?["id"]?.ToString();
-                if (!string.IsNullOrEmpty(taskId) && taskId.Contains(targetTaskId))
+                //获取实际加班下一步处理人相关信息
+                var realApplyResponse = httpHelper.PostAsync(
+                    pmisInfo.Url + $@"/hddev/form/formobjectdata/oa_work_overtime_real_apply:13/detail.json", new
+                    {
+                        id = result["id"]?.ToString()
+                    }, new Dictionary<string, string> { { "uniwater_utoken", tokenService.GetTokenAsync() } }).Result;
+                var realApplyResult = JObject.Parse(realApplyResponse.Content.ReadAsStringAsync().Result);
+                if (int.Parse(realApplyResult["Code"]?.ToString() ?? string.Empty) != 0 || realApplyResult["Message"]?.ToString().ToLower() != "ok") continue;
+                //获取$$formHtmlId参数信息
+                var historyResponse = httpHelper.GetAsync(
+                    pmisInfo.Url + $@"/bpm/customize-api/instance/{obj["instance"]?["id"]?.ToString()}/history?formHtmlId={result["$$formHtmlId"]?.ToString()}&noSubformField=1",
+                    new Dictionary<string, string> { { "uniwater_utoken", tokenService.GetTokenAsync() } }).Result;
+                if (!historyResponse.IsSuccessStatusCode) continue;
+                var historyjsonArray = JArray.Parse(historyResponse.Content.ReadAsStringAsync().Result);
+                var targetTaskId = realApplyResult["Response"]?["hddev_proc_task_code"]?.ToString();
+                string outFormId = null;
+                foreach (var historyitem in historyjsonArray)
                 {
-                    var initFormPropertyStr = historyitem["extensionProperties"]?["initFormProperty"]?.ToString();
-                    if (!string.IsNullOrEmpty(initFormPropertyStr))
-                        try
-                        {
-                            var initFormJson = JObject.Parse(initFormPropertyStr);
-                            outFormId = initFormJson["outFormId"]?.ToString();
-                        }
-                        catch (Exception ex)
-                        {
-                            continue;
-                        }
+                    var taskId = historyitem["task"]?["id"]?.ToString();
+                    if (!string.IsNullOrEmpty(taskId) && taskId.Contains(targetTaskId))
+                    {
+                        var initFormPropertyStr = historyitem["extensionProperties"]?["initFormProperty"]?.ToString();
+                        if (!string.IsNullOrEmpty(initFormPropertyStr))
+                            try
+                            {
+                                var initFormJson = JObject.Parse(initFormPropertyStr);
+                                outFormId = initFormJson["outFormId"]?.ToString();
+                            }
+                            catch (Exception ex)
+                            {
+                                continue;
+                            }
 
-                    break;
+                        break;
+                    }
                 }
-            }
 
-            //提交实际加班参数补全
-            result["$$formHtmlId"] = outFormId;
-            result["$$assignee"] = realApplyResult["Response"]?["approval_user_id"]?.ToString();
-            result["$$assignee_nm"] = realApplyResult["Response"]?["approval_user_id$$text"]?.ToString();
-            result["hddev_proc_task"] = realApplyResult["Response"]?["hddev_proc_task"]?.ToString();
-            result["hddev_proc_task_code"] = realApplyResult["Response"]?["hddev_proc_task_code"]?.ToString();
-            result["complete_id"] = pmisInfo.UserId;
-            result["complete_sn"] = pmisInfo.UserAccount;
-            result["complete_mobile"] = pmisInfo.UserMobile;
-            result["complete_nm"] = pmisInfo.UserName;
-            result["_automatic"] = JValue.CreateNull();
-            result["$$fieldMap"] = fieldMap;
+                //提交实际加班参数补全
+                result["$$formHtmlId"] = outFormId;
+                result["$$assignee"] = realApplyResult["Response"]?["approval_user_id"]?.ToString();
+                result["$$assignee_nm"] = realApplyResult["Response"]?["approval_user_id$$text"]?.ToString();
+                result["hddev_proc_task"] = realApplyResult["Response"]?["hddev_proc_task"]?.ToString();
+                result["hddev_proc_task_code"] = realApplyResult["Response"]?["hddev_proc_task_code"]?.ToString();
+                result["complete_id"] = pmisInfo.UserId;
+                result["complete_sn"] = pmisInfo.UserAccount;
+                result["complete_mobile"] = pmisInfo.UserMobile;
+                result["complete_nm"] = pmisInfo.UserName;
+                result["_automatic"] = JValue.CreateNull();
+                result["$$fieldMap"] = fieldMap;
 
-            //deepseek润色工作总结
-            var chatHistory = new List<ChatMessage>
-            {
-                new(ChatRole.System, "帮我根据计划加班事由生成一个实际加班理由，尽量不脱离原有语义进行重写，不要出现任何表述(实际加班理由：)，直接输出结果，字数控制在100字以内"),
-                new(ChatRole.User, "计划加班事由:" + result["subject_matter"])
-            };
-            var deepSeekRes = chatClient.GetResponseAsync(chatHistory, chatOptions).Result;
-            var deepSeekContent = deepSeekRes.Text;
-            if (string.IsNullOrEmpty(deepSeekContent)) continue;
-
-            result["_next_assignee"] = realApplyResult["Response"]?["approval_user_id"]?.ToString();
-            result["$$countersign"] = JValue.CreateNull();
-            result["approval_opinion"] = JValue.CreateNull();
-            result["is_production"] = JValue.CreateNull();
-            result["work_overtime_hour_sub"] = 0;
-            result["real_subject_matter"] = deepSeekContent;
-            result["is_pass"] = JValue.CreateNull();
-            result["realtime"] = overTimeHours;
-            result["child_groups_name"] = JValue.CreateNull();
-            result["end_time"] = overTimeResult["data"]?["endTime"]?.ToString();
-            result["pms_pushed_result"] = JValue.CreateNull();
-            result["product_name"] = JValue.CreateNull();
-            result["work_overtime_hour"] = overTimeHours;
-            result["start_time"] = overTimeResult["data"]?["startTime"]?.ToString();
-            result["hddev_business_key"] = result["business_key"];
-            result["start_time$$text"] = overTimeResult["data"]?["startTime"]?.ToString();
-            result["end_time$$text"] = overTimeResult["data"]?["endTime"]?.ToString();
-
-            var nextDeptTaskLimitResponse = httpHelper.GetAsync(
-                pmisInfo.Url + $@"/bpm/customize-api/task/{obj["task"]?["id"]?.ToString()}/getNextDeptTaskLimit?deptId=67", null,
-                new Dictionary<string, string> { { "uniwaterutoken", tokenService.GetTokenAsync() } }).Result;
-            var nextDeptTaskLimitResult = JObject.Parse(nextDeptTaskLimitResponse.Content.ReadAsStringAsync().Result);
-            if (int.Parse(nextDeptTaskLimitResult["Code"].ToString()) != 0 || nextDeptTaskLimitResult["Message"].ToString().ToLower() != "ok") continue;
-            var suspendedResponse = httpHelper.PostAsync(
-                pmisInfo.Url + $@"/bpm/customize-api/{obj["instance"]?["id"]?.ToString()}/suspended?taskId=", new
+                //deepseek润色工作总结
+                var chatHistory = new List<ChatMessage>
                 {
-                    suspended = false,
-                    message = "",
-                    filePath = "",
-                    tagId = "",
-                    comment = false,
-                    type = "",
-                    nextAssignee = "",
-                    bpmSuspendedReminder = (object)null
-                },
-                new Dictionary<string, string> { { "uniwaterutoken", tokenService.GetTokenAsync() } }).Result;
-            var suspendedResult = JObject.Parse(suspendedResponse.Content.ReadAsStringAsync().Result);
-            if (int.Parse(suspendedResult["Code"].ToString()) != 0 || suspendedResult["Message"].ToString().ToLower() != "ok") continue;
+                    new(ChatRole.System, "帮我根据计划加班事由生成一个实际加班理由，尽量不脱离原有语义进行重写，不要出现任何表述(实际加班理由：)，直接输出结果，字数控制在100字以内"),
+                    new(ChatRole.User, "计划加班事由:" + result["subject_matter"])
+                };
+                var deepSeekRes = chatClient.GetResponseAsync(chatHistory, chatOptions).Result;
+                var deepSeekContent = deepSeekRes.Text;
+                if (string.IsNullOrEmpty(deepSeekContent)) continue;
 
-            var completeResponse = httpHelper.PostAsyncStringBody(
-                pmisInfo.Url + $@"/bpm/customize-api/{obj["task"]?["id"]?.ToString()}/complete", result.ToString(Formatting.Indented),
-                new Dictionary<string, string> { { "uniwaterutoken", tokenService.GetTokenAsync() } }).Result;
-            var completeResult = JObject.Parse(completeResponse.Content.ReadAsStringAsync().Result);
-            if (int.Parse(completeResult["Code"].ToString()) != 0 || completeResult["Message"].ToString().ToLower() != "ok") continue;
-            dbConnection.Execute($@"update
+                result["_next_assignee"] = realApplyResult["Response"]?["approval_user_id"]?.ToString();
+                result["$$countersign"] = JValue.CreateNull();
+                result["approval_opinion"] = JValue.CreateNull();
+                result["is_production"] = JValue.CreateNull();
+                result["work_overtime_hour_sub"] = 0;
+                result["real_subject_matter"] = deepSeekContent;
+                result["is_pass"] = JValue.CreateNull();
+                result["realtime"] = overTimeHours;
+                result["child_groups_name"] = JValue.CreateNull();
+                result["end_time"] = overTimeResult["data"]?["endTime"]?.ToString();
+                result["pms_pushed_result"] = JValue.CreateNull();
+                result["product_name"] = JValue.CreateNull();
+                result["work_overtime_hour"] = overTimeHours;
+                result["start_time"] = overTimeResult["data"]?["startTime"]?.ToString();
+                result["hddev_business_key"] = result["business_key"];
+                result["start_time$$text"] = overTimeResult["data"]?["startTime"]?.ToString();
+                result["end_time$$text"] = overTimeResult["data"]?["endTime"]?.ToString();
+
+                var nextDeptTaskLimitResponse = httpHelper.GetAsync(
+                    pmisInfo.Url + $@"/bpm/customize-api/task/{obj["task"]?["id"]?.ToString()}/getNextDeptTaskLimit?deptId=67", null,
+                    new Dictionary<string, string> { { "uniwaterutoken", tokenService.GetTokenAsync() } }).Result;
+                var nextDeptTaskLimitResult = JObject.Parse(nextDeptTaskLimitResponse.Content.ReadAsStringAsync().Result);
+                if (int.Parse(nextDeptTaskLimitResult["Code"].ToString()) != 0 || nextDeptTaskLimitResult["Message"].ToString().ToLower() != "ok") continue;
+                var suspendedResponse = httpHelper.PostAsync(
+                    pmisInfo.Url + $@"/bpm/customize-api/{obj["instance"]?["id"]?.ToString()}/suspended?taskId=", new
+                    {
+                        suspended = false,
+                        message = "",
+                        filePath = "",
+                        tagId = "",
+                        comment = false,
+                        type = "",
+                        nextAssignee = "",
+                        bpmSuspendedReminder = (object)null
+                    },
+                    new Dictionary<string, string> { { "uniwaterutoken", tokenService.GetTokenAsync() } }).Result;
+                var suspendedResult = JObject.Parse(suspendedResponse.Content.ReadAsStringAsync().Result);
+                if (int.Parse(suspendedResult["Code"].ToString()) != 0 || suspendedResult["Message"].ToString().ToLower() != "ok") continue;
+
+                var completeResponse = httpHelper.PostAsyncStringBody(
+                    pmisInfo.Url + $@"/bpm/customize-api/{obj["task"]?["id"]?.ToString()}/complete", result.ToString(Formatting.Indented),
+                    new Dictionary<string, string> { { "uniwaterutoken", tokenService.GetTokenAsync() } }).Result;
+                var completeResult = JObject.Parse(completeResponse.Content.ReadAsStringAsync().Result);
+                if (int.Parse(completeResult["Code"].ToString()) != 0 || completeResult["Message"].ToString().ToLower() != "ok") continue;
+                dbConnection.Execute($@"update
                                         	public.overtimerecord
                                         set
                                         	real_start_time = '{overTimeResult["data"]?["startTime"]?.ToString()}',
@@ -824,8 +820,9 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                                         	real_work_overtime_hour = {overTimeHours}
                                         where
                                         	work_date = '{result["work_date"]?.ToString()}';");
-            pushMessageHelper.Push("实际加班", result["work_date"]?.ToString() + " 实际加班申请已提交\n加班时长：" + overTimeHours + " 小时", PushMessageHelper.PushIcon.OverTime);
-            results.Add(result);
+                pushMessageHelper.Push("实际加班", result["work_date"]?.ToString() + " 实际加班申请已提交\n加班时长：" + overTimeHours + " 小时", PushMessageHelper.PushIcon.OverTime);
+                results.Add(result);
+            }
         }
 
         return results;
