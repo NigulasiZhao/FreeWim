@@ -246,26 +246,29 @@ public class DatabaseInitializer
                                                 );
                                                 ";
             _dbConnection.Execute(createTableSql);
-            var directories = Directory.GetDirectories(AppDomain.CurrentDomain.BaseDirectory + "ProjectGit");
-            if (directories.Length > 0)
+            if (Directory.Exists(AppDomain.CurrentDomain.BaseDirectory + "ProjectGit"))
             {
-                var targetEmail = _Configuration["GogsEmail"];
-                var allCommits = new Dictionary<string, List<Commit>>();
-                foreach (var repoPath in directories)
+                var directories = Directory.GetDirectories(AppDomain.CurrentDomain.BaseDirectory + "ProjectGit");
+                if (directories.Length > 0)
                 {
-                    var folderName = Path.GetFileName(repoPath);
-                    if (Directory.Exists(repoPath + "/.git"))
-                        using (var repo = new Repository(repoPath))
-                        {
-                            foreach (var branch in repo.Branches) allCommits.Add(repoPath + branch.FriendlyName, branch.Commits.Where(commit => commit.Author.Email == targetEmail).ToList());
-                        }
-                }
+                    var targetEmail = _Configuration["GogsEmail"];
+                    var allCommits = new Dictionary<string, List<Commit>>();
+                    foreach (var repoPath in directories)
+                    {
+                        var folderName = Path.GetFileName(repoPath);
+                        if (Directory.Exists(repoPath + "/.git"))
+                            using (var repo = new Repository(repoPath))
+                            {
+                                foreach (var branch in repo.Branches) allCommits.Add(repoPath + branch.FriendlyName, branch.Commits.Where(commit => commit.Author.Email == targetEmail).ToList());
+                            }
+                    }
 
-                var uniqueCommits = new HashSet<Commit>(allCommits.SelectMany(kvp => kvp.Value));
-                foreach (var commit in uniqueCommits)
-                    dataSql +=
-                        @$"INSERT INTO public.gogsrecord(id,commitsdate) VALUES('{commit.Id}',to_timestamp('{commit.Committer.When.ToString("yyyy-MM-dd HH:MM:ss")}', 'yyyy-mm-dd hh24:mi:ss'));";
-                if (!string.IsNullOrEmpty(dataSql)) _dbConnection.Execute(dataSql);
+                    var uniqueCommits = new HashSet<Commit>(allCommits.SelectMany(kvp => kvp.Value));
+                    foreach (var commit in uniqueCommits)
+                        dataSql +=
+                            @$"INSERT INTO public.gogsrecord(id,commitsdate) VALUES('{commit.Id}',to_timestamp('{commit.Committer.When.ToString("yyyy-MM-dd HH:MM:ss")}', 'yyyy-mm-dd hh24:mi:ss'));";
+                    if (!string.IsNullOrEmpty(dataSql)) _dbConnection.Execute(dataSql);
+                }
             }
         }
 
