@@ -228,7 +228,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
             { "work_type$$text", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "产品开发/测试/设计" : "项目开发/测试/设计" },
             { "position$$text", "公司" },
             { "reason$$text", "上线支撑" },
-            { "product_name", null } // 明确声明为 null
+            { "product_name", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "GIS管网地理系统" : "" } // 明确声明为 null
         };
         var json = JsonConvert.SerializeObject(requestObject, Formatting.Indented);
         var postRespone = httpHelper.PostAsync(pmisInfo.Url + "/hddev/form/formobjectdata/oa_workovertime_plan_apply:7/insert.json", requestObject,
@@ -284,7 +284,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
             { "work_type$$text", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "产品开发/测试/设计" : "项目开发/测试/设计" },
             { "position$$text", "公司" },
             { "reason$$text", "上线支撑" },
-            { "product_name", null }, // null 明确声明
+            { "product_name", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "GIS管网地理系统" : "" }, // null 明确声明
             { "creator_gid", "67" },
             { "creator_gnm", "管网产品组" },
             { "creator_id", pmisInfo.UserId },
@@ -399,7 +399,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
             { "hddev_proc_status", processInfo["hddev_proc_status"] },
             { "hddev_proc_task_code", processInfo["hddev_proc_task_code"] },
             { "hddev_business_key", processInfo["hddev_business_key"] },
-            { "product_name", null }
+            { "product_name", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "GIS管网地理系统" : "" }
         };
         var json = JsonConvert.SerializeObject(requestObject, Formatting.Indented);
         var postRespone = httpHelper.PostAsync(pmisInfo.Url + "/hddev/form/formobjectdata/oa_workovertime_plan_apply:7/update.json", requestObject,
@@ -604,6 +604,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
     public JArray RealOverTimeList()
     {
         IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        var projectCode = string.Empty;
         var fieldMap = new JObject
         {
             ["_next_assignee"] = "下一步处理人员",
@@ -663,6 +664,10 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
             if (variables != null)
                 foreach (var prop in variables.Properties())
                     result[prop.Name] = prop.Value?["value"] ?? JValue.CreateNull();
+
+            if (!string.IsNullOrEmpty(result["id"]?.ToString()))
+                projectCode = dbConnection.Query<string>($@"select contract_id  from public.overtimerecord where orderid = '{result["id"]?.ToString()}';").FirstOrDefault();
+
             //获取当前加班申请的实际工时，如果实际加班时长不足1小时，则跳出处理
             var overTimeResponse = httpHelper.PostAsync(
                 pmisInfo.Url + $@"/hd-oa/api/oaWorkOvertime/getWorkOvertimeData", new
@@ -779,7 +784,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                 result["child_groups_name"] = JValue.CreateNull();
                 result["end_time"] = overTimeResult["data"]?["endTime"]?.ToString();
                 result["pms_pushed_result"] = JValue.CreateNull();
-                result["product_name"] = JValue.CreateNull();
+                result["product_name"] = string.IsNullOrEmpty(projectCode) ? "GIS管网地理系统" : "";
                 result["work_overtime_hour"] = overTimeHours;
                 result["start_time"] = overTimeResult["data"]?["startTime"]?.ToString();
                 result["hddev_business_key"] = result["business_key"];
