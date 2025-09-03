@@ -47,7 +47,7 @@ public class WorkFlowExecutor(
                     }
             }
 
-            var workStart = new TimeSpan(16, 30, 0); // 16:30
+            var workStart = new TimeSpan(17, 30, 0); // 16:30
             if (DateTime.Now.TimeOfDay < workStart) return;
             //验证是否发周报
             var lastDay = dbConnection.Query<string>($@"select
