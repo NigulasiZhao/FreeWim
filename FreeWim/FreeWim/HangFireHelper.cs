@@ -206,7 +206,7 @@ public class HangFireHelper(
                 if (logitem.stats == null) continue;
                 dbConnection.Execute($@"delete from public.eventinfo where source = :source and distinguishingmark=:distinguishingmark",
                     new { source = "keep", distinguishingmark = logitem.stats.id });
-                if (logitem.stats.type != "training")
+                if (logitem.stats.type != "training" || !logitem.stats.type.Contains("自由骑行"))
                 {
                     // 转换为TimeSpan 
                     var span = TimeSpan.FromMilliseconds(Math.Abs(logitem.stats.endTime - logitem.stats.startTime));
