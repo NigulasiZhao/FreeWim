@@ -8,7 +8,6 @@ using System.Text;
 using Hangfire;
 using Hangfire.Storage;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json.Linq;
 using FreeWim.Common;
 using FreeWim.Models.PmisAndZentao;
@@ -18,7 +17,6 @@ namespace FreeWim;
 public class HangFireHelper(
     IConfiguration configuration,
     PushMessageHelper pushMessageHelper,
-    AttendanceHelper attendanceHelper,
     PmisHelper pmisHelper,
     ZentaoHelper zentaoHelper,
     TokenService tokenService,
@@ -379,7 +377,7 @@ public class HangFireHelper(
                 var jwt = $"{headerBase64}.{payloadBase64}.{fakeSignature}";
                 var client = new HttpClient();
                 client.DefaultRequestHeaders.Add("Authorization", jwt);
-                var response = client.GetAsync(pmisInfo.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.ToString("yyyy-MM")).Result;
+                var response = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.ToString("yyyy-MM")).Result;
                 var result = response.Content.ReadAsStringAsync().Result;
                 var resultModel = JsonConvert.DeserializeObject<AttendanceResponse>(result);
                 if (resultModel is not { Code: 200 }) continue;
@@ -488,12 +486,17 @@ public class HangFireHelper(
             else
                 projectInfo = pmisHelper.GetProjectInfo(zentaoInfo?.projectcode);
 
-            if (string.IsNullOrEmpty(projectInfo.project_name)) return;
+            if (string.IsNullOrEmpty(projectInfo.project_name))
+            {
+                pushMessageHelper.Push("加班申请失败", "未在PMIS系统中查询到项目信息", PushMessageHelper.PushIcon.Alert);
+                return;
+            }
+
             var chatOptions = new ChatOptions { Tools = [] };
             var chatHistory = new List<ChatMessage>
             {
-                new(ChatRole.System, pmisInfo.DailyPrompt),
-                new(ChatRole.User, "加班内容：" + zentaoInfo.taskname + ":" + zentaoInfo.taskdesc)
+                new(ChatRole.System, pmisInfo!.DailyPrompt),
+                new(ChatRole.User, "加班内容：" + zentaoInfo!.taskname + ":" + zentaoInfo.taskdesc)
             };
             var res = chatClient.GetResponseAsync(chatHistory, chatOptions).Result;
             if (string.IsNullOrWhiteSpace(res?.Text)) return;

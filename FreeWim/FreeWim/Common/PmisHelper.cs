@@ -175,7 +175,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
             .Result;
         var projectJson = JObject.Parse(postRespone.Content.ReadAsStringAsync().Result);
         if (projectJson["Response"] != null)
-            if (projectJson["Response"]?["rows"] is JArray dataArray)
+            if (projectJson["Response"]?["rows"] is JArray { Count: > 0 } dataArray)
             {
                 var jToken = dataArray.First();
                 projectInfo.contract_id = jToken["contract_id"]!.ToString();
