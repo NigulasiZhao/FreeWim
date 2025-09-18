@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+<head>
+    <meta charset="UTF-8">
+    <title>freewim</title>
+    <link href="mermaid.min.css" rel="stylesheet"/>
+    <script src="gridjs.umd.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f5f6fa;
+            color: #333;
+        }
+
+        h2 {
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #222;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .link {
+            color: #007bff;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .date-filter {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .date-filter input[type="date"] {
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .date-filter button {
+            padding: 6px 15px;
+            border: none;
+            border-radius: 6px;
+            background-color: #007bff;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .date-filter button:hover {
+            background-color: #0056b3;
+        }
+
+        #detail-wrapper {
+            margin-top: 20px;
+        }
+
+        /* gridjs 样式微调 */
+        .gridjs-table {
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .gridjs-th,
+        .gridjs-td {
+            padding: 10px 12px;
+            font-size: 14px;
+        }
+
+        .gridjs-th {
+            background-color: #f1f3f5;
+            font-weight: 600;
+        }
+
+        .modern-date {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            background-color: #fff;
+            position: relative;
+            min-width: 110px;
+        }
+
+        /* 整个框可点击，右侧小图标居中 */
+        .modern-date::-webkit-calendar-picker-indicator {
+            position: absolute;
+            right: 8px;
+            color: transparent;
+            background: url('data:image/svg+xml;utf8,<svg fill="gray" height="16" viewBox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-1.99.9-1.99 2L3 20c0 1.1.89 2 1.99 2H19c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg>') no-repeat center;
+            width: 24px;
+            height: 24px;
+        }
+
+        .modern-date:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, .2);
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 16px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-radius: 6px 6px 0 0;
+            margin-right: 4px;
+            background: #f9f9f9;
+            transition: background 0.2s;
+        }
+
+        .tab:hover {
+            background: #eee;
+        }
+
+        .tab.active {
+            border: 1px solid #ddd;
+            border-bottom: 2px solid #fff;
+            background: #fff;
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .link {
+            color: #007bff;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- Tabs -->
+<div class="tabs">
+    <div class="tab active" onclick="switchTab('daily')">日报</div>
+    <div class="tab" onclick="switchTab('weekly')">周报</div>
+</div>
+
+<!-- 日报内容 -->
+<div id="tab-daily" class="tab-content active">
+    <div class="card">
+        <div class="date-filter">
+            <label>开始日期：
+                <input type="date" id="startDate" class="modern-date">
+            </label>
+            <label>结束日期：
+                <input type="date" id="endDate" class="modern-date">
+            </label>
+            <button onclick="onDateFilter()">查询</button>
+        </div>
+        <div id="main-table"></div>
+    </div>
+    <div class="card" id="detail-table"></div>
+</div>
+
+<!-- 周报内容 -->
+<div id="tab-weekly" class="tab-content">
+    <div class="card">
+        <div class="date-filter">
+            <label>开始日期：
+                <input type="date" id="weekstartDate" class="modern-date">
+            </label>
+            <label>结束日期：
+                <input type="date" id="weekendDate" class="modern-date">
+            </label>
+            <button onclick="weekonDateFilter()">查询</button>
+        </div>
+        <div id="weekmain-table"></div>
+    </div>
+    <div class="card" id="weekdetail-table"></div>
+</div>
+<!-- <h2>主表：日报统计</h2> -->
+
+
+<script>
+    let MainGrid = null;
+    let detailGrid = null;
+
+    let weekMainGrid = null;
+    let weekdetailGrid = null;
+
+    // 获取最近 N 天日期
+    function getRecentDates(n) {
+        const dates = [];
+        const today = new Date();
+        for (let i = 0; i < n; i++) {
+            const d = new Date(today);
+            d.setDate(today.getDate() - i);
+            dates.push(d.toISOString().split("T")[0]);
+        }
+        dates.reverse();
+        document.getElementById('startDate').value = dates[0];
+        document.getElementById('endDate').value = dates[dates.length - 1];
+        document.getElementById('weekstartDate').value = dates[0];
+        document.getElementById('weekendDate').value = dates[dates.length - 1];
+        return dates.reverse();
+    }
+
+    // Tab 切换
+    function switchTab(tab) {
+        document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+
+        if (tab === 'daily') {
+            document.querySelector('.tab:nth-child(1)').classList.add('active');
+            document.getElementById('tab-daily').classList.add('active');
+        } else {
+            document.querySelector('.tab:nth-child(2)').classList.add('active');
+            document.getElementById('tab-weekly').classList.add('active');
+        }
+    }
+
+    // 渲染主表
+    async function loadMainTable() {
+        //const recentDates = getRecentDates(10);
+        const body = {
+            index: 1,
+            size: -1,
+            conditions: [],
+            order: [],
+            data: {
+                systemId: null,
+                groupId: null,
+                classId: null,
+                time: [document.getElementById('startDate').value, document.getElementById('endDate').value],
+                restDay: false,
+                beginDate: document.getElementById('startDate').value,
+                endDate: document.getElementById('endDate').value
+            }
+        };
+
+        const res = await fetch(Url + "/unioa/job/userWorkSum/queryJobUserWorkSum", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": authToken // 默认
+            },
+            body: JSON.stringify(body)
+        });
+        if (MainGrid) {
+            MainGrid.destroy();
+        }
+        const json = await res.json();
+        if (!json.Success) {
+            alert("加载主表失败");
+            return;
+        }
+
+        const {columns, rows} = json.Response;
+        const rowData = rows.rows;
+
+        // 构建主表列
+        const mainColumns = [
+            {id: "systemName", name: "体系", width: "95px"},
+            {id: "groupName", name: "部门", width: "95px"},
+            {id: "className", name: "小组", width: "95px"},
+            {id: "personTotal", name: "总人数", width: "55px"},
+            {id: "reportRate", name: "上报率", width: "55px"},
+            ...columns.map(date => ({
+                id: date,
+                name: date,
+                width: "80px",
+                formatter: (cell, row) => {
+                    if (!cell) return "-";
+                    const {alreadyNumberReport, shouldNumberReport} = cell;
+                    return gridjs.html(
+                        `<span class="link" onclick="loadDetail('${row.cells[0].data}','${row.cells[1].data}','${row.cells[2].data}','${date}')">
+                ${alreadyNumberReport}/${shouldNumberReport}
+              </span>`
+                    );
+                }
+            }))
+        ];
+        // 主表数据
+        const mainData = rowData.map(r => {
+            const row = [r.systemName, r.groupName, r.className, r.personTotal, r.reportRate + "%"];
+            for (const date of columns) row.push(r[date] || null);
+            return row;
+        });
+
+        // 渲染主表
+        document.getElementById("main-table").innerHTML = "";
+        MainGrid = new gridjs.Grid({
+            columns: mainColumns,
+            data: mainData
+        }).render(document.getElementById("main-table"));
+
+        if (rowData.length > 0 && columns.length > 0) {
+            const latestDate = columns[0]; // 最新日期
+            const firstRow = rowData[0]; // 可改成选择特定行
+            loadDetail(firstRow.systemName, firstRow.groupName, firstRow.className, latestDate);
+        }
+    }
+
+    // 渲染子表
+    async function loadDetail(systemName, groupName, className, createDate) {
+        const body = {
+            index: 1,
+            size: -1,
+            conditions: [],
+            order: [],
+            data: {
+                systemId: null, // 真实环境要换成 systemId
+                groupId: null,  // 真实环境要换成 groupId
+                classId: null,  // 真实环境要换成 classId
+                createDate
+            }
+        };
+
+        const res = await fetch(Url + "/unioa/job/userWorkSum/queryUserWorkSumDetail", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": authToken
+            },
+            body: JSON.stringify(body)
+        });
+
+        const json = await res.json();
+        if (!json.Success) {
+            alert("加载子表失败");
+            return;
+        }
+
+        const detailRows = json.Response.rows.map(r => [
+            r.systemName,
+            r.groupName,
+            r.className,
+            r.userName,
+            r.status === "1" ? "已上报" : "未上报",
+            r.goWorks?.[0]?.time || "---------",
+            r.goWorks?.[0]?.clockInStatusName || "",
+            r.offWorks?.[0]?.time || "---------",
+            r.offWorks?.[0]?.clockInStatusName || "-",
+            r.overtime?.overTime > 0 ? r.overtime.overTime : "",
+            r.leaderStatus === "1" ? "已读" : "未读",
+            r.submitTime == null ? "-" : new Date(r.submitTime * 1000).toTimeString().split(' ')[0]
+        ]);
+        // 如果已有子表，先销毁
+        if (detailGrid) {
+            detailGrid.destroy();
+        }
+
+        // 渲染子表
+        document.getElementById("detail-table").innerHTML = "";
+        detailGrid = new gridjs.Grid({
+            columns: ["体系", "部门", "小组", "姓名", {
+                name: "上报状态",
+                formatter: (cell) => {
+                    if (cell === "已上报") {
+                        return gridjs.html(`<span style="color: green;">${cell}</span>`);
+                    } else if (cell === "未上报") {
+                        return gridjs.html(`<span style="color: red;">${cell}</span>`);
+                    }
+                    return cell;
+                }
+            }, {
+                name: "上班时间",
+                formatter: (_, row) => {
+                    const time = row.cells[5].data;
+                    const statusName = row.cells[6].data;
+                    const statusHtml = renderStatus(statusName);
+                    return gridjs.html(`${time} ${statusHtml}`);
+                }
+            }, {id: "clockInStatusName", hidden: true}, {
+                name: "下班时间",
+                formatter: (_, row) => {
+                    const time = row.cells[7].data;
+                    const statusName = row.cells[8].data;
+                    const statusHtml = renderStatus(statusName);
+                    return gridjs.html(`${time} ${statusHtml}`);
+                }
+            }, {id: "clockInStatusName", hidden: true}, "加班时长", {
+                name: "查看状态",
+                formatter: (cell) => gridjs.html(renderReadStatus(cell))
+            }, "提交时间"],
+            data: detailRows
+        }).render(document.getElementById("detail-table"));
+    }
+
+    function renderStatus(status) {
+        if (!status) return "";
+
+        let style = "";
+        if (status === "正常") {
+            style = "color:#155724;background:#d4edda;border:1px solid #155724;";
+        } else if (status === "迟到" || status === "缺卡") {
+            style = "color:#721c24;background:#f8d7da;border:1px solid #721c24;";
+        } else {
+            style = "color:#856404;background:#fff3cd;border:1px solid #856404;";
+        }
+
+        return `<span style="padding:2px 6px;border-radius:4px;margin-left:4px;${style}">${status}</span>`;
+    }
+
+    function renderReadStatus(status) {
+        if (!status) return "";
+
+        let style = "";
+        if (status === "未读") {
+            style = "color:#757575; background:#eeeeee;";
+        }
+        if (status === "已读") {
+            style = "color:#2e7d32; background:#c8e6c9;";
+        }
+
+        return `<span style="padding:2px 6px;border-radius:4px;margin-left:4px;${style}">${status}</span>`;
+    }
+
+    function onDateFilter() {
+        const start = document.getElementById("startDate").value;
+        const end = document.getElementById("endDate").value;
+        if (!start || !end) {
+            alert("请选择开始和结束日期");
+            return;
+        }
+        // 修改主表加载逻辑时可传递日期参数
+        // 这里调用原本的 loadMainTable()，可在内部读取输入日期
+        loadMainTable();
+    }
+
+
+    async function loadWeekMainTable() {
+        const body = {
+            index: 1,
+            size: -1,
+            conditions: [],
+            order: [],
+            data: {
+                systemId: null,
+                groupId: null,
+                classId: null,
+                time: [document.getElementById('weekstartDate').value, document.getElementById('weekendDate').value],
+                restDay: false,
+                beginDate: document.getElementById('weekstartDate').value,
+                endDate: document.getElementById('weekendDate').value
+            }
+        };
+
+        const res = await fetch(Url + "/unioa/job/userWorkWeekSum/queryJobUserWorkWeekSum", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": authToken // 默认
+            },
+            body: JSON.stringify(body)
+        });
+        if (weekMainGrid) {
+            weekMainGrid.destroy();
+        }
+        const json = await res.json();
+        if (!json.Success) {
+            alert("加载主表失败");
+            return;
+        }
+
+        const {columns, rows} = json.Response;
+        const rowData = rows.rows;
+
+        // 构建主表列
+        const mainColumns = [
+            {id: "systemName", name: "体系", width: "95px"},
+            {id: "groupName", name: "部门", width: "95px"},
+            {id: "className", name: "小组", width: "95px"},
+            {id: "personTotal", name: "总人数", width: "55px"},
+            {id: "reportRate", name: "上报率", width: "55px"},
+            {id: "weekStart", hidden: true},
+            ...columns.map(date => ({
+                id: date,
+                name: date,
+                width: "80px",
+                formatter: (cell, row) => {
+                    if (!cell) return "-";
+                    const {alreadyNumberReport, shouldNumberReport, weekStart} = cell;
+                    return gridjs.html(
+                        `<span class="link" onclick="loadweekDetail('${row.cells[0].data}','${row.cells[1].data}','${row.cells[2].data}','${weekStart}')">
+                ${alreadyNumberReport}/${shouldNumberReport}
+              </span>`
+                    );
+                }
+            }))
+        ];
+        // 主表数据
+        const mainData = rowData.map(r => {
+            const row = [r.systemName, r.groupName, r.className, r.personTotal, r.reportRate + "%", r.weekStart];
+            for (const date of columns) row.push(r[date] || null);
+            return row;
+        });
+
+        // 渲染主表
+        document.getElementById("weekmain-table").innerHTML = "";
+        weekMainGrid = new gridjs.Grid({
+            columns: mainColumns,
+            data: mainData
+        }).render(document.getElementById("weekmain-table"));
+
+        if (rowData.length > 0 && columns.length > 0) {
+            const latestDate = columns[0]; // 最新日期
+            const firstRow = rowData[0]; // 可改成选择特定行
+            loadweekDetail(firstRow.systemName, firstRow.groupName, firstRow.className, rowData[0][columns[0]].weekStart);
+        }
+    }
+
+    // 渲染子表
+    async function loadweekDetail(systemId, groupId, classId, weekStart) {
+        const body = {
+            index: 1,
+            size: -1,
+            conditions: [],
+            order: [],
+            data: {
+                systemId: null, // 真实环境要换成 systemId
+                groupId: null,  // 真实环境要换成 groupId
+                classId: null,  // 真实环境要换成 classId
+                weekStart
+            }
+        };
+        const res = await fetch(Url + "/unioa/job/userWorkWeekSum/queryUserWorkWeekSumDetail", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": authToken
+            },
+            body: JSON.stringify(body)
+        });
+
+        const json = await res.json();
+        if (!json.Success) {
+            alert("加载子表失败");
+            return;
+        }
+
+        const detailRows = json.Response.rows.map(r => [
+            r.systemName,
+            r.groupName,
+            r.className,
+            r.userName,
+            r.status === 1 ? "已上报" : "未上报",
+            r.goWorkDays == null ? "-" : r.goWorkDays + "天",
+            r.outDays == null ? "-" : r.outDays + "天",
+            r.leaveDays == null ? "-" : r.leaveDays + "天",
+            r.overtime == null ? "-" : r.overtime + "小时",
+            r.leaderStatus === "1" ? "已读" : "未读",
+            r.submitTime == null ? "-" : new Date(r.submitTime * 1000).toTimeString().split(' ')[0]
+        ]);
+        // 如果已有子表，先销毁
+        if (weekdetailGrid) {
+            weekdetailGrid.destroy();
+        }
+
+        // 渲染子表
+        document.getElementById("weekdetail-table").innerHTML = "";
+        weekdetailGrid = new gridjs.Grid({
+            columns: ["体系", "部门", "小组", "姓名", {
+                name: "上报状态",
+                formatter: (cell) => {
+                    if (cell === "已上报") {
+                        return gridjs.html(`<span style="color: green;">${cell}</span>`);
+                    } else if (cell === "未上报") {
+                        return gridjs.html(`<span style="color: red;">${cell}</span>`);
+                    }
+                    return cell;
+                }
+            }, "上班时长", "出差时长", "请假时长", "加班时长", {
+                name: "查看状态",
+                formatter: (cell) => gridjs.html(renderReadStatus(cell))
+            }, "提交时间"],
+            data: detailRows
+        }).render(document.getElementById("weekdetail-table"));
+    }
+
+    function weekonDateFilter() {
+        const start = document.getElementById("weekstartDate").value;
+        const end = document.getElementById("weekendDate").value;
+        if (!start || !end) {
+            alert("请选择开始和结束日期");
+            return;
+        }
+        // 修改主表加载逻辑时可传递日期参数
+        // 这里调用原本的 loadMainTable()，可在内部读取输入日期
+        loadWeekMainTable();
+    }
+
+    let authToken = null;
+    let Url = null;
+
+    async function fetchToken() {
+        try {
+            const res = await fetch("/api/PmisAndZentao/GetPmisAdminToken");
+            const data = await res.json();
+            authToken = data.token; // 假设接口返回 { "token": "xxxx" }
+            Url = data.url;
+            // 页面初始化时加载主表
+            getRecentDates(10);
+            loadMainTable();
+            loadWeekMainTable();
+        } catch (err) {
+            console.error("获取 token 失败:", err);
+        }
+    }
+
+    fetchToken();
+
+</script>
+</body>
+
+</html>

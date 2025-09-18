@@ -103,4 +103,9 @@ app.MapGet("/dashboard", async context =>
     context.Response.ContentType = "text/html";
     await context.Response.SendFileAsync("wwwroot/AttendanceDashBoard.html");
 });
+app.MapGet("/daydashboard", async context =>
+{
+    context.Response.ContentType = "text/html";
+    await context.Response.SendFileAsync("wwwroot/DayReportDashBoard.html");
+});
 app.Run();

@@ -20,6 +20,7 @@ public class PmisAndZentaoController(
     AttendanceHelper attendanceHelper,
     PmisHelper pmisHelper,
     PushMessageHelper pushMessageHelper,
+    TokenService tokenService,
     IChatClient chatClient)
     : Controller
 {
@@ -75,6 +76,16 @@ public class PmisAndZentaoController(
     {
         var result = zentaoHelper.GetProjectCodeForProjectId(projectId);
         return result;
+    }
+
+    [Tags("PMIS")]
+    [EndpointSummary("获取PMIS管理员token")]
+    [HttpGet]
+    public IActionResult GetPmisAdminToken()
+    {
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var result = tokenService.GetAdminTokenAsync();
+        return Ok(new { token = result, url = pmisInfo.Url });
     }
 
     [Tags("PMIS")]
