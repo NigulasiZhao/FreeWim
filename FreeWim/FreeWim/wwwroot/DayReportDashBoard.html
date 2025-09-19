@@ -373,8 +373,9 @@
         // 渲染子表
         document.getElementById("detail-table").innerHTML = "";
         detailGrid = new gridjs.Grid({
-            columns: ["体系", "部门", "小组", "姓名", {
+            columns: ["体系", "部门", "小组", {name: "姓名", sort: true}, {
                 name: "上报状态",
+                sort: true,
                 formatter: (cell) => {
                     if (cell === "已上报") {
                         return gridjs.html(`<span style="color: green;">${cell}</span>`);
@@ -385,6 +386,7 @@
                 }
             }, {
                 name: "上班时间",
+                sort: true,
                 formatter: (_, row) => {
                     const time = row.cells[5].data;
                     const statusName = row.cells[6].data;
@@ -393,16 +395,22 @@
                 }
             }, {id: "clockInStatusName", hidden: true}, {
                 name: "下班时间",
+                sort: true,
                 formatter: (_, row) => {
                     const time = row.cells[7].data;
                     const statusName = row.cells[8].data;
                     const statusHtml = renderStatus(statusName);
                     return gridjs.html(`${time} ${statusHtml}`);
                 }
-            }, {id: "clockInStatusName", hidden: true}, "加班时长", {
+            }, {id: "clockInStatusName", hidden: true}, , {
+                name: "加班时长", sort: true
+            }, {
                 name: "查看状态",
+                sort: true,
                 formatter: (cell) => gridjs.html(renderReadStatus(cell))
-            }, "提交时间"],
+            }, {
+                name: "提交时间", sort: true
+            }],
             data: detailRows
         }).render(document.getElementById("detail-table"));
     }
@@ -580,8 +588,9 @@
         // 渲染子表
         document.getElementById("weekdetail-table").innerHTML = "";
         weekdetailGrid = new gridjs.Grid({
-            columns: ["体系", "部门", "小组", "姓名", {
+            columns: ["体系", "部门", "小组", {name: "姓名", sort: true}, {
                 name: "上报状态",
+                sort: true,
                 formatter: (cell) => {
                     if (cell === "已上报") {
                         return gridjs.html(`<span style="color: green;">${cell}</span>`);
@@ -590,10 +599,16 @@
                     }
                     return cell;
                 }
-            }, "上班时长", "出差时长", "请假时长", "加班时长", {
+            }, {name: "上班时长", sort: true}, {name: "出差时长", sort: true}, {name: "请假时长", sort: true}, {
+                name: "加班时长",
+                sort: true
+            }, {
                 name: "查看状态",
+                sort: true,
                 formatter: (cell) => gridjs.html(renderReadStatus(cell))
-            }, "提交时间"],
+            }, {
+                name: "提交时间", sort: true
+            }],
             data: detailRows
         }).render(document.getElementById("weekdetail-table"));
     }
