@@ -169,6 +169,28 @@ public class HangFireHelper(
             }
         }
 
+        var lastMonthData = dbConnection.Query<int>($@"select count(0) from public.attendancerecordday where yearmonth = '{startDate.AddMonths(1):yyyy-MM}'").First();
+        if (lastMonthData == 0)
+        {
+            var lastresponse = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.AddMonths(1).ToString("yyyy-MM")).Result;
+            var lastresult = lastresponse.Content.ReadAsStringAsync().Result;
+            var lastresultModel = JsonConvert.DeserializeObject<AttendanceResponse>(lastresult);
+            if (lastresultModel is { Code: 200 })
+            {
+                if (lastresultModel.Data.DayVoList.Count > 0)
+                    dbConnection.Execute(
+                        $"INSERT INTO public.attendancerecord(attendancemonth,workdays,latedays,earlydays) VALUES('{startDate.AddMonths(1):yyyy-MM}',{lastresultModel.Data.WorkDays},{lastresultModel.Data.LateDays},{lastresultModel.Data.EarlyDays});");
+                foreach (var item in lastresultModel.Data.DayVoList)
+                {
+                    var flagedate = DateTime.Parse(startDate.AddMonths(1).ToString("yyyy-MM") + "-" + item.Day);
+                    dbConnection.Execute($"""
+                                          INSERT INTO public.attendancerecordday(untilthisday,day,checkinrule,isnormal,isabnormal,isapply,clockinnumber,workhours,attendancedate,yearmonth)
+                                                                                                  VALUES({item.UntilThisDay},{item.Day},'{item.CheckInRule}','{item.IsNormal}','{item.IsAbnormal}','{item.IsApply}',{item.ClockInNumber},{(item.WorkHours == null ? 0 : item.WorkHours)},to_timestamp('{flagedate:yyyy-MM-dd 00:00:00}', 'yyyy-mm-dd hh24:mi:ss'),'{startDate.AddMonths(1):yyyy-MM}');
+                                          """);
+                }
+            }
+        }
+
         dbConnection.Dispose();
     }
 
