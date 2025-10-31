@@ -71,11 +71,29 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
          */
         try
         {
+            int attempt = 0;
             IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             var finishCount = 0;
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
             var httpHelper = new HttpRequestHelper();
             var workLogBody = QueryWorkDetailByDate(fillDate, userId);
+            while (int.Parse(workLogBody["Code"].ToString()) != 0 || !bool.Parse(workLogBody["Success"].ToString()))
+            {
+                try
+                {
+                    if (attempt >= 20)
+                    {
+                        pushMessageHelper.Push("提交日报异常", "多次尝试获取今日工作内容失败", PushMessageHelper.PushIcon.Alert);
+                        break;
+                    }
+                    attempt++;
+                    workLogBody = QueryWorkDetailByDate(fillDate, userId);
+                }
+                catch (Exception ex)
+                {
+                }
+            }
+
             workLogBody["Response"]!["status"] = 1;
             if (workLogBody["Response"]?["details"] is JArray dataArray)
             {
