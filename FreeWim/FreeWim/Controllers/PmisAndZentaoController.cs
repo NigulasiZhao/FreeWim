@@ -344,4 +344,12 @@ public class PmisAndZentaoController(
     {
         return pmisHelper.RealOverTimeList().ToString(Newtonsoft.Json.Formatting.Indented);
     }
+
+    [Tags("PMIS")]
+    [EndpointSummary("根据日期获取考勤数量")]
+    [HttpGet]
+    public int GetTodayClockInDetail(string clockInDate)
+    {
+        return pmisHelper.GetTodayClockInDetail(clockInDate);
+    }
 }

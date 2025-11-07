@@ -153,7 +153,7 @@ ORDER BY attendancedate";
             SUM(workhours) AS TotalHours,
             SUM(CASE when checkinrule <> '休息' AND workhours > 7.5 THEN workhours - 7.5 WHEN checkinrule = '休息' then workhours ELSE 0 END) AS OvertimeHours
         FROM attendancerecordday
-        WHERE attendancedate >= date_trunc('month', CURRENT_DATE) - INTERVAL '5 months'
+        WHERE attendancedate >= date_trunc('month', CURRENT_DATE) - INTERVAL '5 months' and attendancedate < date_trunc('month', CURRENT_DATE) + INTERVAL '1 months'
         GROUP BY TO_CHAR(attendancedate, 'YYYY-MM')
         ORDER BY Month;
     ";

@@ -19,6 +19,9 @@ public class PMISInfo
     public string DailyWorkPrompt { get; set; }
     public string DailyPrompt { get; set; }
     public string WeekPrompt { get; set; }
+
+    public string AppId { get; set; }
+    public string App { get; set; }
 }
 
 public class PMISInsertResponse
