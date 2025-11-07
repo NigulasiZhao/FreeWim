@@ -832,4 +832,25 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
 
         return results;
     }
+
+    /// <summary>
+    /// 根据日期获取考勤数量
+    /// </summary>
+    /// <param name="clockInDate"></param>
+    /// <returns></returns>
+    public int GetTodayClockInDetail(string clockInDate)
+    {
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var httpHelper = new HttpRequestHelper();
+        var getResponse = httpHelper.GetAsync(pmisInfo.Url + $"/app/hd-oa/api/oaUserClockInRecord/todayClockInDetail?clockInDate={clockInDate}&detailStatus=1",
+            new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() }, { "appid", pmisInfo.AppId }, { "app", pmisInfo.App } }).Result;
+        var json = JObject.Parse(getResponse.Content.ReadAsStringAsync().Result);
+        // 安全地取出 detailList
+        var detailList = json["data"]?["detailList"] as JArray;
+        var count = 0;
+        if (detailList == null) return count;
+        foreach (var item in detailList) count = detailList.Count;
+
+        return count;
+    }
 }

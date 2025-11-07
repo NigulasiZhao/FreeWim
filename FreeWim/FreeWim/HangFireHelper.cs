@@ -37,7 +37,7 @@ public class HangFireHelper(
             foreach (var job in recurringJobs) RecurringJob.RemoveIfExists(job.Id);
         }
 
-        RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "5,35 * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "0 0/3 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("Keep数据同步", () => KeepRecord(), "0 0 */3 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("高危人员打卡预警", () => CheckInWarning(), "5,35 * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("同步禅道任务", () => SynchronizationZentaoTask(), "0 15,17,19 * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
@@ -104,6 +104,11 @@ public class HangFireHelper(
         var client = new HttpClient();
         client.DefaultRequestHeaders.Add("Authorization", tokenService.GetTokenAsync());
         var startDate = DateTime.Now;
+        if (DateTime.Now.Hour <= 7 || DateTime.Now.Hour >= 23) return;
+        var clockInCount = pmisHelper.GetTodayClockInDetail(startDate.ToString("yyyy-MM-dd"));
+        if (clockInCount == 0) return;
+        var inStorageClockInCount = dbConnection.Query<int>($@"select count(0) from public.attendancerecorddaydetail where to_char(attendancedate,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}'").First();
+        if (clockInCount == inStorageClockInCount) return;
         var response = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.ToString("yyyy-MM")).Result;
         var result = response.Content.ReadAsStringAsync().Result;
         var resultModel = JsonConvert.DeserializeObject<AttendanceResponse>(result);
