@@ -111,8 +111,27 @@ public class PmisAndZentaoController(
     [HttpGet]
     public string QueryByDateAndUserId(string fillDate = "2025-06-27")
     {
+        int attempt = 0;
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
         var result = pmisHelper.QueryWorkDetailByDate(fillDate, pmisInfo.UserId);
+        while (int.Parse(result["Code"].ToString()) != 0 || !bool.Parse(result["Success"].ToString()))
+        {
+            try
+            {
+                if (attempt >= 20)
+                {
+                    pushMessageHelper.Push("提交日报异常", "多次尝试获取今日工作内容失败", PushMessageHelper.PushIcon.Alert);
+                    break;
+                }
+
+                attempt++;
+                result = pmisHelper.QueryWorkDetailByDate(fillDate, pmisInfo.UserId);
+            }
+            catch (Exception ex)
+            {
+            }
+        }
+
         return result.ToString(Newtonsoft.Json.Formatting.None);
     }
 
