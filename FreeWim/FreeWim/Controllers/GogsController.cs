@@ -7,27 +7,23 @@ using FreeWim.Models.Attendance;
 using FreeWim.Models.Gogs;
 using System.Data;
 using System.Data.Common;
+using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
+using FreeWim.Common;
 
 namespace FreeWim.Controllers;
 
 [ApiController]
 [Route("api/[controller]/[action]")]
-public class GogsController : Controller
+public class GogsController(PushMessageHelper pushMessageHelper, IConfiguration configuration) : Controller
 {
-    private readonly IConfiguration _Configuration;
-
-    public GogsController(IConfiguration configuration)
-    {
-        _Configuration = configuration;
-    }
-
     [Tags("代码记录")]
     [EndpointSummary("代码记录组件数据查询接口")]
     [HttpGet]
     public ActionResult latest()
     {
-        IDbConnection dbConnection = new NpgsqlConnection(_Configuration["Connection"]);
+        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var commitDates = dbConnection.Query<int>(@"select
                                                           	count(0)
                                                           from
@@ -57,7 +53,7 @@ public class GogsController : Controller
     [HttpGet]
     public ActionResult calendar(string start = "", string end = "")
     {
-        IDbConnection _DbConnection = new NpgsqlConnection(_Configuration["Connection"]);
+        IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
         string sqlwhere = " where 1=1 ", sqlwhere1 = " where 1=1 ";
         if (!string.IsNullOrEmpty(start))
         {
@@ -147,7 +143,7 @@ public class GogsController : Controller
     [HttpPost]
     public ActionResult GogsPush([FromBody] WebhookPayload input)
     {
-        IDbConnection _DbConnection = new NpgsqlConnection(_Configuration["Connection"]);
+        IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
         var BranchName = input.Ref.Split("/").Last();
         var dataSql = "";
         try
@@ -155,7 +151,7 @@ public class GogsController : Controller
             if (input.Commits != null)
                 if (input.Commits.Count > 0)
                 {
-                    var WebhookCommitList = input.Commits.Where(e => e.Committer.Email == _Configuration["GogsEmail"]).ToList();
+                    var WebhookCommitList = input.Commits.Where(e => e.Committer.Email == configuration["GogsEmail"]).ToList();
                     foreach (var item in WebhookCommitList)
                     {
                         var CommitExists = _DbConnection.Query<int>("select count(0) from public.gogsrecord where id = :id", new { id = item.Id }).First();
@@ -178,11 +174,66 @@ public class GogsController : Controller
     }
 
     [Tags("代码记录")]
+    [EndpointSummary("GitLab WebHook触发接口")]
+    [HttpPost]
+    public ActionResult GitLabPush([FromBody] JsonDocument json)
+    {
+        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        var root = json.RootElement;
+        var branchName = root.GetProperty("ref").GetString().Split("/").Last();
+        try
+        {
+            if (root.TryGetProperty("commits", out var commitsElement) && commitsElement.ValueKind == JsonValueKind.Array)
+            {
+                var commits = commitsElement.EnumerateArray().ToList();
+                if (commits.Count > 0)
+                {
+                    var webhookCommitList = commits.Where(e =>
+                        e.TryGetProperty("author", out var committer) &&
+                        committer.TryGetProperty("email", out var emailElement) &&
+                        emailElement.GetString() == configuration["GogsEmail"]
+                    ).ToList();
+                    foreach (var item in webhookCommitList)
+                        if (item.TryGetProperty("id", out var idElement))
+                        {
+                            var commitId = idElement.GetString();
+                            var commitExists = dbConnection.Query<int>("select count(0) from public.gogsrecord where id = :id", new { id = commitId }).First();
+
+                            if (commitExists == 0)
+                            {
+                                // 获取其他必要的属性
+                                var timestamp = item.TryGetProperty("timestamp", out var timestampElement) ? timestampElement.GetString() : "";
+                                var message = item.TryGetProperty("message", out var messageElement) ? messageElement.GetString() : "";
+                                var repositoryName = root.TryGetProperty("repository", out var repoElement) &&
+                                                     repoElement.TryGetProperty("name", out var nameElement)
+                                    ? nameElement.GetString()
+                                    : "";
+
+                                dbConnection.Execute(
+                                    $@"INSERT INTO public.gogsrecord(id,repositoryname,branchname,commitsdate,message) VALUES(:id,:repositoryname,:branchname,to_timestamp('{DateTime.Parse(timestamp):yyyy-MM-dd HH:mm:ss}', 'yyyy-mm-dd hh24:mi:ss'),:message);",
+                                    new { id = commitId, repositoryname = repositoryName, branchname = branchName, message = message });
+                            }
+                        }
+
+                    dbConnection.Dispose();
+                }
+            }
+        }
+        catch (IOException e)
+        {
+            dbConnection.Dispose();
+            return Json(e.Message);
+        }
+
+        return Json("成功");
+    }
+
+    [Tags("代码记录")]
     [EndpointSummary("GitHubWebHook触发接口")]
     [HttpPost]
     public ActionResult GitHubPush([FromBody] GitHubWebhookPayload input)
     {
-        IDbConnection _DbConnection = new NpgsqlConnection(_Configuration["Connection"]);
+        IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
         var BranchName = input.@ref.Split("/").Last();
         var dataSql = "";
         try
@@ -190,7 +241,7 @@ public class GogsController : Controller
             if (input.commits != null)
                 if (input.commits.Count > 0)
                 {
-                    var WebhookCommitList = input.commits.Where(e => e.committer.Email == _Configuration["GogsEmail"]).ToList();
+                    var WebhookCommitList = input.commits.Where(e => e.committer.Email == configuration["GogsEmail"]).ToList();
                     foreach (var item in WebhookCommitList)
                     {
                         var CommitExists = _DbConnection.Query<int>("select count(0) from public.gogsrecord where id = :id", new { id = item.id }).First();
@@ -211,5 +262,54 @@ public class GogsController : Controller
         }
 
         return Json("成功");
+    }
+
+    [Tags("代码记录")]
+    [EndpointSummary("GitLabWebHook触发Jenkins")]
+    [HttpPost]
+    public ActionResult GitPushTriggerJenkins([FromBody] JsonDocument json)
+    {
+        var root = json.RootElement;
+        var BranchName = root.GetProperty("ref").GetString().Split("/").Last();
+        try
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+                "Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes($"{configuration.GetSection("JenkinsUserName").Value}:{configuration.GetSection("JenkinsUserToken").Value}")));
+
+            var GitList = configuration.GetSection("GitList").Get<List<GitInfoModel>>();
+            GitList = GitList.Where(e => e.BranchName == BranchName).ToList();
+            foreach (var model in GitList)
+                if (!string.IsNullOrEmpty(model.JenkinsBuildUrl))
+                {
+                    if (model.BuildParameters?.Count > 0)
+                    {
+                        for (var i = 0; i < model.BuildParameters.Count; i++)
+                        {
+                            var content = new FormUrlEncodedContent(model.BuildParameters[i]);
+                            var result = client.PostAsync(model.JenkinsBuildUrl, content).GetAwaiter().GetResult();
+                        }
+                    }
+                    else
+                    {
+                        var buffer = Encoding.UTF8.GetBytes("");
+                        var byteContent = new ByteArrayContent(buffer);
+                        byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+                        var result = client.PostAsync(model.JenkinsBuildUrl, byteContent).GetAwaiter().GetResult();
+                    }
+                }
+
+            #region 提醒推送
+
+            pushMessageHelper.Push("测试站点更新", "分支：" + BranchName + "测试站点已更新", PushMessageHelper.PushIcon.Jenkins);
+
+            #endregion
+        }
+        catch (IOException e)
+        {
+            return Json(e.Message);
+        }
+
+        return Json(BranchName + "更新完成");
     }
 }
