@@ -190,8 +190,8 @@ public class GogsController(PushMessageHelper pushMessageHelper, IConfiguration 
                 {
                     var webhookCommitList = commits.Where(e =>
                         e.TryGetProperty("author", out var committer) &&
-                        committer.TryGetProperty("email", out var emailElement) &&
-                        emailElement.GetString() == configuration["GogsEmail"]
+                        committer.TryGetProperty("name", out var nameElement) &&
+                        nameElement.GetString() == configuration["GogsName"]
                     ).ToList();
                     foreach (var item in webhookCommitList)
                         if (item.TryGetProperty("id", out var idElement))

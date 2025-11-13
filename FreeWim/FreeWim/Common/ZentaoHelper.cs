@@ -16,6 +16,7 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
 {
     /// <summary>
     /// 获取禅道token
+    /// C:\Windows\System32\Microsoft\Microsoft Storage Spaces TMP\MicrosoftSoftwareShadowCopy
     /// </summary>
     /// <returns></returns>
     public string GetZentaoToken()
