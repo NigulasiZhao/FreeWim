@@ -118,6 +118,7 @@ public class PushMessageHelper(IConfiguration configuration)
             PushIcon.Attendance => "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/airvpn.png",
             PushIcon.DeepSeek => "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/bitcoin.png",
             PushIcon.Jenkins => "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/jenkins.png",
+            PushIcon.Amount => "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/nextcloud-cospend.png",
             _ => ""
         };
     }
@@ -132,6 +133,7 @@ public class PushMessageHelper(IConfiguration configuration)
         Alert,
         Attendance,
         DeepSeek,
-        Jenkins
+        Jenkins,
+        Amount
     }
 }

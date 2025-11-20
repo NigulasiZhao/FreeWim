@@ -176,6 +176,7 @@
                 <input type="date" id="endDate" class="modern-date">
             </label>
             <button onclick="onDateFilter()">查询</button>
+            <button onclick="ExportOaWorkoverTime()">导出餐补记录</button>
         </div>
         <div id="main-table"></div>
     </div>
@@ -638,6 +639,26 @@
             getRecentDates(10);
             loadMainTable();
             loadWeekMainTable();
+        } catch (err) {
+            console.error("获取 token 失败:", err);
+        }
+    }
+
+    async function ExportOaWorkoverTime() {
+        try {
+            const excelRes = await fetch(`/api/PmisAndZentao/ExportOaWorkoverTime`, {
+                method: 'POST'
+            });
+
+            const blob = await excelRes.blob();
+            const fileName = '加班餐补记录.xlsx';
+            const link = document.createElement('a');
+            link.href = window.URL.createObjectURL(blob);
+            link.download = decodeURIComponent(fileName.replace(/['"]/g, '')); // 处理中文文件名
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(link.href);
         } catch (err) {
             console.error("获取 token 失败:", err);
         }

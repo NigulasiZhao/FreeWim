@@ -13,5 +13,7 @@ public class FinishZentaoTaskResponse
 {
     public int id { get; set; }
     public float consumed { get; set; }
+
+    public float left { get; set; }
     public string status { get; set; }
 }

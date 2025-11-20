@@ -145,7 +145,7 @@ public class DatabaseInitializer
 																COMMENT ON COLUMN public.zentaotask.estimate IS '预估工时';
 																COMMENT ON COLUMN public.zentaotask.timeleft IS '剩余工时';
 																COMMENT ON COLUMN public.zentaotask.consumed IS '消耗工时';
-																COMMENT ON COLUMN public.zentaotask.consumed IS '本人登记工时';
+																COMMENT ON COLUMN public.zentaotask.registerhours IS '本人登记工时';
 																COMMENT ON COLUMN public.zentaotask.taskstatus IS '任务状态';
 																COMMENT ON COLUMN public.zentaotask.eststarted IS '开始日期';
 																COMMENT ON COLUMN public.zentaotask.deadline IS '截止日期';

@@ -1,4 +1,5 @@
-﻿using System.Data;
+﻿using System.ComponentModel;
+using System.Data;
 using System.Globalization;
 using System.Text.Json;
 using Dapper;
@@ -8,6 +9,7 @@ using Npgsql;
 using FreeWim.Common;
 using FreeWim.Models.PmisAndZentao;
 using Newtonsoft.Json.Linq;
+using NPOI.SS.Formula.Functions;
 
 namespace FreeWim.Controllers;
 
@@ -21,7 +23,8 @@ public class PmisAndZentaoController(
     PmisHelper pmisHelper,
     PushMessageHelper pushMessageHelper,
     TokenService tokenService,
-    IChatClient chatClient)
+    IChatClient chatClient,
+    IWebHostEnvironment _webHostEnvironment)
     : Controller
 {
     private readonly IConfiguration _configuration = configuration;
@@ -111,11 +114,10 @@ public class PmisAndZentaoController(
     [HttpGet]
     public string QueryByDateAndUserId(string fillDate = "2025-06-27")
     {
-        int attempt = 0;
+        var attempt = 0;
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
         var result = pmisHelper.QueryWorkDetailByDate(fillDate, pmisInfo.UserId);
         while (int.Parse(result["Code"].ToString()) != 0 || !bool.Parse(result["Success"].ToString()))
-        {
             try
             {
                 if (attempt >= 20)
@@ -130,7 +132,6 @@ public class PmisAndZentaoController(
             catch (Exception ex)
             {
             }
-        }
 
         return result.ToString(Newtonsoft.Json.Formatting.None);
     }
@@ -351,5 +352,103 @@ public class PmisAndZentaoController(
     public int GetTodayClockInDetail(string clockInDate)
     {
         return pmisHelper.GetTodayClockInDetail(clockInDate);
+    }
+
+    /// <summary>
+    /// 获取实际加班信息
+    /// </summary>
+    /// <param name="startTime">开始时间，格式：yyyy-MM-dd HH:mm:ss</param>
+    /// <param name="endTime">结束时间，格式：yyyy-MM-dd HH:mm:ss</param>
+    /// <returns>加班信息列表</returns>
+    [Tags("PMIS")]
+    [EndpointSummary("获取实际加班信息")]
+    [HttpGet]
+    public List<OaWorkoverTimeOutput> GetOaWorkoverTime([Description("查询开始日期，一般默认为每月26日如：2025-01-26")] string startTime = "", [Description("查询结束日期，一般默认为每月25日如：2025-02-25")] string endTime = "")
+    {
+        var result = pmisHelper.GetOaWorkoverTime(startTime, endTime);
+        return result;
+    }
+
+    /// <summary>
+    /// 阀门专业填单记录导出
+    /// </summary>
+    /// <returns></returns>
+    [Tags("PMIS")]
+    [EndpointSummary("导出餐补记录")]
+    [HttpPost]
+    public ActionResult ExportOaWorkoverTime(
+        [Description("查询开始日期，一般默认为每月26日如：2025-01-26")]
+        string startTime = "",
+        [Description("查询结束日期，一般默认为每月25日如：2025-02-25")]
+        string endTime = "")
+    {
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+
+        // 取加班数据
+        var result = pmisHelper.GetOaWorkoverTime(startTime, endTime);
+
+        // 构建 DataTable 和列配置
+        var dataTable = new DataTable();
+        var columnList = new List<NpoiExcelUtility.ExportDataColumn>();
+
+        // 姓名列
+        dataTable.Columns.Add("Name", typeof(string));
+        columnList.Add(new NpoiExcelUtility.ExportDataColumn
+        {
+            Prop = "Name",
+            Label = "姓名",
+            ColumnWidth = 256 * 20
+        });
+
+        // 获取唯一日期，并按时间排序（防止乱序）
+        var uniqueDates = result
+            .Select(r => DateTime.Parse(r.Attendancedate))
+            .Distinct()
+            .OrderBy(d => d)
+            .ToList();
+
+        // 动态列
+        foreach (var dt in uniqueDates)
+        {
+            var colName = $"{dt:MM.dd}开发实施加班";
+
+            dataTable.Columns.Add(colName, typeof(double));
+
+            columnList.Add(new NpoiExcelUtility.ExportDataColumn
+            {
+                Prop = colName,
+                Label = colName,
+                ColumnWidth = 256 * 10
+            });
+        }
+
+        // 构建数据行
+        var row = dataTable.NewRow();
+        row["Name"] = pmisInfo.UserName;
+
+        // 通过字典提升速度 & 去掉重复 FirstOrDefault
+        var dateValueMap = result
+            .GroupBy(e => DateTime.Parse(e.Attendancedate).ToString("MM.dd"))
+            .ToDictionary(
+                g => $"{g.Key}开发实施加班",
+                g => g.First().Amount
+            );
+
+        foreach (DataColumn col in dataTable.Columns)
+            if (dateValueMap.TryGetValue(col.ColumnName, out var amount))
+                row[col.ColumnName] = amount;
+
+        dataTable.Rows.Add(row);
+
+        // 输出路径
+        var path = Path.Combine(_webHostEnvironment.ContentRootPath, "Export", Guid.NewGuid().ToString());
+
+        // 生成 Excel 文件
+        var fileName = NpoiExcelUtility.ExportForCommonNoTitle(dataTable, columnList, path);
+        var filePath = Path.Combine(path, fileName);
+
+        // 返回文件
+        var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+        return File(fs, "application/vnd.ms-excel", fileName);
     }
 }

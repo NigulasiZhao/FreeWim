@@ -71,14 +71,13 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
          */
         try
         {
-            int attempt = 0;
+            var attempt = 0;
             IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             var finishCount = 0;
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
             var httpHelper = new HttpRequestHelper();
             var workLogBody = QueryWorkDetailByDate(fillDate, userId);
             while (int.Parse(workLogBody["Code"].ToString()) != 0 || !bool.Parse(workLogBody["Success"].ToString()))
-            {
                 try
                 {
                     if (attempt >= 20)
@@ -86,13 +85,13 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                         pushMessageHelper.Push("提交日报异常", "多次尝试获取今日工作内容失败", PushMessageHelper.PushIcon.Alert);
                         break;
                     }
+
                     attempt++;
                     workLogBody = QueryWorkDetailByDate(fillDate, userId);
                 }
                 catch (Exception ex)
                 {
                 }
-            }
 
             workLogBody["Response"]!["status"] = 1;
             if (workLogBody["Response"]?["details"] is JArray dataArray)
@@ -870,5 +869,94 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
         foreach (var item in detailList) count = detailList.Count;
 
         return count;
+    }
+
+
+    public List<OaWorkoverTimeOutput> GetOaWorkoverTime(string startTime = "", string endTime = "")
+    {
+        if (string.IsNullOrEmpty(startTime))
+            startTime = DateTime.Now.Day < 26
+                ? new DateTime(DateTime.Now.Year, DateTime.Now.Month, 26).AddMonths(-2).ToString("yyyy-MM-dd")
+                : new DateTime(DateTime.Now.Year, DateTime.Now.Month, 26).AddMonths(-1).ToString("yyyy-MM-dd");
+
+        if (string.IsNullOrEmpty(endTime))
+            endTime = DateTime.Now.Day < 26
+                ? new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).AddMonths(-1).ToString("yyyy-MM-dd")
+                : new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).ToString("yyyy-MM-dd");
+
+        var workovertimeresult = new Dictionary<string, double>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var httpHelper = new HttpRequestHelper();
+        var postResponse = httpHelper.PostAsync(pmisInfo.Url + $"/hddev/form/formobjectdata/oa_workovertime_plan_apply:15/query.json", new
+            {
+                index = 1,
+                size = 30,
+                conditions = new object[]
+                {
+                    new
+                    {
+                        Field = "start_time",
+                        Value = new[] { $"{startTime} 00:00:00", $"{endTime} 23:59:59" },
+                        Operate = "between",
+                        Relation = "and"
+                    },
+                    new
+                    {
+                        Field = "user_id",
+                        Value = pmisInfo.UserId,
+                        Operate = "=",
+                        Relation = "and"
+                    }
+                },
+                order = new object[]
+                {
+                    new
+                    {
+                        Field = "work_date",
+                        Type = -1
+                    },
+                    new
+                    {
+                        Field = "start_time",
+                        Type = -1
+                    }
+                },
+                conditionsSql = new string[] { }
+            },
+            new Dictionary<string, string> { { "token", tokenService.GetTokenAsync() }, { "uniwaterUtoken", tokenService.GetTokenAsync() } }).Result;
+        var json = JObject.Parse(postResponse.Content.ReadAsStringAsync().Result);
+        // 安全地取出 detailList
+        var detailList = json["Response"]?["rows"] as JArray;
+        foreach (var historyitem in detailList)
+        {
+            var workDate = historyitem["work_date"]?.ToString();
+            var realtime = historyitem["realtime"]?.ToString();
+            if (!string.IsNullOrEmpty(workDate) && !string.IsNullOrEmpty(realtime)) workovertimeresult.Add(workDate, double.Parse(realtime));
+        }
+
+        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        var AttendancedateList = dbConnection.Query<OaWorkoverTimeOutput>($@"select
+                                                                                	to_char(ar.attendancedate ,'yyyy-mm-dd') as attendancedate,
+                                                                                	o.real_work_overtime_hour 
+                                                                                from
+                                                                                	public.attendancerecordday ar
+                                                                                left join overtimerecord o on to_char(ar.attendancedate ,'yyyy-mm-dd') = o.work_date 
+                                                                                where
+                                                                                	ar.attendancedate >= '{startTime}'
+                                                                                	and ar.attendancedate <= '{endTime}'
+                                                                                	and ar.checkinrule <> '休息'
+                                                                                order by
+                                                                                	ar.attendancedate asc").ToList();
+        var result = AttendancedateList.AsParallel().Select(item =>
+        {
+            if (workovertimeresult.ContainsKey(item.Attendancedate))
+            {
+                item.Realtime = workovertimeresult[item.Attendancedate];
+                item.Amount = workovertimeresult[item.Attendancedate] >= 2 ? 15 : 0;
+            }
+
+            return item;
+        }).ToList();
+        return result;
     }
 }

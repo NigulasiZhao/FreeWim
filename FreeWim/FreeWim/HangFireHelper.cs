@@ -37,6 +37,7 @@ public class HangFireHelper(
             foreach (var job in recurringJobs) RecurringJob.RemoveIfExists(job.Id);
         }
 
+
         RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "0 0/3 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("Keep数据同步", () => KeepRecord(), "0 0 */3 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("高危人员打卡预警", () => CheckInWarning(), "5,35 * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
@@ -46,6 +47,7 @@ public class HangFireHelper(
         RecurringJob.AddOrUpdate("禅道衡量目标、计划完成成果、实际从事工作与成果信息补全", () => TaskDescriptionComplete(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("DeepSeek余额预警", () => DeepSeekBalance(), "0 0 */2 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("提交所有待处理实际加班申请", () => RealOverTime(), "0 0 9 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("餐补提醒", () => MealAllowanceReminder(), "0 0 14 1,6,26 * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
     }
 
     //private static readonly MemoryCache Cache = new(new MemoryCacheOptions());
@@ -618,5 +620,24 @@ public class HangFireHelper(
     public void RealOverTime()
     {
         pmisHelper.RealOverTimeList();
+    }
+
+    /// <summary>
+    /// 餐补提醒
+    /// 每月1，6，26号14点执行
+    /// </summary>
+    public void MealAllowanceReminder()
+    {
+        var startTime = DateTime.Now.Day < 26
+            ? new DateTime(DateTime.Now.Year, DateTime.Now.Month, 26).AddMonths(-2).ToString("yyyy-MM-dd")
+            : new DateTime(DateTime.Now.Year, DateTime.Now.Month, 26).AddMonths(-1).ToString("yyyy-MM-dd");
+        var endTime = DateTime.Now.Day < 26
+            ? new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).AddMonths(-1).ToString("yyyy-MM-dd")
+            : new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).ToString("yyyy-MM-dd");
+        var result = pmisHelper.GetOaWorkoverTime(startTime, endTime);
+        pushMessageHelper.Push("餐补提醒",
+            DateTime.Parse(endTime).ToString("yyyy年MM月") + ",你居然有" + result.Where(e => e.Realtime >= 2).Count() + "天加班超过2小时,最后只换来" + result.Where(e => e.Realtime >= 2).Sum(e => e.Amount) +
+            "元餐补。请尽快填写餐补,不然这点钱也没了。",
+            PushMessageHelper.PushIcon.Amount);
     }
 }
