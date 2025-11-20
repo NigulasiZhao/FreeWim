@@ -635,9 +635,10 @@ public class HangFireHelper(
             ? new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).AddMonths(-1).ToString("yyyy-MM-dd")
             : new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).ToString("yyyy-MM-dd");
         var result = pmisHelper.GetOaWorkoverTime(startTime, endTime);
-        pushMessageHelper.Push("餐补提醒",
-            DateTime.Parse(endTime).ToString("yyyy年MM月") + ",你居然有" + result.Where(e => e.Realtime >= 2).Count() + "天加班超过2小时,最后只换来" + result.Where(e => e.Realtime >= 2).Sum(e => e.Amount) +
-            "元餐补。请尽快填写餐补,不然这点钱也没了。",
-            PushMessageHelper.PushIcon.Amount);
+        if (result.Any(e => e.Realtime >= 2))
+            pushMessageHelper.Push("餐补提醒",
+                DateTime.Parse(endTime).ToString("yyyy年MM月") + ",你居然有" + result.Where(e => e.Realtime >= 2).Count() + "天加班超过2小时,最后只换来" + result.Where(e => e.Realtime >= 2).Sum(e => e.Amount) +
+                "元餐补。请尽快填写餐补,不然这点钱也没了。",
+                PushMessageHelper.PushIcon.Amount);
     }
 }
