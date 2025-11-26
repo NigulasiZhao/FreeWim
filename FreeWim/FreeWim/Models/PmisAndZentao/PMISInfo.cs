@@ -22,6 +22,8 @@ public class PMISInfo
 
     public string AppId { get; set; }
     public string App { get; set; }
+    public string ZkUrl { get; set; }
+    public string ZkSN { get; set; }
 }
 
 public class PMISInsertResponse

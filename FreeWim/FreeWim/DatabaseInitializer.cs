@@ -284,6 +284,27 @@ public class DatabaseInitializer
             _dbConnection.Execute(createTableSql);
         }
 
+        if (TableExists("autocheckinrecord", _dbConnection))
+        {
+            var createTableSql = @"
+                                   CREATE TABLE public.autocheckinrecord (
+														id varchar(100) NULL,
+														jobid varchar(100) NULL,
+														clockintime timestamp NULL,
+														clockinstate float8 NULL,
+														createdat timestamp DEFAULT LOCALTIMESTAMP(0) NULL,
+														updateat timestamp NULL,
+													    CONSTRAINT autocheckinrecord_pk PRIMARY KEY (id)
+													);
+													
+													COMMENT ON COLUMN public.autocheckinrecord.id IS '主键ID';
+													COMMENT ON COLUMN public.autocheckinrecord.jobid IS 'hangfire唯一ID';
+													COMMENT ON COLUMN public.autocheckinrecord.clockintime IS '签到签退时间';
+													COMMENT ON COLUMN public.autocheckinrecord.clockinstate IS '执行状态 0执行中 1成功 2失败';
+                                                ";
+            _dbConnection.Execute(createTableSql);
+        }
+
         _dbConnection.Execute(@"do $$
 									BEGIN
 									IF (select count(*) from  information_schema.columns where table_name = 'attendancerecordday' and table_schema = 'public' and column_name = 'yearmonth' ) = 0

@@ -1,7 +1,10 @@
 ﻿using System.Data;
+using System.Text;
 using Dapper;
 using Npgsql;
 using FreeWim.Models.Attendance;
+using FreeWim.Models.PmisAndZentao;
+using Hangfire.Server;
 
 namespace FreeWim.Common;
 
@@ -96,5 +99,33 @@ public class AttendanceHelper(IConfiguration configuration, ILogger<ZentaoHelper
         Up,
         Down,
         Nearest
+    }
+
+    public void AutoCheckIniclock(PerformContext context)
+    {
+        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        var jobId = context.BackgroundJob.Id;
+        if (!string.IsNullOrEmpty(jobId))
+        {
+            var autoCheckInRecord = dbConnection.Query<AutoCheckInRecord>($@"SELECT * FROM public.autocheckinrecord WHERE jobid = '{jobId}'").FirstOrDefault();
+            if (autoCheckInRecord != null)
+            {
+                var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+                var url = $"{pmisInfo.ZkUrl}/iclock/cdata?SN={pmisInfo.ZkSN}&table=ATTLOG&Stamp=9999";
+                var contentString = $"100{pmisInfo.UserAccount}\t{autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss}\t0\t15\t0\t0\t0";
+                // using var client = new HttpClient();
+                // var content = new StringContent(contentString, Encoding.UTF8, "text/plain");
+                // var response = client.PostAsync(url, content).Result;
+                // var result = response.Content.ReadAsStringAsync().Result;
+                // if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                //     dbConnection.Execute(result.Contains("OK:1")
+                //         ? $@"UPDATE public.autocheckinrecord SET clockinstate = 1,updateat = now() WHERE jobid = '{jobId}'"
+                //         : $@"UPDATE public.autocheckinrecord SET clockinstate = 2,updateat = now() WHERE jobid = '{jobId}'");
+                // else
+                dbConnection.Execute($@"UPDATE public.autocheckinrecord SET clockinstate = 2 ,updateat = now() WHERE jobid = '{jobId}'");
+            }
+        }
+
+        dbConnection.Dispose();
     }
 }

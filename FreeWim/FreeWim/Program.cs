@@ -45,7 +45,14 @@ builder.Services.AddSingleton<IChatClient>(sp =>
 });
 builder.Services.AddHangfire(config =>
     config.UsePostgreSqlStorage(c =>
-        c.UseNpgsqlConnection(builder.Configuration["Connection"].ToString())));
+            c.UseNpgsqlConnection(builder.Configuration["Connection"].ToString()),
+        new PostgreSqlStorageOptions
+        {
+            // 控制过期任务清理频率（默认是1小时，这里改为1分钟）
+            JobExpirationCheckInterval = TimeSpan.FromMinutes(5),
+            // 批量删除个数
+            DeleteExpiredBatchSize = 1000
+        }));
 builder.Services.AddHangfireServer();
 builder.Services.AddSingleton<TokenService>();
 builder.Services.AddSingleton<HangFireHelper>();

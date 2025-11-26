@@ -4,29 +4,26 @@ using Newtonsoft.Json;
 using FreeWim.Models;
 using FreeWim.Models.Attendance;
 using System.Data;
+using System.Globalization;
 using Dapper;
+using FreeWim.Common;
+using FreeWim.Models.Attendance.Dto;
 using FreeWim.Models.PmisAndZentao;
+using Hangfire;
 using Npgsql;
 
 namespace FreeWim.Controllers;
 
 [ApiController]
 [Route("api/[controller]/[action]")]
-public class AttendanceRecordController : Controller
+public class AttendanceRecordController(IConfiguration configuration, AttendanceHelper attendanceHelper) : Controller
 {
-    private readonly IConfiguration _Configuration;
-
-    public AttendanceRecordController(IConfiguration configuration)
-    {
-        _Configuration = configuration;
-    }
-
     [Tags("考勤")]
     [EndpointSummary("考勤组件数据查询接口")]
     [HttpGet]
     public ActionResult latest()
     {
-        IDbConnection _DbConnection = new NpgsqlConnection(_Configuration["Connection"]);
+        IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
         var WorkDays = _DbConnection
             .Query<int>("select count(0) from (select to_char(attendancedate,'yyyy-mm-dd'),count(0) from public.attendancerecorddaydetail  group by to_char(attendancedate,'yyyy-mm-dd'))").First();
         var WorkHours = _DbConnection.Query<decimal>("select sum(workhours) from public.attendancerecordday").First();
@@ -44,7 +41,7 @@ public class AttendanceRecordController : Controller
     [HttpGet]
     public ActionResult calendar(string start = "", string end = "")
     {
-        IDbConnection _DbConnection = new NpgsqlConnection(_Configuration["Connection"]);
+        IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
         var sqlwhere = " where 1=1 ";
         if (!string.IsNullOrEmpty(start)) sqlwhere += $" and a.clockintime >= '{DateTime.Parse(start)}'";
         if (!string.IsNullOrEmpty(end)) sqlwhere += $" and a.clockintime <= '{DateTime.Parse(end).AddDays(1).AddSeconds(-1)}'";
@@ -88,7 +85,7 @@ public class AttendanceRecordController : Controller
     public ActionResult CancelOverTimeWork([FromBody] CancelOverTimeWorkInput input)
     {
         var rowsCount = 0;
-        IDbConnection dbConnection = new NpgsqlConnection(_Configuration["Connection"]);
+        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var cancelCount = dbConnection.Query<int>($@"SELECT COUNT(0) FROM public.overtimerecord WHERE work_date = '{DateTime.Now:yyyy-MM-dd}';").FirstOrDefault();
         if (cancelCount == 0)
             rowsCount = dbConnection.Execute($@"insert
@@ -106,8 +103,8 @@ public class AttendanceRecordController : Controller
     [HttpPost]
     public ActionResult RestoreOverTimeWork([FromBody] CancelOverTimeWorkInput input)
     {
-        var pmisInfo = _Configuration.GetSection("PMISInfo").Get<PMISInfo>();
-        IDbConnection dbConnection = new NpgsqlConnection(_Configuration["Connection"]);
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var rowsCount = dbConnection.Execute($@"DELETE FROM 
 														public.overtimerecord
 													WHERE work_date = '{DateTime.Now:yyyy-MM-dd}';");
@@ -126,8 +123,8 @@ public class AttendanceRecordController : Controller
     [HttpGet]
     public ActionResult GetBoardData()
     {
-        var pmisInfo = _Configuration.GetSection("PMISInfo").Get<PMISInfo>();
-        IDbConnection _DbConnection = new NpgsqlConnection(_Configuration["Connection"]);
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
         var sqlThisMonth = @"
 							        SELECT
   EXTRACT(DAY FROM attendancedate)::int AS day,
@@ -431,5 +428,54 @@ limit 10;";
             punchHeatmap = punchHeatmap
         };
         return Json(endresult);
+    }
+
+    [Tags("自动打卡")]
+    [EndpointSummary("创建自动打卡计划")]
+    [HttpPost]
+    public ActionResult AutoCheckIn([FromBody] AutoCheckInInput input)
+    {
+        if (input.SelectTime < DateTime.Now) return Json(new { jobId = "", SelectTime = input.SelectTime, message = "登记失败,时间不能小于当前时间" });
+        //早上9点之前立即执行
+        var workStart = new TimeSpan(10, 0, 0);
+        if (input.SelectTime.Value.TimeOfDay > workStart)
+        {
+            var rand = new Random();
+            var offsetSeconds = rand.Next(0, 500);
+            input.SelectTime = input.SelectTime.Value.AddSeconds(offsetSeconds);
+        }
+
+        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        var currentQuantity = dbConnection.Query<int>($@"SELECT count(0) FROM public.autocheckinrecord where to_char(clockintime,'yyyy-mm-dd') = '{input.SelectTime.Value:yyyy-MM-dd}'").First();
+        if (currentQuantity >= 2) return Json(new { jobId = "", SelectTime = input.SelectTime, message = "登记失败,今日操作过于频繁" });
+
+        var jobId = BackgroundJob.Schedule(() => attendanceHelper.AutoCheckIniclock(null), input.SelectTime.Value);
+        dbConnection.Execute(
+            $@"insert
+                	into
+                	public.autocheckinrecord(id, jobid, clockintime, clockinstate)
+                values('{Guid.NewGuid().ToString()}', '{jobId}', to_timestamp('{input.SelectTime:yyyy-MM-dd HH:mm:ss}', 'yyyy-mm-dd hh24:mi:ss'), 0)");
+        return Json(new { jobId = jobId, SelectTime = input.SelectTime, message = "成功" });
+    }
+
+    [Tags("自动打卡")]
+    [EndpointSummary("取消自动打卡计划")]
+    [HttpPost]
+    public ActionResult CancelAutoCheckIn([FromBody] AutoCheckInInput input)
+    {
+        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        var flag = BackgroundJob.Delete(input.jobId);
+        dbConnection.Execute($@"DELETE FROM public.autocheckinrecord WHERE jobid = '{input.jobId}'");
+        return Json(new { flag });
+    }
+
+    [Tags("自动打卡")]
+    [EndpointSummary("获取自动打卡计划列表")]
+    [HttpGet]
+    public ActionResult GetAutoCheckInList(int page = 1, int rows = 10)
+    {
+        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        var offset = (page - 1) * rows;
+        return Json(dbConnection.Query<AutoCheckInRecord>($@"SELECT * FROM public.autocheckinrecord ORDER BY clockintime desc LIMIT :rows OFFSET :offset", new { rows, offset }).ToList());
     }
 }
