@@ -112,7 +112,7 @@ public class AttendanceHelper(IConfiguration configuration, PushMessageHelper pu
             {
                 var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
                 var url = $"{pmisInfo.ZkUrl}/iclock/cdata?SN={pmisInfo.ZkSN}&table=ATTLOG&Stamp=9999";
-                var contentString = $"100{pmisInfo.UserAccount}\t{autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss}\t0\t15\t0 \t0\t0";
+                var contentString = $"100{pmisInfo.UserAccount}\t{autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss}\t0\t15\t0\t0\t0";
                 using var client = new HttpClient();
                 var content = new StringContent(contentString, Encoding.UTF8, "text/plain");
                 var response = client.PostAsync(url, content).Result;
