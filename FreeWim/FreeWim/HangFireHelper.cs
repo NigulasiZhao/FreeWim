@@ -10,6 +10,7 @@ using Hangfire.Storage;
 using Microsoft.Extensions.AI;
 using Newtonsoft.Json.Linq;
 using FreeWim.Common;
+using FreeWim.Models.Attendance.Dto;
 using FreeWim.Models.PmisAndZentao;
 
 namespace FreeWim;
@@ -38,16 +39,16 @@ public class HangFireHelper(
         }
 
 
-        RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "0 0/3 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("Keep数据同步", () => KeepRecord(), "0 0 */3 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("高危人员打卡预警", () => CheckInWarning(), "5,35 * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("同步禅道任务", () => SynchronizationZentaoTask(), "0 15,17,19 * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("执行禅道完成任务、日报、周报发送", () => ExecuteAllWork(), "0 0/40 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("自动加班申请", () => CommitOvertimeWork(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("禅道衡量目标、计划完成成果、实际从事工作与成果信息补全", () => TaskDescriptionComplete(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("DeepSeek余额预警", () => DeepSeekBalance(), "0 0 */2 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("提交所有待处理实际加班申请", () => RealOverTime(), "0 0 9 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("餐补提醒", () => MealAllowanceReminder(), "0 0 14 1,6,26 * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "0 0/3 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("Keep数据同步", () => KeepRecord(), "0 0 */3 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("高危人员打卡预警", () => CheckInWarning(), "0 0/5 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("同步禅道任务", () => SynchronizationZentaoTask(), "0 15,17,19 * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("执行禅道完成任务、日报、周报发送", () => ExecuteAllWork(), "0 0/40 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("自动加班申请", () => CommitOvertimeWork(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("禅道衡量目标、计划完成成果、实际从事工作与成果信息补全", () => TaskDescriptionComplete(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("DeepSeek余额预警", () => DeepSeekBalance(), "0 0 */2 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("提交所有待处理实际加班申请", () => RealOverTime(), "0 0 9 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("餐补提醒", () => MealAllowanceReminder(), "0 0 14 24,25,26 * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
     }
 
     //private static readonly MemoryCache Cache = new(new MemoryCacheOptions());
@@ -297,11 +298,13 @@ public class HangFireHelper(
 
     /// <summary>
     /// 高危人员打卡预警
-    /// 每小时的5分，35分执行一次，查询当前是否为休息日，如果是休息日则进行token伪造，同时根据配置中的人员名单查询名单内人员的考勤记录；如存在高危人员打卡，则进行消息提醒，同时将提醒过的内容写入缓存，缓存有效期20小时，避免重复提醒
+    /// 每5分钟执行一次，查询当前是否为休息日，如果是休息日则进行token伪造，同时根据配置中的人员名单查询名单内人员的考勤记录；如存在高危人员打卡，则进行消息提醒，同时将提醒过的内容写入缓存，缓存有效期20小时，避免重复提醒
     /// </summary>
     public void CheckInWarning()
     {
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        if (DateTime.Now.Hour <= 7 || DateTime.Now.Hour >= 23) return;
+        var httpRequestHelper = new HttpRequestHelper();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var lastDay = dbConnection.Query<string>($@"select
                                                                                                 	checkinrule
@@ -313,98 +316,34 @@ public class HangFireHelper(
         if (lastDay == null) return;
         if (lastDay != "休息") return;
         var pushMessage = "";
-        const string fakeSignature = "Gj0IbFZe_rpj5mtMfwoHVo2luGHlmaJa7MtbxwfNSaI";
         var listOfPersonnel = configuration.GetSection("ListOfPersonnel").Get<List<ListOfPersonnel>>();
         if (listOfPersonnel != null)
         {
             var realNameList = listOfPersonnel.Select(e => e.RealName).ToList();
-            using var sr = new StreamReader(AppDomain.CurrentDomain.BaseDirectory + "AddressBook.json", Encoding.UTF8);
-            var content = sr.ReadToEnd();
-            var addressBookList = JsonConvert.DeserializeObject<List<AddressBookInfo>>(content);
-
-            addressBookList = addressBookList?.Where(e => realNameList.Contains(e.Name)).ToList();
-            if (addressBookList == null) return;
-            var header = new
-            {
-                typ = "JWT",
-                alg = "HS256"
-            };
-            var headerJson = JsonConvert.SerializeObject(header);
-            var headerBase64 = Base64UrlEncode(headerJson);
-            var startDate = DateTime.Now;
-            foreach (var addressBookItem in addressBookList)
-            {
-                var waringcount = dbConnection.Query<int>(
-                    $@"SELECT COUNT(0) FROM public.checkinwarning WHERE name = '{addressBookItem.Name}' AND TO_CHAR(clockintime,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}'").First();
-                if (waringcount > 0) continue;
-                var payload = new
+            var response = httpRequestHelper.PostAsync(pmisInfo.ZkUrl + "/api/v2/transaction/get/?key=" + pmisInfo.ZkKey,
+                new
                 {
-                    iat = 1734922017,
-                    id = addressBookItem.Id,
-                    jwtId = "2318736ce27645c39729dd6cbf6e3232",
-                    uid = addressBookItem.Id,
-                    tenantId = "5d89917712441d7a5073058c",
-                    cid = "5d89917712441d7a5073058c",
-                    mainId = addressBookItem.MainId,
-                    avatar = addressBookItem.Avatar,
-                    name = addressBookItem.Name,
-                    account = addressBookItem.Sn,
-                    mobile = addressBookItem.Mobile,
-                    sn = addressBookItem.Sn,
-                    group = "6274c1d256a7b338c43fb328",
-                    groupName = "04.管网管理产线",
-                    yhloNum = addressBookItem.YhloNum,
-                    isAdmin = false,
-                    channel = "app",
-                    roles = new[]
+                    starttime = DateTime.Now.AddMinutes(-10).ToString("yyyy-MM-dd HH:mm:ss"),
+                    endtime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                }).Result;
+            var result = response.Content.ReadAsStringAsync().Result;
+            var resultModel = JsonConvert.DeserializeObject<ZktResponse>(result);
+            if (resultModel?.Data is { Count: > 0 })
+                foreach (var addressBookItem in listOfPersonnel)
+                    if (resultModel.Data.Items?.FirstOrDefault(e => e.Ename == addressBookItem.RealName) != null)
                     {
-                        "6479adb956a7b33dbcce610c",
-                        "1826788029153456129",
-                        "6332ce1b56a7b316e0574808",
-                        "1775433892067655682",
-                        "1749600164359757825"
-                    },
-                    company = new
-                    {
-                        id = "6274c1d256a7b338c43fb328",
-                        name = "04.管网管理产线",
-                        code = "647047646"
-                    },
-                    tokenfrom = "uniwim",
-                    userType = "user",
-                    exp = 1735008477
-                };
-                var payloadJson = JsonConvert.SerializeObject(payload);
-                var payloadBase64 = Base64UrlEncode(payloadJson);
-                var jwt = $"{headerBase64}.{payloadBase64}.{fakeSignature}";
-                var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("Authorization", jwt);
-                var response = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.ToString("yyyy-MM")).Result;
-                var result = response.Content.ReadAsStringAsync().Result;
-                var resultModel = JsonConvert.DeserializeObject<AttendanceResponse>(result);
-                if (resultModel is not { Code: 200 }) continue;
-                if (resultModel.Data?.DayVoList != null)
-                {
-                    var dayAttendanceList = resultModel.Data?.DayVoList.FirstOrDefault(e => e.Day == DateTime.Now.Day);
-                    if (dayAttendanceList == null) continue;
-                    {
-                        if (dayAttendanceList.DetailList == null) continue;
-                        foreach (var day in dayAttendanceList.DetailList)
-                            switch (day.ClockInType)
-                            {
-                                case "0" when day.ClockInStatus == 1 && day.ClockInStatus != 999:
-                                    if (day.ClockInTime != null)
-                                    {
-                                        pushMessage += listOfPersonnel.FirstOrDefault(e => e.RealName == addressBookItem.Name)?.FlowerName + "-上班时间:" +
-                                                       DateTime.Parse(day.ClockInTime).ToString("HH:mm:ss") + "\n";
-                                        dbConnection.Execute($@"INSERT INTO public.checkinwarning(id,name,clockintime) VALUES('{Guid.NewGuid()}','{addressBookItem.Name}','{day.ClockInTime}')");
-                                    }
-
-                                    break;
-                            }
+                        var checktime = resultModel.Data.Items?.FirstOrDefault(e => e.Ename == addressBookItem.RealName)?.Checktime;
+                        var waringcount = dbConnection.Query<int>(
+                                $@"SELECT COUNT(0) FROM public.checkinwarning WHERE name = '{addressBookItem.RealName}' AND clockintime = '{checktime}'")
+                            .First();
+                        if (waringcount > 0) continue;
+                        if (checktime != null)
+                        {
+                            pushMessage += addressBookItem.FlowerName + "-打卡时间:" +
+                                           DateTime.Parse(checktime).ToString("HH:mm:ss") + "\n";
+                            dbConnection.Execute($@"INSERT INTO public.checkinwarning(id,name,clockintime) VALUES('{Guid.NewGuid()}','{addressBookItem.RealName}','{checktime}')");
+                        }
                     }
-                }
-            }
         }
 
         if (string.IsNullOrEmpty(pushMessage)) return;
@@ -443,14 +382,14 @@ public class HangFireHelper(
 
     /// <summary>
     /// 自动提交加班申请
-    /// 每30分钟一次，每日13：30至20：30内执行，如果当时不为休息日，且加班记录表内没有当时加班信息，则通过查询禅道任务表，并按照剩余工时倒序排列第一次条，按照该条任务内容，通过deepseek生成加班事由提交加班申请；申请成功后会进行推送通知
+    /// 每30分钟一次，每日10：00至20：30内执行，如果当时不为休息日，且加班记录表内没有当时加班信息，则通过查询禅道任务表，并按照剩余工时倒序排列第一次条，按照该条任务内容，通过deepseek生成加班事由提交加班申请；申请成功后会进行推送通知
     /// </summary>
     public void CommitOvertimeWork()
     {
         try
         {
             var projectInfo = new ProjectInfo();
-            var workStart = new TimeSpan(13, 30, 0); // 13:30
+            var workStart = new TimeSpan(10, 0, 0); // 13:30
             var workEnd = new TimeSpan(20, 30, 0); // 20:30
             if (DateTime.Now.TimeOfDay < workStart || DateTime.Now.TimeOfDay > workEnd) return;
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
@@ -604,7 +543,7 @@ public class HangFireHelper(
 
     /// <summary>
     /// 餐补提醒
-    /// 每月1，6，26号14点执行
+    /// 每月24，25，26号14点执行
     /// </summary>
     public void MealAllowanceReminder()
     {
@@ -617,7 +556,7 @@ public class HangFireHelper(
         var result = pmisHelper.GetOaWorkoverTime(startTime, endTime);
         if (result.Any(e => e.Realtime >= 2))
             pushMessageHelper.Push("餐补提醒",
-                DateTime.Parse(endTime).ToString("yyyy年MM月") + ",你居然有" + result.Where(e => e.Realtime >= 2).Count() + "天加班超过2小时,最后只换来" + result.Where(e => e.Realtime >= 2).Sum(e => e.Amount) +
+                DateTime.Parse(endTime).ToString("yyyy年MM月") + ",你居然有" + result.Count(e => e.Realtime >= 2) + "天加班超过2小时,最后只换来" + result.Where(e => e.Realtime >= 2).Sum(e => e.Amount) +
                 "元餐补。请尽快填写餐补,不然这点钱也没了。",
                 PushMessageHelper.PushIcon.Amount);
     }

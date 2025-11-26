@@ -115,4 +115,9 @@ app.MapGet("/daydashboard", async context =>
     context.Response.ContentType = "text/html";
     await context.Response.SendFileAsync("wwwroot/DayReportDashBoard.html");
 });
+app.MapGet("/daka", async context =>
+{
+    context.Response.ContentType = "text/html";
+    await context.Response.SendFileAsync("wwwroot/AttendanceApplication.html");
+});
 app.Run();

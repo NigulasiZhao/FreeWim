@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>智能任务调度</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link rel="stylesheet" href="/jsdelivr/flatpickr.min.css">
+    <script src="/jsdelivr/flatpickr.min.js"></script>
+    <script src="/jsdelivr/zh.js"></script>
+    <link rel="stylesheet" href="/jsdelivr/all.min.css">
+
+    <style>
+        /* ... 基础样式保持不变 ... */
+        body {
+            background-color: #f3f4f6;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .flatpickr-calendar {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+            border: none !important;
+            border-radius: 1rem !important;
+            padding: 10px !important;
+        }
+
+        .flatpickr-day.selected {
+            background: #2563eb !important;
+            border-color: #2563eb !important;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* 【关键】设置列表容器的最大高度和滚动条 */
+        #task-list-wrapper {
+            max-height: 50vh; /* 列表中间容器高度限制在视口高度的50% */
+            overflow-y: scroll;
+            border-radius: 0.5rem;
+            padding-right: 5px; /* 留出一点空间给滚动条，美观 */
+        }
+    </style>
+</head>
+<body class="text-gray-800 font-sans antialiased min-h-screen flex flex-col items-center py-6 sm:py-10 px-4">
+
+<div class="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden relative">
+
+    <div class="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-8 text-white">
+        <h1 class="text-2xl font-bold flex items-center gap-3">
+            <i class="fa-solid fa-rocket"></i>
+            任务调度中心
+        </h1>
+    </div>
+
+    <div class="p-6">
+        <div class="mb-2">
+            <label class="block text-sm font-bold text-gray-700 mb-2 ml-1">执行时间</label>
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-blue-500"><i
+                        class="fa-regular fa-calendar-alt text-lg"></i></div>
+                <input type="datetime-local" id="datetime-picker"
+                       class="w-full pl-12 pr-4 py-4 bg-gray-50 hover:bg-white border-2 border-gray-100 hover:border-blue-300 focus:border-blue-500 rounded-xl transition-all outline-none text-lg text-gray-800 font-medium cursor-pointer shadow-sm appearance-none"
+                       placeholder="请选择时间...">
+                <div class="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-400"><i
+                        class="fa-solid fa-chevron-down text-xs"></i></div>
+            </div>
+        </div>
+        <div class="mb-8 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            <button onclick="setToNight()"
+                    class="whitespace-nowrap px-4 py-2 bg-gray-100 text-gray-600 rounded-full text-sm font-medium hover:bg-gray-200 transition border border-gray-200 active:scale-95">
+                🌙 今晚19点30
+            </button>
+            <button onclick="setTomorrowMorning()"
+                    class="whitespace-nowrap px-4 py-2 bg-gray-100 text-gray-600 rounded-full text-sm font-medium hover:bg-gray-200 transition border border-gray-200 active:scale-95">
+                ☀️ 明早8点
+            </button>
+        </div>
+        <button onclick="submitTime()" id="submit-btn"
+                class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-200 transition-all transform active:scale-[0.98] flex justify-center items-center gap-2 text-lg">
+            <span>提交计划</span>
+        </button>
+    </div>
+
+    <div class="bg-gray-50 border-t border-gray-200 p-6">
+        <div class="flex justify-between items-end mb-5">
+            <h2 class="text-lg font-bold text-gray-800">执行记录</h2>
+            <button onclick="refreshList()"
+                    class="text-sm bg-white border border-gray-200 text-gray-600 px-3 py-2 rounded-lg hover:bg-gray-50 shadow-sm">
+                <i class="fa-solid fa-sync" id="refresh-icon"></i>
+            </button>
+        </div>
+
+        <div id="task-list-wrapper" class="no-scrollbar">
+            <div id="task-list" class="space-y-3">
+            </div>
+        </div>
+
+        <div id="list-status" class="text-center py-4 text-gray-400">
+        </div>
+    </div>
+</div>
+
+<script>
+    let fpInstance;
+    const taskListWrapper = document.getElementById('task-list-wrapper');
+    const taskList = document.getElementById('task-list');
+    const listStatus = document.getElementById('list-status');
+
+    // ============================================================
+    // 1. API 配置与分页状态
+    // ============================================================
+    const API = {
+        GET_LIST: '/api/AttendanceRecord/GetAutoCheckInList',
+        POST_SUBMIT: '/api/AttendanceRecord/AutoCheckIn',
+        POST_CANCEL: '/api/AttendanceRecord/CancelAutoCheckIn'
+    };
+
+    // 分页状态管理
+    let currentPage = 1;
+    const rowsPerPage = 10;
+    let isLoading = false;
+    let hasMoreData = true;
+
+    // ============================================================
+    // 2. 状态映射工具 (保持不变)
+    // ============================================================
+    function getStatusProps(state) {
+        switch (state) {
+            case 1:
+                return {text: '成功', icon: 'fa-check', color: 'green', canCancel: false};
+            case 2:
+                return {text: '失败', icon: 'fa-times', color: 'red', canCancel: false};
+            case 0:
+            default:
+                return {text: '执行中', icon: 'fa-clock', color: 'blue', canCancel: true};
+        }
+    }
+
+    // ============================================================
+    // 3. 核心 API 绑定函数
+    // ============================================================
+
+    /**
+     * 加载下一页数据
+     */
+    async function loadNextPage(reset = false) {
+        if (isLoading || (reset === false && hasMoreData === false)) {
+            return;
+        }
+
+        if (reset) {
+            // 重置状态
+            currentPage = 1;
+            hasMoreData = true;
+            taskList.innerHTML = '';
+            listStatus.innerHTML = '';
+        }
+
+        isLoading = true;
+        listStatus.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 正在加载...';
+
+        try {
+            // 构建带分页参数的 URL
+            const url = `${API.GET_LIST}?Page=${currentPage}&Rows=${rowsPerPage}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Network response was not ok');
+
+            const data = await response.json();
+            // 假设 API 返回的是列表数组
+            const records = data || [];
+
+            if (records.length > 0) {
+                records.forEach(item => {
+                    renderRecord(item);
+                });
+                currentPage++; // 页码递增
+            }
+
+            // 判断是否还有更多数据
+            if (records.length < rowsPerPage) {
+                hasMoreData = false;
+                listStatus.innerHTML = (currentPage === 1 && records.length === 0)
+                    ? '<i class="fa-regular fa-folder-open"></i> 暂无任务记录'
+                    : '—— 已加载全部数据 ——';
+            } else {
+                listStatus.innerHTML = ''; // 清除 loading 状态
+            }
+
+        } catch (error) {
+            console.error("加载列表失败:", error);
+            listStatus.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-red-500"></i> 加载失败`;
+        } finally {
+            isLoading = false;
+        }
+    }
+
+    // 提交成功后调用此函数
+    function refreshList() {
+        loadNextPage(true); // 重置并加载第一页
+    }
+
+    async function submitTime() {
+        let selectedDateStr = "";
+        if (fpInstance.selectedDates.length > 0) {
+            const dateObj = fpInstance.selectedDates[0];
+            const pad = (n) => (n < 10 ? '0' : '') + n;
+            selectedDateStr = dateObj.getFullYear() + '-' + pad(dateObj.getMonth() + 1) + '-' + pad(dateObj.getDate()) +
+                'T' + pad(dateObj.getHours()) + ':' + pad(dateObj.getMinutes()) + ':' + pad(dateObj.getSeconds());
+        }
+
+        if (!selectedDateStr) {
+            alert("请选择有效的时间");
+            return;
+        }
+
+        const btn = document.getElementById('submit-btn');
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 处理中...';
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+
+        try {
+            const response = await fetch(API.POST_SUBMIT, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({selectTime: selectedDateStr})
+            });
+
+            if (!response.ok) throw new Error('提交失败');
+
+            const data = await response.json();
+            if (data && data.message.includes("成功")) {
+                alert("提交成功！任务已创建。");
+                refreshList();
+            } else {
+                alert("提交失败：" + data.message);
+            }
+
+        } catch (error) {
+            console.error("提交失败:", error);
+            alert("提交失败：" + error.message);
+        } finally {
+            btn.innerHTML = '<span>提交计划</span>';
+            btn.classList.remove('opacity-75', 'cursor-not-allowed');
+        }
+    }
+
+    async function cancelTask(btnElement, jobId) {
+        if (!confirm(`确定要取消 Job ID: ${jobId} 的任务吗？`)) {
+            return;
+        }
+
+        const originalText = btnElement.innerText;
+        btnElement.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        btnElement.disabled = true;
+
+        try {
+            const response = await fetch(API.POST_CANCEL, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({jobId: jobId})
+            });
+
+            if (!response.ok) throw new Error('取消失败');
+
+            alert(`任务 Job ID: ${jobId} 已取消！`);
+
+            refreshList(); // 取消成功后刷新列表
+
+        } catch (error) {
+            console.error("取消失败:", error);
+            alert("取消失败：" + error.message);
+        }
+    }
+
+    // ------------------------------------------------------------
+    // 4. 滚动检测与 Debounce
+    // ------------------------------------------------------------
+
+    // 简单的 Debounce 函数，防止滚动事件触发过于频繁
+    function debounce(func, delay) {
+        let timeout;
+        return function () {
+            const context = this;
+            const args = arguments;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), delay);
+        };
+    }
+
+    function checkScroll() {
+        // 滚动条距离底部的距离
+        const scrollDistance = taskListWrapper.scrollHeight - taskListWrapper.scrollTop - taskListWrapper.clientHeight;
+
+        // 当距离底部小于 50px 且当前不在加载中 且 还有更多数据时，加载下一页
+        if (scrollDistance < 50 && !isLoading && hasMoreData) {
+            loadNextPage();
+        }
+    }
+
+    // ------------------------------------------------------------
+    // 5. 渲染函数 (保持结构不变，仅添加JobId到列表项)
+    // ------------------------------------------------------------
+
+    function renderRecord(item) {
+        const props = getStatusProps(item.clockinstate);
+        const dateObj = new Date(item.clockintime);
+        const timeDisplay = dateObj.toLocaleTimeString('zh-CN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        const dateDisplay = dateObj.toLocaleDateString('zh-CN', {year: 'numeric', month: '2-digit', day: '2-digit'});
+
+        const cancelButtonHTML = props.canCancel ? `
+                <button onclick="cancelTask(this, '${item.jobid}')" 
+                        class="px-3 py-1.5 rounded-lg bg-white border border-red-200 text-red-500 text-xs font-medium hover:bg-red-50 hover:text-red-600 transition shadow-sm active:scale-95 whitespace-nowrap">
+                    取消
+                </button>` : '';
+
+        const div = document.createElement('div');
+        div.className = `group bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between hover:shadow-md transition cursor-default`;
+
+        div.innerHTML = `
+                <div class="flex items-center gap-3 w-3/5">
+                    <div class="w-10 h-10 rounded-full bg-${props.color}-50 text-${props.color}-500 flex items-center justify-center text-lg flex-shrink-0">
+                        <i class="fa-solid ${props.icon}"></i>
+                    </div>
+                    <div class="overflow-hidden">
+                        <div class="font-bold text-gray-800 text-sm sm:text-base truncate">${timeDisplay}</div>
+                        <div class="text-xs text-gray-400">${dateDisplay} (Job ID: ${item.jobid})</div>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <span class="px-2 py-1 rounded-md text-xs font-bold bg-${props.color}-50 text-${props.color}-600 border border-${props.color}-100 hidden sm:inline-block">
+                        ${props.text}
+                    </span>
+                    ${cancelButtonHTML}
+                </div>
+            `;
+
+        taskList.appendChild(div);
+    }
+
+    // ============================================================
+    // 6. 初始化
+    // ============================================================
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Flatpickr 初始化
+        fpInstance = flatpickr("#datetime-picker", {
+            enableTime: true,
+            dateFormat: "Y-m-d H:i:s",
+            time_24hr: true,
+            defaultDate: new Date().setMinutes(new Date().getMinutes() + 5),
+            locale: "zh",
+            disableMobile: false,
+            allowInput: true
+        });
+
+        // 绑定滚动事件，并使用 debounce 优化性能
+        taskListWrapper.addEventListener('scroll', debounce(checkScroll, 100));
+
+        // 页面加载时立即加载第一页数据
+        loadNextPage(true);
+    });
+
+    function setToNight() {
+        const date = new Date();
+        date.setHours(19, 30, 0, 0);
+        fpInstance.setDate(date);
+    }
+
+    function setTomorrowMorning() {
+        const date = new Date();
+        date.setDate(date.getDate() + 1);
+        date.setHours(8, 0, 0, 0);
+        fpInstance.setDate(date);
+    }
+</script>
+</body>
+</html>

@@ -24,6 +24,7 @@ public class PMISInfo
     public required string? App { get; set; }
     public required string ZkUrl { get; set; }
     public required string ZkSN { get; set; }
+    public required string ZkKey { get; set; }
 }
 
 public class PMISInsertResponse

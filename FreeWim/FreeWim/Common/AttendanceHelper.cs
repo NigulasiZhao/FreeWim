@@ -8,7 +8,7 @@ using Hangfire.Server;
 
 namespace FreeWim.Common;
 
-public class AttendanceHelper(IConfiguration configuration)
+public class AttendanceHelper(IConfiguration configuration, PushMessageHelper pushMessageHelper)
 {
     /// <summary>
     /// 根据日期获取当日工时
@@ -112,17 +112,29 @@ public class AttendanceHelper(IConfiguration configuration)
             {
                 var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
                 var url = $"{pmisInfo.ZkUrl}/iclock/cdata?SN={pmisInfo.ZkSN}&table=ATTLOG&Stamp=9999";
-                var contentString = $"100{pmisInfo.UserAccount}\t{autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss}\t0\t15\t0\t0\t0";
-                // using var client = new HttpClient();
-                // var content = new StringContent(contentString, Encoding.UTF8, "text/plain");
-                // var response = client.PostAsync(url, content).Result;
-                // var result = response.Content.ReadAsStringAsync().Result;
-                // if (response.StatusCode == System.Net.HttpStatusCode.OK)
-                //     dbConnection.Execute(result.Contains("OK:1")
-                //         ? $@"UPDATE public.autocheckinrecord SET clockinstate = 1,updateat = now() WHERE jobid = '{jobId}'"
-                //         : $@"UPDATE public.autocheckinrecord SET clockinstate = 2,updateat = now() WHERE jobid = '{jobId}'");
-                // else
-                dbConnection.Execute($@"UPDATE public.autocheckinrecord SET clockinstate = 2 ,updateat = now() WHERE jobid = '{jobId}'");
+                var contentString = $"100{pmisInfo.UserAccount}\t{autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss}\t0\t15\t0 \t0\t0";
+                using var client = new HttpClient();
+                var content = new StringContent(contentString, Encoding.UTF8, "text/plain");
+                var response = client.PostAsync(url, content).Result;
+                var result = response.Content.ReadAsStringAsync().Result;
+                if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                {
+                    if (result.Contains("OK:1"))
+                    {
+                        dbConnection.Execute($@"UPDATE public.autocheckinrecord SET clockinstate = 1,updateat = now() WHERE jobid = '{jobId}'");
+                        pushMessageHelper.Push("任务调度", $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务已执行，请关注后续考勤同步信息。", PushMessageHelper.PushIcon.Zktime);
+                    }
+                    else
+                    {
+                        dbConnection.Execute($@"UPDATE public.autocheckinrecord SET clockinstate = 2,updateat = now() WHERE jobid = '{jobId}'");
+                        pushMessageHelper.Push("任务调度", $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务未能成功完成。\n失败原因：" + result, PushMessageHelper.PushIcon.Alert);
+                    }
+                }
+                else
+                {
+                    dbConnection.Execute($@"UPDATE public.autocheckinrecord SET clockinstate = 2 ,updateat = now() WHERE jobid = '{jobId}'");
+                    pushMessageHelper.Push("任务调度", $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务未能成功完成。\n接口调用失败：" + result, PushMessageHelper.PushIcon.Alert);
+                }
             }
         }
 

@@ -37,9 +37,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Content Update="AddressBook.json">
-            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-        </Content>
         <Content Update="wwwroot\test.html">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
@@ -59,6 +56,9 @@
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
         <Content Update="wwwroot\favicon.ico">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <Content Update="wwwroot\AttendanceApplication.html">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
     </ItemGroup>
