@@ -2,7 +2,7 @@
 
 public class OaWorkoverTimeOutput
 {
-    public string Attendancedate { get; set; }
+    public string? Attendancedate { get; set; }
     public double Realtime { get; set; }
     public int Amount { get; set; }
 }

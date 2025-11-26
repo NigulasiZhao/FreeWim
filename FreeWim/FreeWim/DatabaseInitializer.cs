@@ -207,24 +207,26 @@ public class DatabaseInitializer
                 var response = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + StartDate.ToString("yyyy-MM")).Result;
                 var result = response.Content.ReadAsStringAsync().Result;
                 var ResultModel = JsonConvert.DeserializeObject<AttendanceResponse>(result);
-                if (ResultModel.Code == 200)
-                {
-                    _dbConnection.Execute(
-                        $"INSERT INTO public.attendancerecord(attendancemonth,workdays,latedays,earlydays) VALUES('{StartDate.ToString("yyyy-MM")}',{ResultModel.Data.WorkDays},{ResultModel.Data.LateDays},{ResultModel.Data.EarlyDays});");
-                    foreach (var item in ResultModel.Data.DayVoList)
+                if (ResultModel is { Code: 200 })
+                    if (ResultModel.Data != null)
                     {
-                        var flagedate = DateTime.Parse(StartDate.ToString("yyyy-MM") + "-" + item.Day);
-                        if (item.WorkHours != null)
-                        {
-                            _dbConnection.Execute($@"INSERT INTO public.attendancerecordday(untilthisday,day,checkinrule,isnormal,isabnormal,isapply,clockinnumber,workhours,attendancedate)
+                        _dbConnection.Execute(
+                            $"INSERT INTO public.attendancerecord(attendancemonth,workdays,latedays,earlydays) VALUES('{StartDate.ToString("yyyy-MM")}',{ResultModel.Data.WorkDays},{ResultModel.Data.LateDays},{ResultModel.Data.EarlyDays});");
+                        if (ResultModel.Data.DayVoList != null)
+                            foreach (var item in ResultModel.Data.DayVoList)
+                            {
+                                var flagedate = DateTime.Parse(StartDate.ToString("yyyy-MM") + "-" + item.Day);
+                                if (item.WorkHours != null)
+                                {
+                                    _dbConnection.Execute($@"INSERT INTO public.attendancerecordday(untilthisday,day,checkinrule,isnormal,isabnormal,isapply,clockinnumber,workhours,attendancedate)
                                                         VALUES({item.UntilThisDay},{item.Day},'{item.CheckInRule}','{item.IsNormal}','{item.IsAbnormal}','{item.IsApply}',{item.ClockInNumber},{item.WorkHours},to_timestamp('{flagedate.ToString("yyyy-MM-dd 00:00:00")}', 'yyyy-mm-dd hh24:mi:ss'));");
-                            if (item.DetailList != null)
-                                foreach (var daydetail in item.DetailList)
-                                    _dbConnection.Execute($@"INSERT INTO public.attendancerecorddaydetail(id,recordid,clockintype,clockintime,attendancedate)
+                                    if (item.DetailList != null)
+                                        foreach (var daydetail in item.DetailList)
+                                            _dbConnection.Execute($@"INSERT INTO public.attendancerecorddaydetail(id,recordid,clockintype,clockintime,attendancedate)
                                                         VALUES({daydetail.Id},{daydetail.RecordId},'{daydetail.ClockInType}',to_timestamp('{daydetail.ClockInTime}', 'yyyy-mm-dd hh24:mi:ss'),to_timestamp('{flagedate.ToString("yyyy-MM-dd 00:00:00")}', 'yyyy-mm-dd hh24:mi:ss'));");
-                        }
+                                }
+                            }
                     }
-                }
 
                 //infoResult.WorkDays += ResultModel.Data.WorkDays;
                 //infoResult.LateDays += ResultModel.Data.LateDays;

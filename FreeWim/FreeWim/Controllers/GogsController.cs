@@ -143,30 +143,29 @@ public class GogsController(PushMessageHelper pushMessageHelper, IConfiguration 
     [HttpPost]
     public ActionResult GogsPush([FromBody] WebhookPayload input)
     {
-        IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
-        var BranchName = input.Ref.Split("/").Last();
-        var dataSql = "";
+        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        var branchName = input.Ref?.Split("/").Last();
         try
         {
             if (input.Commits != null)
                 if (input.Commits.Count > 0)
                 {
-                    var WebhookCommitList = input.Commits.Where(e => e.Committer.Email == configuration["GogsEmail"]).ToList();
-                    foreach (var item in WebhookCommitList)
+                    var webhookCommitList = input.Commits.Where(e => e.Committer?.Email == configuration["GogsEmail"]).ToList();
+                    foreach (var item in webhookCommitList)
                     {
-                        var CommitExists = _DbConnection.Query<int>("select count(0) from public.gogsrecord where id = :id", new { id = item.Id }).First();
-                        if (CommitExists == 0)
-                            _DbConnection.Execute(
+                        var commitExists = dbConnection.Query<int>("select count(0) from public.gogsrecord where id = :id", new { id = item.Id }).First();
+                        if (commitExists == 0)
+                            dbConnection.Execute(
                                 $@"INSERT INTO public.gogsrecord(id,repositoryname,branchname,commitsdate,message) VALUES(:id,:repositoryname,:branchname,to_timestamp('{item.Timestamp.ToString("yyyy-MM-dd HH:MM:ss")}', 'yyyy-mm-dd hh24:mi:ss'),:message);"
-                                , new { id = item.Id, repositoryname = input.Repository.Name, branchname = input.Ref, message = item.Message });
+                                , new { id = item.Id, repositoryname = input.Repository?.Name, branchname = input.Ref, message = item.Message });
                     }
 
-                    _DbConnection.Dispose();
+                    dbConnection.Dispose();
                 }
         }
         catch (IOException e)
         {
-            _DbConnection.Dispose();
+            dbConnection.Dispose();
             return Json(e.Message);
         }
 
@@ -180,7 +179,7 @@ public class GogsController(PushMessageHelper pushMessageHelper, IConfiguration 
     {
         IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var root = json.RootElement;
-        var branchName = root.GetProperty("ref").GetString().Split("/").Last();
+        var branchName = root.GetProperty("ref").GetString()?.Split("/").Last();
         try
         {
             if (root.TryGetProperty("commits", out var commitsElement) && commitsElement.ValueKind == JsonValueKind.Array)
@@ -209,9 +208,10 @@ public class GogsController(PushMessageHelper pushMessageHelper, IConfiguration 
                                     ? nameElement.GetString()
                                     : "";
 
-                                dbConnection.Execute(
-                                    $@"INSERT INTO public.gogsrecord(id,repositoryname,branchname,commitsdate,message) VALUES(:id,:repositoryname,:branchname,to_timestamp('{DateTime.Parse(timestamp):yyyy-MM-dd HH:mm:ss}', 'yyyy-mm-dd hh24:mi:ss'),:message);",
-                                    new { id = commitId, repositoryname = repositoryName, branchname = branchName, message = message });
+                                if (timestamp != null)
+                                    dbConnection.Execute(
+                                        $@"INSERT INTO public.gogsrecord(id,repositoryname,branchname,commitsdate,message) VALUES(:id,:repositoryname,:branchname,to_timestamp('{DateTime.Parse(timestamp):yyyy-MM-dd HH:mm:ss}', 'yyyy-mm-dd hh24:mi:ss'),:message);",
+                                        new { id = commitId, repositoryname = repositoryName, branchname = branchName, message = message });
                             }
                         }
 
@@ -233,31 +233,30 @@ public class GogsController(PushMessageHelper pushMessageHelper, IConfiguration 
     [HttpPost]
     public ActionResult GitHubPush([FromBody] GitHubWebhookPayload input)
     {
-        IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
-        var BranchName = input.@ref.Split("/").Last();
+        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        var branchName = input.@ref?.Split("/").Last();
         var dataSql = "";
         try
         {
-            if (input.commits != null)
-                if (input.commits.Count > 0)
+            if (input.commits is { Count: > 0 })
+            {
+                var webhookCommitList = input.commits.Where(e => e.committer?.Email == configuration["GogsEmail"]).ToList();
+                foreach (var item in webhookCommitList)
                 {
-                    var WebhookCommitList = input.commits.Where(e => e.committer.Email == configuration["GogsEmail"]).ToList();
-                    foreach (var item in WebhookCommitList)
-                    {
-                        var CommitExists = _DbConnection.Query<int>("select count(0) from public.gogsrecord where id = :id", new { id = item.id }).First();
-                        if (CommitExists == 0)
-                            _DbConnection.Execute(
-                                @$"INSERT INTO public.gogsrecord(id,repositoryname,branchname,commitsdate,message) VALUES(:id,:repositoryname,:branchname,to_timestamp('{item.timestamp.ToString("yyyy-MM-dd HH:MM:ss")}', 'yyyy-mm-dd hh24:mi:ss'),:message);"
-                                , new { id = item.id, repositoryname = input.repository.name, branchname = input.@ref, message = item.message });
-                    }
-
-                    if (!string.IsNullOrEmpty(dataSql)) _DbConnection.Execute(dataSql);
-                    _DbConnection.Dispose();
+                    var commitExists = dbConnection.Query<int>("select count(0) from public.gogsrecord where id = :id", new { id = item.id }).First();
+                    if (commitExists == 0)
+                        dbConnection.Execute(
+                            @$"INSERT INTO public.gogsrecord(id,repositoryname,branchname,commitsdate,message) VALUES(:id,:repositoryname,:branchname,to_timestamp('{item.timestamp.ToString("yyyy-MM-dd HH:MM:ss")}', 'yyyy-mm-dd hh24:mi:ss'),:message);"
+                            , new { id = item.id, repositoryname = input.repository?.name, branchname = input.@ref, message = item.message });
                 }
+
+                if (!string.IsNullOrEmpty(dataSql)) dbConnection.Execute(dataSql);
+                dbConnection.Dispose();
+            }
         }
         catch (IOException e)
         {
-            _DbConnection.Dispose();
+            dbConnection.Dispose();
             return Json(e.Message);
         }
 
@@ -270,16 +269,16 @@ public class GogsController(PushMessageHelper pushMessageHelper, IConfiguration 
     public ActionResult GitPushTriggerJenkins([FromBody] JsonDocument json)
     {
         var root = json.RootElement;
-        var BranchName = root.GetProperty("ref").GetString().Split("/").Last();
+        var branchName = root.GetProperty("ref").GetString()?.Split("/").Last();
         try
         {
             var client = new HttpClient();
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
                 "Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes($"{configuration.GetSection("JenkinsUserName").Value}:{configuration.GetSection("JenkinsUserToken").Value}")));
 
-            var GitList = configuration.GetSection("GitList").Get<List<GitInfoModel>>();
-            GitList = GitList.Where(e => e.BranchName == BranchName).ToList();
-            foreach (var model in GitList)
+            var gitList = configuration.GetSection("GitList").Get<List<GitInfoModel>>()!;
+            gitList = gitList.Where(e => e.BranchName == branchName).ToList();
+            foreach (var model in gitList)
                 if (!string.IsNullOrEmpty(model.JenkinsBuildUrl))
                 {
                     if (model.BuildParameters?.Count > 0)
@@ -301,7 +300,7 @@ public class GogsController(PushMessageHelper pushMessageHelper, IConfiguration 
 
             #region 提醒推送
 
-            pushMessageHelper.Push("测试站点更新", "分支：" + BranchName + "测试站点已更新", PushMessageHelper.PushIcon.Jenkins);
+            pushMessageHelper.Push("测试站点更新", "分支：" + branchName + "测试站点已更新", PushMessageHelper.PushIcon.Jenkins);
 
             #endregion
         }
@@ -310,6 +309,6 @@ public class GogsController(PushMessageHelper pushMessageHelper, IConfiguration 
             return Json(e.Message);
         }
 
-        return Json(BranchName + "更新完成");
+        return Json(branchName + "更新完成");
     }
 }

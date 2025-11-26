@@ -21,7 +21,7 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
     /// <returns></returns>
     public string GetZentaoToken()
     {
-        var zentaoInfo = configuration.GetSection("ZentaoInfo").Get<ZentaoInfo>();
+        var zentaoInfo = configuration.GetSection("ZentaoInfo").Get<ZentaoInfo>()!;
         var httpHelper = new HttpRequestHelper();
         var postResponse = httpHelper.PostAsync(zentaoInfo.Url + "/api.php/v1/tokens", new
         {
@@ -31,7 +31,7 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
         var json = postResponse.Content.ReadAsStringAsync().Result;
         var doc = JsonDocument.Parse(json);
         var token = doc.RootElement.GetProperty("token").GetString();
-        return token;
+        return token ?? string.Empty;
     }
 
     /// <summary>
@@ -40,7 +40,7 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
     /// <returns></returns>
     public JObject GetZentaoTask()
     {
-        var zentaoInfo = configuration.GetSection("ZentaoInfo").Get<ZentaoInfo>();
+        var zentaoInfo = configuration.GetSection("ZentaoInfo").Get<ZentaoInfo>()!;
         var zentaoToken = GetZentaoToken();
         var httpHelper = new HttpRequestHelper();
         var getTaskResponse = httpHelper.GetAsync(zentaoInfo.Url + "/my-work-task.json", new Dictionary<string, string> { { "Token", zentaoToken } }).Result;
@@ -50,10 +50,12 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
             Encoder = JavaScriptEncoder.Create(UnicodeRanges.All), // 确保不重新编码
             WriteIndented = true
         };
-        var jsonDoc = JsonDocument.Parse(outer.data); // 内层是个 JSON 字符串
+        if (outer == null) return new JObject();
+        var jsonDoc = JsonDocument.Parse(outer.data ?? string.Empty); // 内层是个 JSON 字符串
         var prettyJson = JsonSerializer.Serialize(jsonDoc.RootElement, options);
         var json = JObject.Parse(prettyJson);
         return json;
+
         //var zentaoTaskResult = JsonSerializer.Deserialize<ZentaoTaskResponse>(prettyJson);
         //return zentaoTaskResult.tasks;
     }
@@ -88,7 +90,7 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
 
             foreach (var zentaoTaskItem in dataArray)
             {
-                var projectCode = GetProjectCodeForProjectId(zentaoTaskItem["project"]?.ToString());
+                var projectCode = GetProjectCodeForProjectId(zentaoTaskItem["project"]?.ToString() ?? string.Empty);
                 var sql = @"
                     INSERT INTO public.zentaotask (
                         id, project, execution, taskname, estimate, timeleft, consumed, registerhours,
@@ -151,7 +153,7 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
         try
         {
             IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
-            var zentaoInfo = configuration.GetSection("ZentaoInfo").Get<ZentaoInfo>();
+            var zentaoInfo = configuration.GetSection("ZentaoInfo").Get<ZentaoInfo>()!;
             var httpHelper = new HttpRequestHelper();
             var tasklist = AllocateWork(finishedDate, totalHours);
             if (tasklist.Count > 0)
@@ -168,8 +170,9 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
                         comment = "任务完成"
                     }, new Dictionary<string, string> { { "Token", zentaoToken } }).Result;
                     var outer = JsonSerializer.Deserialize<FinishZentaoTaskResponse>(getResponse.Content.ReadAsStringAsync().Result);
-                    dbConnection.Execute(
-                        $@"UPDATE public.zentaotask SET consumed =consumed+ {outer.consumed},timeleft = {outer.left},registerhours = registerhours + {task.TimeConsuming},taskstatus = '{outer.status}' WHERE ID = {outer.id}");
+                    if (outer != null)
+                        dbConnection.Execute(
+                            $@"UPDATE public.zentaotask SET consumed =consumed+ {outer.Consumed},timeleft = {outer.Left},registerhours = registerhours + {task.TimeConsuming},taskstatus = '{outer.Status}' WHERE ID = {outer.id}");
                 }
 
                 pushMessage = "已处理 " + tasklist.Count + " 条任务\n共登记 " + tasklist.Sum(e => e.TimeConsuming) + " 工时";
@@ -193,12 +196,12 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
     {
         try
         {
-            var zentaoInfo = configuration.GetSection("ZentaoInfo").Get<ZentaoInfo>();
+            var zentaoInfo = configuration.GetSection("ZentaoInfo").Get<ZentaoInfo>()!;
             var zentaoToken = GetZentaoToken();
             var httpHelper = new HttpRequestHelper();
             var getResponse = httpHelper.GetAsync(zentaoInfo.Url + "/api.php/v1/projects/" + projectId, new Dictionary<string, string> { { "Token", zentaoToken } }).Result;
             var json = JObject.Parse(getResponse.Content.ReadAsStringAsync().Result);
-            return json["code"].ToString();
+            return json["code"]?.ToString() ?? string.Empty;
         }
         catch (Exception e)
         {
@@ -268,7 +271,7 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
     {
         try
         {
-            var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+            var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
             IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             var taskList = dbConnection
                 .Query<(int id, string taskname, string taskdesc)>(
@@ -285,11 +288,12 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
                 var res = chatClient.GetResponseAsync(chatHistory, chatOptions).Result;
                 if (string.IsNullOrWhiteSpace(res?.Text)) return;
                 var taskContent = JsonConvert.DeserializeObject<dynamic>(res.Text.Replace("```json", "").Replace("```", "").Trim());
-                dbConnection.Execute($"UPDATE public.zentaotask SET target= '{taskContent.target}',planfinishact= '{taskContent.planFinishAct}',realjob= '{taskContent.realJob}' where id = {task.id}");
+                dbConnection.Execute(
+                    $"UPDATE public.zentaotask SET target= '{taskContent?.target}',planfinishact= '{taskContent?.planFinishAct}',realjob= '{taskContent?.realJob}' where id = {task.id}");
 
-                string target = taskContent.target.ToString();
-                string planFinishAct = taskContent.planFinishAct.ToString();
-                string realJob = taskContent.realJob.ToString();
+                string target = taskContent?.target.ToString() ?? "";
+                string planFinishAct = taskContent?.planFinishAct.ToString() ?? "";
+                string realJob = taskContent?.realJob.ToString() ?? "";
                 var shortTarget = target.Length > 10 ? target.Substring(0, 10) + "..." : target;
                 var shortPlan = planFinishAct.Length > 10 ? planFinishAct.Substring(0, 10) + "..." : planFinishAct;
                 var shortReal = realJob.Length > 10 ? realJob.Substring(0, 10) + "..." : realJob;

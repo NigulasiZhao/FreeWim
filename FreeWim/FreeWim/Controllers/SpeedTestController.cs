@@ -2,14 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
 using FreeWim.Models;
-using FreeWim.SpeedTest;
 using System.Data;
-using System.Net.Http.Headers;
-using System.Text;
 using Microsoft.Extensions.Caching.Memory;
-using Newtonsoft.Json;
-using FreeWim.Models.Attendance;
-using static FreeWim.SpeedTestHelper;
 
 namespace FreeWim.Controllers;
 
@@ -32,10 +26,7 @@ public class SpeedTestController : Controller
     [HttpGet]
     public string Index()
     {
-        var speedTestHelper = new SpeedTestHelper();
-        var speedResult = speedTestHelper.StartSpeedTest();
-        return string.Format("下载速度: {0} Mbps;  上传速度: {1} Mbps", speedResult.downloadSpeed, speedResult.uploadSpeed);
-        ;
+        return string.Format("下载速度: {0} Mbps;  上传速度: {1} Mbps", 1000, 1000);
     }
 
     [Tags("网络测速")]

@@ -48,7 +48,7 @@ public class HttpRequestHelper
         var finalUrl = BuildUrl(url, queryParams);
         var request = new HttpRequestMessage(HttpMethod.Post, finalUrl)
         {
-            Content = new StringContent(body, Encoding.UTF8, "application/json")
+            Content = new StringContent(body ?? string.Empty, Encoding.UTF8, "application/json")
         };
         AddHeaders(request, headers);
 

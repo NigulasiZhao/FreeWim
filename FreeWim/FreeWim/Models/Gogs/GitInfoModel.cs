@@ -2,8 +2,8 @@
 
 public class GitInfoModel
 {
-    public string JenkinsBuildUrl { get; set; }
+    public string? JenkinsBuildUrl { get; set; }
 
-    public string BranchName { get; set; }
-    public List<Dictionary<string, string>> BuildParameters { get; set; }
+    public string? BranchName { get; set; }
+    public List<Dictionary<string, string>>? BuildParameters { get; set; }
 }

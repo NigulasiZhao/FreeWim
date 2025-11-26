@@ -19,7 +19,7 @@ public class WorkFlowExecutor(
         try
         {
             IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
-            var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+            var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
             var workHours = attendanceHelper.GetWorkHoursByDate(DateTime.Today);
             if (workHours > 0)
             {
@@ -40,9 +40,7 @@ public class WorkFlowExecutor(
                                     FROM public.zentaotask
                                     WHERE to_char(eststarted, 'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}'").First();
                             if (taskFinishInfo.AllCount > 0 && taskFinishInfo is { NotDoneCount: 0, DoneCount: > 0 })
-                            {
-                                var DateResult = pmisHelper.CommitWorkLogByDate(DateTime.Now.ToString("yyyy-MM-dd"), pmisInfo.UserId);
-                            }
+                                pmisHelper.CommitWorkLogByDate(DateTime.Now.ToString("yyyy-MM-dd"), pmisInfo.UserId);
                         }
                     }
             }

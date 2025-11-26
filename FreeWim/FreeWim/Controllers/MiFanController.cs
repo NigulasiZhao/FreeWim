@@ -1,38 +1,22 @@
-﻿using System.Data;
-using System.Globalization;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using Dapper;
+﻿using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.AI;
 using Npgsql;
-using FreeWim.Common;
-using FreeWim.Models.PmisAndZentao;
-using Newtonsoft.Json.Linq;
 
 namespace FreeWim.Controllers;
 
 [ApiController]
 [Route("api/[controller]/[action]")]
 public class MiFanController(
-    IConfiguration configuration,
-    ILogger<SpeedTestController> logger,
-    ZentaoHelper zentaoHelper,
-    AttendanceHelper attendanceHelper,
-    PmisHelper pmisHelper,
-    PushMessageHelper pushMessageHelper,
-    IChatClient chatClient)
+    IConfiguration configuration)
     : Controller
 {
-    private readonly IConfiguration _configuration = configuration;
-
     [ApiExplorerSettings(IgnoreApi = true)]
     [Tags("米饭公社")]
     [EndpointSummary("获取绑定信息")]
     [HttpGet]
     public async Task<string> Getbindings()
     {
-        using var conn = new NpgsqlConnection(_configuration["Connection"]);
+        using var conn = new NpgsqlConnection(configuration["Connection"]);
         await conn.OpenAsync();
 
         using var httpClient = new HttpClient();
@@ -63,13 +47,13 @@ public class MiFanController(
                         VALUES (@houseWechatId, @accountId, @houseId, @active, @mobile, @bindTagRoleName, @bindTagRoleId, @tag, @communityId, @city, @communityName, @block, @unit, @room, @inviteBind, @ownerName, @userBind, @takeoverState, @realestateImgUrl, @realestateServicesLinkUrl, @startDate, @endDate)
                     ", conn);
 
-                    cmd.Parameters.AddWithValue("@houseWechatId", (object?)item.GetProperty("houseWechatId").GetInt64());
-                    cmd.Parameters.AddWithValue("@accountId", (object?)item.GetProperty("accountId").GetInt64());
-                    cmd.Parameters.AddWithValue("@houseId", (object?)item.GetProperty("houseId").GetInt64());
-                    cmd.Parameters.AddWithValue("@active", (object?)item.GetProperty("active").GetInt32());
+                    cmd.Parameters.AddWithValue("@houseWechatId", (object?)item.GetProperty("houseWechatId").GetInt64() ?? 0);
+                    cmd.Parameters.AddWithValue("@accountId", (object?)item.GetProperty("accountId").GetInt64() ?? 0);
+                    cmd.Parameters.AddWithValue("@houseId", (object?)item.GetProperty("houseId").GetInt64() ?? 0);
+                    cmd.Parameters.AddWithValue("@active", (object?)item.GetProperty("active").GetInt32() ?? 0);
                     cmd.Parameters.AddWithValue("@mobile", (object?)item.GetProperty("mobile").GetString() ?? (object)DBNull.Value);
                     cmd.Parameters.AddWithValue("@bindTagRoleName", (object?)item.GetProperty("bindTagRoleName").GetString() ?? (object)DBNull.Value);
-                    cmd.Parameters.AddWithValue("@bindTagRoleId", (object?)item.GetProperty("bindTagRoleId").GetInt32());
+                    cmd.Parameters.AddWithValue("@bindTagRoleId", (object?)item.GetProperty("bindTagRoleId").GetInt32() ?? 0);
                     cmd.Parameters.AddWithValue("@tag", (object?)item.GetProperty("tag").GetString() ?? (object)DBNull.Value);
                     cmd.Parameters.AddWithValue("@communityId", (object?)item.GetProperty("communityId").GetString() ?? (object)DBNull.Value);
                     cmd.Parameters.AddWithValue("@city", (object?)item.GetProperty("city").GetString() ?? (object)DBNull.Value);
@@ -77,10 +61,10 @@ public class MiFanController(
                     cmd.Parameters.AddWithValue("@block", (object?)item.GetProperty("block").GetString() ?? (object)DBNull.Value);
                     cmd.Parameters.AddWithValue("@unit", (object?)item.GetProperty("unit").GetString() ?? (object)DBNull.Value);
                     cmd.Parameters.AddWithValue("@room", (object?)item.GetProperty("room").GetString() ?? (object)DBNull.Value);
-                    cmd.Parameters.AddWithValue("@inviteBind", (object?)item.GetProperty("inviteBind").GetInt32());
+                    cmd.Parameters.AddWithValue("@inviteBind", (object?)item.GetProperty("inviteBind").GetInt32() ?? 0);
                     cmd.Parameters.AddWithValue("@ownerName", (object?)item.GetProperty("ownerName").GetString() ?? (object)DBNull.Value);
-                    cmd.Parameters.AddWithValue("@userBind", (object?)item.GetProperty("userBind").GetInt32());
-                    cmd.Parameters.AddWithValue("@takeoverState", (object?)item.GetProperty("takeoverState").GetInt32());
+                    cmd.Parameters.AddWithValue("@userBind", (object?)item.GetProperty("userBind").GetInt32() ?? 0);
+                    cmd.Parameters.AddWithValue("@takeoverState", (object?)item.GetProperty("takeoverState").GetInt32() ?? 0);
                     cmd.Parameters.AddWithValue("@realestateImgUrl", (object?)item.GetProperty("realestateImgUrl").GetString() ?? (object)DBNull.Value);
                     cmd.Parameters.AddWithValue("@realestateServicesLinkUrl", (object?)item.GetProperty("realestateServicesLinkUrl").GetString() ?? (object)DBNull.Value);
                     cmd.Parameters.AddWithValue("@startDate", DBNull.Value); // API返回null

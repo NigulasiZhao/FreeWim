@@ -18,7 +18,7 @@ public class PushMessageHelper(IConfiguration configuration)
     /// <param name="message">推送信息</param>
     /// <param name="icon">推送图标</param>
     /// <param name="customIconUrl">自定义图标地址</param>
-    public void Push(string title, string message, PushIcon icon = PushIcon.Default, string customIconUrl = null)
+    public void Push(string title, string message, PushIcon icon = PushIcon.Default, string customIconUrl = "")
     {
         try
         {
@@ -27,7 +27,7 @@ public class PushMessageHelper(IConfiguration configuration)
             var iconUrl = GetIconUrl(icon, customIconUrl);
             foreach (var pushItem in pushInfoList)
             {
-                if (pushItem.PushType.Equals("bark", StringComparison.CurrentCultureIgnoreCase))
+                if (pushItem.PushType != null && pushItem.PushType.Equals("bark", StringComparison.CurrentCultureIgnoreCase))
                 {
                     var barkclient = new HttpClient();
                     var data = JsonConvert.SerializeObject(new
@@ -43,7 +43,7 @@ public class PushMessageHelper(IConfiguration configuration)
                     barkclient.PostAsync(pushItem.PushUrl, byteContent);
                 }
 
-                if (pushItem.PushType.Equals("gotify", StringComparison.CurrentCultureIgnoreCase))
+                if (pushItem.PushType != null && pushItem.PushType.Equals("gotify", StringComparison.CurrentCultureIgnoreCase))
                 {
                     using var gotifyclient = new HttpClient();
                     using var formData = new MultipartFormDataContent();
@@ -56,7 +56,7 @@ public class PushMessageHelper(IConfiguration configuration)
                     var responseBody = response.Content.ReadAsStringAsync().Result;
                 }
 
-                if (pushItem.PushType.Equals("ntfy", StringComparison.CurrentCultureIgnoreCase))
+                if (pushItem.PushType != null && pushItem.PushType.Equals("ntfy", StringComparison.CurrentCultureIgnoreCase))
                 {
                     var ntfyclient = new HttpClient();
                     var request = new HttpRequestMessage(HttpMethod.Put, pushItem.PushUrl + $"?title={title}&message={message}");
@@ -69,7 +69,7 @@ public class PushMessageHelper(IConfiguration configuration)
                     var responseBody = response.Content.ReadAsStringAsync();
                 }
 
-                if (!pushItem.PushType.Equals("email", StringComparison.CurrentCultureIgnoreCase)) continue;
+                if (pushItem.PushType != null && !pushItem.PushType.Equals("email", StringComparison.CurrentCultureIgnoreCase)) continue;
                 var emailInfo = configuration.GetSection("EmaliInfo").Get<EmaliInfo>();
                 if (emailInfo == null) continue;
                 var sendmessage = new MimeMessage
@@ -80,12 +80,15 @@ public class PushMessageHelper(IConfiguration configuration)
                         HtmlBody = message
                     }.ToMessageBody()
                 };
-                var addressList = emailInfo.ReceiveList
-                    .Select(r => new MailboxAddress(r.Name, r.Address))
-                    .ToList();
+                if (emailInfo.ReceiveList != null)
+                {
+                    var addressList = emailInfo.ReceiveList
+                        .Select(r => new MailboxAddress(r.Name, r.Address))
+                        .ToList();
 
-                sendmessage.From.Add(new MailboxAddress(Encoding.UTF8, title, emailInfo.UserName));
-                sendmessage.To.AddRange(addressList);
+                    sendmessage.From.Add(new MailboxAddress(Encoding.UTF8, title, emailInfo.UserName));
+                    sendmessage.To.AddRange(addressList);
+                }
 
                 using var client = new SmtpClient
                 {

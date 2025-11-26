@@ -2,8 +2,8 @@
 
 public class AutoCheckInRecord
 {
-    public string id { get; set; }
-    public string jobid { get; set; }
+    public string? id { get; set; }
+    public string? jobid { get; set; }
 
     public DateTime clockintime { get; set; }
 

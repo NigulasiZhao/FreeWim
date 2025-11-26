@@ -5,44 +5,44 @@
 public class KeepResponse
 {
     public bool ok { get; set; }
-    public KeepResponseData data { get; set; }
+    public KeepResponseData? data { get; set; }
 
     public int errorCode { get; set; }
 
-    public string text { get; set; }
+    public string? text { get; set; }
 }
 
 public class KeepResponseData
 {
-    public List<KeepResponseDataDetail> records { get; set; }
+    public List<KeepResponseDataDetail>? records { get; set; }
 }
 
 public class KeepResponseDataDetail
 {
-    public string date { get; set; }
-    public string calorieSum { get; set; }
-    public string durationSum { get; set; }
-    public List<DailyList> logs { get; set; }
+    public string? date { get; set; }
+    public string? calorieSum { get; set; }
+    public string? durationSum { get; set; }
+    public List<DailyList>? logs { get; set; }
 }
 
 public class DailyList
 {
-    public string type { get; set; }
+    public string? type { get; set; }
     public LogStats? stats { get; set; }
 }
 
 public class LogStats
 {
-    public string id { get; set; }
+    public string? id { get; set; }
 
-    public string type { get; set; }
-    public string name { get; set; }
-    public string nameSuffix { get; set; }
+    public string? type { get; set; }
+    public string? name { get; set; }
+    public string? nameSuffix { get; set; }
     public long startTime { get; set; }
     public long endTime { get; set; }
-    public string steps { get; set; }
-    public string doneDate { get; set; }
-    public string calorie { get; set; }
+    public string? steps { get; set; }
+    public string? doneDate { get; set; }
+    public string? calorie { get; set; }
 }
 
 #endregion
@@ -52,40 +52,40 @@ public class LogStats
 public class SportLogResponse
 {
     public bool ok { get; set; }
-    public SportLogData data { get; set; }
+    public SportLogData? data { get; set; }
 
     public int errorCode { get; set; }
 
-    public string text { get; set; }
+    public string? text { get; set; }
 }
 
 public class SportLogData
 {
-    public string logId { get; set; }
-    public List<SportLogSections> sections { get; set; }
+    public string? logId { get; set; }
+    public List<SportLogSections>? sections { get; set; }
 
-    public string userId { get; set; }
+    public string? userId { get; set; }
 }
 
 public class SportLogSections
 {
-    public string style { get; set; }
-    public SportLogContent content { get; set; }
+    public string? style { get; set; }
+    public SportLogContent? content { get; set; }
 }
 
 public class SportLogContent
 {
-    public List<SportLogContentList> list { get; set; }
+    public List<SportLogContentList>? list { get; set; }
 }
 
 public class SportLogContentList
 {
-    public string title { get; set; }
-    public string valueStr { get; set; }
-    public string unit { get; set; }
-    public string gridType { get; set; }
-    public string chartIcon { get; set; }
-    public string privacyInfo { get; set; }
+    public string? title { get; set; }
+    public string? valueStr { get; set; }
+    public string? unit { get; set; }
+    public string? gridType { get; set; }
+    public string? chartIcon { get; set; }
+    public string? privacyInfo { get; set; }
 }
 
 #endregion

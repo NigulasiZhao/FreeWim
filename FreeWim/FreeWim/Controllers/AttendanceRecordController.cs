@@ -103,7 +103,7 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
     [HttpPost]
     public ActionResult RestoreOverTimeWork([FromBody] CancelOverTimeWorkInput input)
     {
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var rowsCount = dbConnection.Execute($@"DELETE FROM 
 														public.overtimerecord
@@ -123,7 +123,7 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
     [HttpGet]
     public ActionResult GetBoardData()
     {
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
         var sqlThisMonth = @"
 							        SELECT
@@ -435,27 +435,34 @@ limit 10;";
     [HttpPost]
     public ActionResult AutoCheckIn([FromBody] AutoCheckInInput input)
     {
-        if (input.SelectTime < DateTime.Now) return Json(new { jobId = "", SelectTime = input.SelectTime, message = "登记失败,时间不能小于当前时间" });
-        //早上9点之前立即执行
-        var workStart = new TimeSpan(10, 0, 0);
-        if (input.SelectTime.Value.TimeOfDay > workStart)
+        if (input.SelectTime != null)
         {
-            var rand = new Random();
-            var offsetSeconds = rand.Next(0, 500);
-            input.SelectTime = input.SelectTime.Value.AddSeconds(offsetSeconds);
-        }
+            if (input.SelectTime < DateTime.Now) return Json(new { jobId = "", SelectTime = input.SelectTime, message = "登记失败,时间不能小于当前时间" });
+            //早上9点之前立即执行
+            var workStart = new TimeSpan(10, 0, 0);
+            if (input.SelectTime.Value.TimeOfDay > workStart)
+            {
+                var rand = new Random();
+                var offsetSeconds = rand.Next(0, 500);
+                input.SelectTime = input.SelectTime.Value.AddSeconds(offsetSeconds);
+            }
 
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
-        var currentQuantity = dbConnection.Query<int>($@"SELECT count(0) FROM public.autocheckinrecord where to_char(clockintime,'yyyy-mm-dd') = '{input.SelectTime.Value:yyyy-MM-dd}'").First();
-        if (currentQuantity >= 2) return Json(new { jobId = "", SelectTime = input.SelectTime, message = "登记失败,今日操作过于频繁" });
-
-        var jobId = BackgroundJob.Schedule(() => attendanceHelper.AutoCheckIniclock(null), input.SelectTime.Value);
-        dbConnection.Execute(
-            $@"insert
+            IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            var currentQuantity = dbConnection.Query<int>($@"SELECT count(0) FROM public.autocheckinrecord where to_char(clockintime,'yyyy-mm-dd') = '{input.SelectTime.Value:yyyy-MM-dd}'").First();
+            if (currentQuantity >= 2) return Json(new { jobId = "", SelectTime = input.SelectTime, message = "登记失败,今日操作过于频繁" });
+            var jobId = BackgroundJob.Schedule(() => attendanceHelper.AutoCheckIniclock(null), input.SelectTime.Value);
+            dbConnection.Execute(
+                $@"insert
                 	into
                 	public.autocheckinrecord(id, jobid, clockintime, clockinstate)
                 values('{Guid.NewGuid().ToString()}', '{jobId}', to_timestamp('{input.SelectTime:yyyy-MM-dd HH:mm:ss}', 'yyyy-mm-dd hh24:mi:ss'), 0)");
-        return Json(new { jobId = jobId, SelectTime = input.SelectTime, message = "成功" });
+            dbConnection.Dispose();
+            return Json(new { jobId = jobId, SelectTime = input.SelectTime, message = "成功" });
+        }
+        else
+        {
+            return Json(new { jobId = "", SelectTime = input.SelectTime, message = "登记失败,请选择时间" });
+        }
     }
 
     [Tags("自动打卡")]
@@ -466,6 +473,7 @@ limit 10;";
         IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var flag = BackgroundJob.Delete(input.jobId);
         dbConnection.Execute($@"DELETE FROM public.autocheckinrecord WHERE jobid = '{input.jobId}'");
+        dbConnection.Dispose();
         return Json(new { flag });
     }
 

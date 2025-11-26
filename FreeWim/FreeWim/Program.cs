@@ -36,8 +36,8 @@ builder.Services.AddSingleton<IChatClient>(sp =>
 {
     var cfg = sp.GetRequiredService<IConfiguration>();
     var openAIClient = new OpenAIClient(
-        new ApiKeyCredential(cfg["LLM:ApiKey"]),
-        new OpenAIClientOptions { Endpoint = new Uri(cfg["LLM:EndPoint"]) }
+        new ApiKeyCredential(cfg["LLM:ApiKey"] ?? string.Empty),
+        new OpenAIClientOptions { Endpoint = new Uri(cfg["LLM:EndPoint"] ?? string.Empty) }
     );
     return new ChatClientBuilder(openAIClient.GetChatClient(cfg["LLM:ModelId"]).AsIChatClient())
         .UseFunctionInvocation()
@@ -45,7 +45,7 @@ builder.Services.AddSingleton<IChatClient>(sp =>
 });
 builder.Services.AddHangfire(config =>
     config.UsePostgreSqlStorage(c =>
-            c.UseNpgsqlConnection(builder.Configuration["Connection"].ToString()),
+            c.UseNpgsqlConnection(builder.Configuration["Connection"]?.ToString()),
         new PostgreSqlStorageOptions
         {
             // 控制过期任务清理频率（默认是1小时，这里改为1分钟）

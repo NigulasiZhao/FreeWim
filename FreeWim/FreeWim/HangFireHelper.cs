@@ -52,45 +52,6 @@ public class HangFireHelper(
 
     //private static readonly MemoryCache Cache = new(new MemoryCacheOptions());
 
-    public void SpeedTest()
-    {
-        try
-        {
-            IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
-            var speedTestHelper = new SpeedTestHelper();
-            var speedResult = speedTestHelper.StartSpeedTest();
-            dbConnection.Execute($"""
-                                  INSERT INTO speedrecord
-                                                                                              (id,
-                                                                                              ping,
-                                                                                              download, 
-                                                                                              upload, 
-                                                                                              server_id, 
-                                                                                              server_host, 
-                                                                                              server_name, 
-                                                                                              url, 
-                                                                                              scheduled, 
-                                                                                              failed)
-                                                                                              VALUES('{Guid.NewGuid().ToString()}',
-                                                                                                     '{speedResult.Latency}', 
-                                                                                                     {speedResult.downloadSpeed},
-                                                                                                     {speedResult.uploadSpeed}, 
-                                                                                                     {speedResult.Id},
-                                                                                                     '{speedResult.Host}',
-                                                                                                     '{speedResult.Name}', 
-                                                                                                     '{speedResult.Url}',
-                                                                                                     0, 
-                                                                                                     0)
-                                  """);
-            //if (!string.IsNullOrEmpty(configuration["PushMessageUrl"])) PushMessage(speedResult);
-            dbConnection.Dispose();
-        }
-        catch (Exception)
-        {
-            // ignored
-        }
-    }
-
     /// <summary>
     /// 考勤数据同步
     /// 每小时的5分，35分调用一次查询当月考勤数据接口；接口结果对比本地库中数据，如果接口返回有新数据，则更新本地数据库
@@ -126,45 +87,52 @@ public class HangFireHelper(
                                             	to_char(attendancedate,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}'
                                             group by
                                             	clockintype").ToList();
-            if (resultModel.Data.DayVoList.Count > 0)
-                foreach (var daydetail in resultModel.Data.DayVoList.Where(e => e.Day == DateTime.Today.Day))
-                    if (daydetail.DetailList != null)
-                        foreach (var daydetailitem in daydetail.DetailList)
-                            if (!todayAttendanceList.Any(e => e.ClockInType == int.Parse(daydetailitem.ClockInType) &&
-                                                              e.ClockInTime == (DateTime.TryParse(daydetailitem.ClockInTime, out var parsedDate) ? parsedDate : null)))
-                            {
-                                insertIdent = true;
-                                if (string.IsNullOrEmpty(daydetailitem.ClockInTime)) continue;
-                                pushMessage = "数据已同步\n" + (int.Parse(daydetailitem.ClockInType) == 0 ? "签到时间:" : "签退时间:") + daydetailitem.ClockInTime;
-                                if (int.Parse(daydetailitem.ClockInType) == 1) signout = true;
-                            }
+            if (resultModel.Data != null)
+                if (resultModel.Data.DayVoList != null)
+                    if (resultModel.Data.DayVoList.Count > 0)
+                        foreach (var daydetail in resultModel.Data.DayVoList.Where(e => e.Day == DateTime.Today.Day))
+                            if (daydetail.DetailList != null)
+                                foreach (var daydetailitem in daydetail.DetailList)
+                                    if (!todayAttendanceList.Any(e => daydetailitem.ClockInType != null &&
+                                                                      e.ClockInType == int.Parse(daydetailitem.ClockInType) &&
+                                                                      e.ClockInTime == (DateTime.TryParse(daydetailitem.ClockInTime, out var parsedDate) ? parsedDate : null)))
+                                    {
+                                        insertIdent = true;
+                                        if (string.IsNullOrEmpty(daydetailitem.ClockInTime)) continue;
+                                        pushMessage = "数据已同步\n" + (daydetailitem.ClockInType != null && int.Parse(daydetailitem.ClockInType) == 0 ? "签到时间:" : "签退时间:") + daydetailitem.ClockInTime;
+                                        if (daydetailitem.ClockInType != null && int.Parse(daydetailitem.ClockInType) == 1) signout = true;
+                                    }
 
             if (insertIdent)
             {
                 dbConnection.Execute($"delete from public.attendancerecord where attendancemonth = '{startDate:yyyy-MM}'");
                 dbConnection.Execute($"delete from public.attendancerecordday where to_char(attendancedate,'yyyy-mm') = '{startDate:yyyy-MM}'");
                 dbConnection.Execute($"delete from public.attendancerecorddaydetail where to_char(attendancedate,'yyyy-mm') = '{startDate:yyyy-MM}'");
-                dbConnection.Execute(
-                    $"INSERT INTO public.attendancerecord(attendancemonth,workdays,latedays,earlydays) VALUES('{startDate:yyyy-MM}',{resultModel.Data.WorkDays},{resultModel.Data.LateDays},{resultModel.Data.EarlyDays});");
-                foreach (var item in resultModel.Data.DayVoList)
+                if (resultModel.Data != null)
                 {
-                    var flagedate = DateTime.Parse(startDate.ToString("yyyy-MM") + "-" + item.Day);
-                    dbConnection.Execute($"""
-                                          INSERT INTO public.attendancerecordday(untilthisday,day,checkinrule,isnormal,isabnormal,isapply,clockinnumber,workhours,attendancedate,yearmonth)
-                                                                                                  VALUES({item.UntilThisDay},{item.Day},'{item.CheckInRule}','{item.IsNormal}','{item.IsAbnormal}','{item.IsApply}',{item.ClockInNumber},{(item.WorkHours == null ? 0 : item.WorkHours)},to_timestamp('{flagedate:yyyy-MM-dd 00:00:00}', 'yyyy-mm-dd hh24:mi:ss'),'{startDate:yyyy-MM}');
-                                          """);
-                    if (item.DetailList != null)
-                        foreach (var daydetail in item.DetailList)
+                    dbConnection.Execute(
+                        $"INSERT INTO public.attendancerecord(attendancemonth,workdays,latedays,earlydays) VALUES('{startDate:yyyy-MM}',{resultModel.Data.WorkDays},{resultModel.Data.LateDays},{resultModel.Data.EarlyDays});");
+                    if (resultModel.Data.DayVoList != null)
+                        foreach (var item in resultModel.Data.DayVoList)
+                        {
+                            var flagedate = DateTime.Parse(startDate.ToString("yyyy-MM") + "-" + item.Day);
                             dbConnection.Execute($"""
-                                                      INSERT INTO public.attendancerecorddaydetail
-                                                          (id, recordid, clockintype, clockintime, attendancedate)
-                                                      VALUES
-                                                          ({daydetail.Id},
-                                                           {daydetail.RecordId},
-                                                           '{daydetail.ClockInType}',
-                                                           {(string.IsNullOrEmpty(daydetail.ClockInTime) ? "null" : $"to_timestamp('{daydetail.ClockInTime:yyyy-MM-dd HH:mm:ss}', 'yyyy-mm-dd hh24:mi:ss')")},
-                                                           to_timestamp('{flagedate:yyyy-MM-dd 00:00:00}', 'yyyy-mm-dd hh24:mi:ss'));
+                                                  INSERT INTO public.attendancerecordday(untilthisday,day,checkinrule,isnormal,isabnormal,isapply,clockinnumber,workhours,attendancedate,yearmonth)
+                                                                                                          VALUES({item.UntilThisDay},{item.Day},'{item.CheckInRule}','{item.IsNormal}','{item.IsAbnormal}','{item.IsApply}',{item.ClockInNumber},{(item.WorkHours == null ? 0 : item.WorkHours)},to_timestamp('{flagedate:yyyy-MM-dd 00:00:00}', 'yyyy-mm-dd hh24:mi:ss'),'{startDate:yyyy-MM}');
                                                   """);
+                            if (item.DetailList != null)
+                                foreach (var daydetail in item.DetailList)
+                                    dbConnection.Execute($"""
+                                                              INSERT INTO public.attendancerecorddaydetail
+                                                                  (id, recordid, clockintype, clockintime, attendancedate)
+                                                              VALUES
+                                                                  ({daydetail.Id},
+                                                                   {daydetail.RecordId},
+                                                                   '{daydetail.ClockInType}',
+                                                                   {(string.IsNullOrEmpty(daydetail.ClockInTime) ? "null" : $"to_timestamp('{daydetail.ClockInTime:yyyy-MM-dd HH:mm:ss}', 'yyyy-mm-dd hh24:mi:ss')")},
+                                                                   to_timestamp('{flagedate:yyyy-MM-dd 00:00:00}', 'yyyy-mm-dd hh24:mi:ss'));
+                                                          """);
+                        }
                 }
 
                 if (!string.IsNullOrEmpty(pushMessage)) pushMessageHelper.Push("考勤", pushMessage, PushMessageHelper.PushIcon.Attendance);
@@ -182,11 +150,10 @@ public class HangFireHelper(
             var lastresponse = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.AddMonths(1).ToString("yyyy-MM")).Result;
             var lastresult = lastresponse.Content.ReadAsStringAsync().Result;
             var lastresultModel = JsonConvert.DeserializeObject<AttendanceResponse>(lastresult);
-            if (lastresultModel is { Code: 200 })
+            if (lastresultModel is { Code: 200, Data.DayVoList.Count: > 0 })
             {
-                if (lastresultModel.Data.DayVoList.Count > 0)
-                    dbConnection.Execute(
-                        $"INSERT INTO public.attendancerecord(attendancemonth,workdays,latedays,earlydays) VALUES('{startDate.AddMonths(1):yyyy-MM}',{lastresultModel.Data.WorkDays},{lastresultModel.Data.LateDays},{lastresultModel.Data.EarlyDays});");
+                dbConnection.Execute(
+                    $"INSERT INTO public.attendancerecord(attendancemonth,workdays,latedays,earlydays) VALUES('{startDate.AddMonths(1):yyyy-MM}',{lastresultModel.Data.WorkDays},{lastresultModel.Data.LateDays},{lastresultModel.Data.EarlyDays});");
                 foreach (var item in lastresultModel.Data.DayVoList)
                 {
                     var flagedate = DateTime.Parse(startDate.AddMonths(1).ToString("yyyy-MM") + "-" + item.Day);
@@ -227,8 +194,8 @@ public class HangFireHelper(
         var response = client.GetAsync("https://api.gotokeep.com/pd/v3/stats/detail?dateUnit=all").Result;
         var result = response.Content.ReadAsStringAsync().Result;
         var resultModel = JsonConvert.DeserializeObject<KeepResponse>(result);
-        if (resultModel is { ok: true })
-            foreach (var logitem in resultModel.data.records.SelectMany(item => item.logs))
+        if (resultModel is { ok: true, data.records: not null })
+            foreach (var logitem in resultModel.data.records.SelectMany(item => item.logs ?? new List<DailyList>()))
             {
                 if (logitem.stats == null) continue;
                 dbConnection.Execute($@"delete from public.eventinfo where source = :source and distinguishingmark=:distinguishingmark",
@@ -237,18 +204,19 @@ public class HangFireHelper(
                 {
                     // 转换为TimeSpan 
                     var span = TimeSpan.FromMilliseconds(Math.Abs(logitem.stats.endTime - logitem.stats.startTime));
-                    dbConnection.Execute(
-                        $@"INSERT INTO public.eventinfo(id,title,message,clockintime,color,source,distinguishingmark) VALUES(:id,:title,:message,to_timestamp(:clockintime, 'yyyy-mm-dd hh24:mi:ss'),:color,:source,:distinguishingmark);"
-                        , new
-                        {
-                            id = Guid.NewGuid().ToString(),
-                            title = logitem.stats.name + logitem.stats.nameSuffix,
-                            message = "用时 " + $"{(int)span.TotalHours:D2}:{span.Minutes:D2}:{span.Seconds:D2};消耗 " + logitem.stats.calorie + "千卡",
-                            clockintime = DateTime.Parse(logitem.stats.doneDate).ToString("yyyy-MM-dd HH:mm:ss"),
-                            color = "green",
-                            source = "keep",
-                            distinguishingmark = logitem.stats.id
-                        });
+                    if (logitem.stats.doneDate != null)
+                        dbConnection.Execute(
+                            $@"INSERT INTO public.eventinfo(id,title,message,clockintime,color,source,distinguishingmark) VALUES(:id,:title,:message,to_timestamp(:clockintime, 'yyyy-mm-dd hh24:mi:ss'),:color,:source,:distinguishingmark);"
+                            , new
+                            {
+                                id = Guid.NewGuid().ToString(),
+                                title = logitem.stats.name + logitem.stats.nameSuffix,
+                                message = "用时 " + $"{(int)span.TotalHours:D2}:{span.Minutes:D2}:{span.Seconds:D2};消耗 " + logitem.stats.calorie + "千卡",
+                                clockintime = DateTime.Parse(logitem.stats.doneDate).ToString("yyyy-MM-dd HH:mm:ss"),
+                                color = "green",
+                                source = "keep",
+                                distinguishingmark = logitem.stats.id
+                            });
                 }
                 else
                 {
@@ -256,24 +224,29 @@ public class HangFireHelper(
                     var traresult = traresponse.Content.ReadAsStringAsync().Result;
                     var traResultModel = JsonConvert.DeserializeObject<SportLogResponse>(traresult);
                     if (traResultModel is not { ok: true }) continue;
-                    var sportLogSectionsModel = traResultModel.data.sections.FirstOrDefault(e => e.style.ToLower() == "sportdata");
-                    if (sportLogSectionsModel != null)
+                    if (traResultModel.data?.sections != null)
                     {
-                        var sportLogContentListTime = sportLogSectionsModel.content.list.FirstOrDefault(e => e.title == "训练时长");
-                        var sportLogContentListDistance = sportLogSectionsModel.content.list.FirstOrDefault(e => e.title == "总距离");
-                        if (sportLogContentListTime != null && sportLogContentListDistance != null)
-                            dbConnection.Execute(
-                                $@"INSERT INTO public.eventinfo(id,title,message,clockintime,color,source,distinguishingmark) VALUES(:id,:title,:message,to_timestamp(:clockintime, 'yyyy-mm-dd hh24:mi:ss'),:color,:source,:distinguishingmark);"
-                                , new
-                                {
-                                    id = Guid.NewGuid().ToString(),
-                                    title = logitem.stats.name + logitem.stats.nameSuffix + sportLogContentListDistance.valueStr + sportLogContentListDistance.unit,
-                                    message = "用时 " + sportLogContentListTime.valueStr + ";消耗 " + logitem.stats.calorie + "千卡",
-                                    clockintime = DateTime.Parse(logitem.stats.doneDate).ToString("yyyy-MM-dd HH:mm:ss"),
-                                    color = "green",
-                                    source = "keep",
-                                    distinguishingmark = logitem.stats.id
-                                });
+                        var sportLogSectionsModel = traResultModel.data?.sections.FirstOrDefault(e => e.style?.ToLower() == "sportdata");
+                        if (sportLogSectionsModel != null)
+                            if (sportLogSectionsModel.content?.list != null)
+                            {
+                                var sportLogContentListTime = sportLogSectionsModel.content?.list.FirstOrDefault(e => e.title == "训练时长");
+                                var sportLogContentListDistance = sportLogSectionsModel.content?.list.FirstOrDefault(e => e.title == "总距离");
+                                if (sportLogContentListTime != null && sportLogContentListDistance != null)
+                                    if (logitem.stats.doneDate != null)
+                                        dbConnection.Execute(
+                                            $@"INSERT INTO public.eventinfo(id,title,message,clockintime,color,source,distinguishingmark) VALUES(:id,:title,:message,to_timestamp(:clockintime, 'yyyy-mm-dd hh24:mi:ss'),:color,:source,:distinguishingmark);"
+                                            , new
+                                            {
+                                                id = Guid.NewGuid().ToString(),
+                                                title = logitem.stats.name + logitem.stats.nameSuffix + sportLogContentListDistance.valueStr + sportLogContentListDistance.unit,
+                                                message = "用时 " + sportLogContentListTime.valueStr + ";消耗 " + logitem.stats.calorie + "千卡",
+                                                clockintime = DateTime.Parse(logitem.stats.doneDate).ToString("yyyy-MM-dd HH:mm:ss"),
+                                                color = "green",
+                                                source = "keep",
+                                                distinguishingmark = logitem.stats.id
+                                            });
+                            }
                     }
                 }
             }
@@ -410,19 +383,26 @@ public class HangFireHelper(
                 var result = response.Content.ReadAsStringAsync().Result;
                 var resultModel = JsonConvert.DeserializeObject<AttendanceResponse>(result);
                 if (resultModel is not { Code: 200 }) continue;
-                var dayAttendanceList = resultModel.Data.DayVoList.FirstOrDefault(e => e.Day == DateTime.Now.Day);
-                if (dayAttendanceList == null) continue;
+                if (resultModel.Data?.DayVoList != null)
                 {
-                    if (dayAttendanceList.DetailList == null) continue;
-                    foreach (var day in dayAttendanceList.DetailList)
-                        switch (day.ClockInType)
-                        {
-                            case "0" when day.ClockInStatus == 1 && day.ClockInStatus != 999:
-                                pushMessage += listOfPersonnel.FirstOrDefault(e => e.RealName == addressBookItem.Name)?.FlowerName + "-上班时间:" +
-                                               DateTime.Parse(day.ClockInTime).ToString("HH:mm:ss") + "\n";
-                                dbConnection.Execute($@"INSERT INTO public.checkinwarning(id,name,clockintime) VALUES('{Guid.NewGuid()}','{addressBookItem.Name}','{day.ClockInTime}')");
-                                break;
-                        }
+                    var dayAttendanceList = resultModel.Data?.DayVoList.FirstOrDefault(e => e.Day == DateTime.Now.Day);
+                    if (dayAttendanceList == null) continue;
+                    {
+                        if (dayAttendanceList.DetailList == null) continue;
+                        foreach (var day in dayAttendanceList.DetailList)
+                            switch (day.ClockInType)
+                            {
+                                case "0" when day.ClockInStatus == 1 && day.ClockInStatus != 999:
+                                    if (day.ClockInTime != null)
+                                    {
+                                        pushMessage += listOfPersonnel.FirstOrDefault(e => e.RealName == addressBookItem.Name)?.FlowerName + "-上班时间:" +
+                                                       DateTime.Parse(day.ClockInTime).ToString("HH:mm:ss") + "\n";
+                                        dbConnection.Execute($@"INSERT INTO public.checkinwarning(id,name,clockintime) VALUES('{Guid.NewGuid()}','{addressBookItem.Name}','{day.ClockInTime}')");
+                                    }
+
+                                    break;
+                            }
+                    }
                 }
             }
         }
@@ -596,20 +576,20 @@ public class HangFireHelper(
             decimal total_balance = 0;
             var pushMessage = "";
             var json = JObject.Parse(postResponse.Content.ReadAsStringAsync().Result);
-            if (bool.Parse(json["is_available"].ToString()))
+            if (bool.Parse(json["is_available"]?.ToString() ?? string.Empty))
                 pushMessage += "尚有余额可供使用";
             else
                 pushMessage += "已无余额可供使用";
 
-            if (!string.IsNullOrEmpty(json["balance_infos"].ToString()))
+            if (!string.IsNullOrEmpty(json["balance_infos"]?.ToString()))
                 if (json["balance_infos"] is JArray dataArray)
                     foreach (var jToken in dataArray)
                     {
                         pushMessage += $"\n可用余额: " + jToken["total_balance"] + " " + jToken["currency"];
-                        total_balance += decimal.Parse(jToken["total_balance"].ToString());
+                        total_balance += decimal.Parse(jToken["total_balance"]?.ToString() ?? string.Empty);
                     }
 
-            if (!bool.Parse(json["is_available"].ToString()) || total_balance <= 1) pushMessageHelper.Push("余额提醒", pushMessage, PushMessageHelper.PushIcon.DeepSeek);
+            if (!bool.Parse(json["is_available"]?.ToString() ?? string.Empty) || total_balance <= 1) pushMessageHelper.Push("余额提醒", pushMessage, PushMessageHelper.PushIcon.DeepSeek);
         }
     }
 

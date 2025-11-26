@@ -2,6 +2,6 @@
 
 public class PushInfo
 {
-    public string PushType { get; set; }
-    public string PushUrl { get; set; }
+    public string? PushType { get; set; }
+    public string? PushUrl { get; set; }
 }

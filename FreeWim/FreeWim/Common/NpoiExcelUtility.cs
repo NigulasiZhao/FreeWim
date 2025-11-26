@@ -62,83 +62,93 @@ public class NpoiExcelUtility
     {
         var sheet = book.CreateSheet("Export") as XSSFSheet;
         var region = new CellRangeAddress(0, 0, 0, columnTitle.Count - 1);
-        sheet.AddMergedRegion(region);
+        sheet?.AddMergedRegion(region);
 
         #region 处理第一行
 
         for (var i = region.FirstRow; i <= region.LastRow; i++)
         {
-            var row = sheet.CreateRow(i);
+            var row = sheet?.CreateRow(i);
             for (var j = region.FirstColumn; j <= region.LastColumn; j++)
             {
-                var singleCell = row.CreateCell((short)j);
+                var singleCell = row?.CreateCell((short)j);
                 //singleCell.CellStyle = cellStyle;
             }
         }
 
-        var hrow = sheet.GetRow(0);
-        hrow.Height = 30 * 30;
-        var icellltop0 = hrow.GetCell(0);
-        icellltop0.CellStyle = TitleStyle;
-        icellltop0.SetCellValue(title);
+        var hrow = sheet?.GetRow(0);
+        if (hrow != null)
+        {
+            hrow.Height = 30 * 30;
+            var icellltop0 = hrow.GetCell(0);
+            icellltop0.CellStyle = TitleStyle;
+            icellltop0.SetCellValue(title);
+        }
 
         #endregion
 
         #region 处理表头
 
-        var TitleRow = sheet.CreateRow(1);
-        TitleRow.Height = 20 * 20;
-        for (var i = 0; i < columnTitle.Count; i++)
+        var titleRow = sheet?.CreateRow(1);
+        if (titleRow != null)
         {
-            var cell = TitleRow.CreateCell(i);
-            cell.CellStyle = cellStyle;
-            cell.SetCellValue(columnTitle[i].Label);
-            sheet.SetColumnWidth(i, columnTitle[i].ColumnWidth);
+            titleRow.Height = 20 * 20;
+            for (var i = 0; i < columnTitle.Count; i++)
+            {
+                var cell = titleRow.CreateCell(i);
+                cell.CellStyle = cellStyle;
+                cell.SetCellValue(columnTitle[i].Label);
+                sheet?.SetColumnWidth(i, columnTitle[i].ColumnWidth);
+            }
         }
 
         #endregion
 
         //string Gname = "";Maximum column number is 255
         //int startRows = 2;
-        string[] imgArray;
+        string[]? imgArray;
         var totalLenth = 1205 * Units.EMU_PER_POINT;
         for (var i = 0; i < dt.Rows.Count; i++)
         {
-            var row = sheet.CreateRow(i + 2);
+            var row = sheet?.CreateRow(i + 2);
             for (var j = 0; j < columnTitle.Count; j++)
             {
-                var cell = row.CreateCell(j);
-                cell.CellStyle = cellStyle;
-                if (columnTitle[j].Prop.ToUpper() == "POS")
+                var cell = row?.CreateCell(j);
+                if (cell != null)
                 {
-                    cell.SetCellValue(i + 1);
-                }
-                else
-                {
-                    if (columnTitle[j].Type == "picture" && dt.Rows[i][columnTitle[j].Prop] != DBNull.Value)
+                    cell.CellStyle = cellStyle;
+                    if (columnTitle[j].Prop.ToUpper() == "POS")
                     {
-                        row.Height = 5 * 300;
-                        imgArray = dt.Rows[i][columnTitle[j].Prop].ToString().Split('|').Where(p => !string.IsNullOrEmpty(p)).ToArray();
-                        for (var k = 0; k < imgArray.Length; k++)
-                            try
-                            {
-                                var bytes = File.ReadAllBytes(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, imgArray[k]));
-                                var pictureIdx = book.AddPicture(bytes, PictureType.JPEG);
-                                var patriarch = sheet.CreateDrawingPatriarch();
-
-                                //  HSSFClientAnchor anchor = new HSSFClientAnchor(totalLenth / imgArray.Length * k, 10 * Units.EMU_PER_POINT, -totalLenth / imgArray.Length * (imgArray.Length - (k + 1)), 0, j, i + 2, j + 1, i + 3);
-                                var anchor = new HSSFClientAnchor(totalLenth / imgArray.Length * k, 0, 0, 0, j, i + 2, j + 1, i + 3);
-                                //把图片插到相应的位置
-                                var pict = (HSSFPicture)patriarch.CreatePicture(anchor, pictureIdx);
-                            }
-                            catch (Exception e)
-                            {
-                                continue;
-                            }
+                        cell.SetCellValue(i + 1);
                     }
                     else
                     {
-                        row.CreateCell(j).SetCellValue(dt.Rows[i][columnTitle[j].Prop].ToString());
+                        if (columnTitle[j].Type == "picture" && dt.Rows[i][columnTitle[j].Prop] != DBNull.Value)
+                        {
+                            if (row != null) row.Height = 5 * 300;
+                            imgArray = dt.Rows[i][columnTitle[j].Prop].ToString()?.Split('|').Where(p => !string.IsNullOrEmpty(p)).ToArray();
+                            if (imgArray != null)
+                                for (var k = 0; k < imgArray.Length; k++)
+                                    try
+                                    {
+                                        var bytes = File.ReadAllBytes(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, imgArray[k]));
+                                        var pictureIdx = book.AddPicture(bytes, PictureType.JPEG);
+                                        var patriarch = sheet?.CreateDrawingPatriarch();
+
+                                        //  HSSFClientAnchor anchor = new HSSFClientAnchor(totalLenth / imgArray.Length * k, 10 * Units.EMU_PER_POINT, -totalLenth / imgArray.Length * (imgArray.Length - (k + 1)), 0, j, i + 2, j + 1, i + 3);
+                                        var anchor = new HSSFClientAnchor(totalLenth / imgArray.Length * k, 0, 0, 0, j, i + 2, j + 1, i + 3);
+                                        //把图片插到相应的位置
+                                        var pict = (HSSFPicture)patriarch?.CreatePicture(anchor, pictureIdx)!;
+                                    }
+                                    catch (Exception)
+                                    {
+                                        continue;
+                                    }
+                        }
+                        else
+                        {
+                            row?.CreateCell(j).SetCellValue(dt.Rows[i][columnTitle[j].Prop].ToString());
+                        }
                     }
                 }
             }
@@ -215,35 +225,44 @@ public class NpoiExcelUtility
 
         #region 处理表头
 
-        var TitleRow = sheet.CreateRow(0);
-        TitleRow.Height = 50 * 20;
-        for (var i = 0; i < columnTitle.Count; i++)
+        var TitleRow = sheet?.CreateRow(0);
+        if (TitleRow != null)
         {
-            var cell = TitleRow.CreateCell(i);
-            cell.CellStyle = TitleStyle;
-            cell.SetCellValue(columnTitle[i].Label);
-            sheet.SetColumnWidth(i, columnTitle[i].ColumnWidth);
+            TitleRow.Height = 50 * 20;
+            for (var i = 0; i < columnTitle.Count; i++)
+            {
+                var cell = TitleRow.CreateCell(i);
+                cell.CellStyle = TitleStyle;
+                cell.SetCellValue(columnTitle[i].Label);
+                sheet?.SetColumnWidth(i, columnTitle[i].ColumnWidth);
+            }
         }
 
         #endregion
 
         for (var i = 0; i < dt.Rows.Count; i++)
         {
-            var row = sheet.CreateRow(i + 1);
+            var row = sheet?.CreateRow(i + 1);
             for (var j = 0; j < columnTitle.Count; j++)
             {
-                var cell = row.CreateCell(j);
+                var cell = row?.CreateCell(j);
 
                 if (columnTitle[j].Prop.ToUpper() == "NAME")
                 {
-                    cell.CellStyle = cellStyle;
-                    cell.SetCellValue(dt.Rows[i][columnTitle[j].Prop].ToString());
+                    if (cell != null)
+                    {
+                        cell.CellStyle = cellStyle;
+                        cell.SetCellValue(dt.Rows[i][columnTitle[j].Prop].ToString());
+                    }
                 }
                 else
                 {
                     cellStyle.DataFormat = book.CreateDataFormat().GetFormat("0");
-                    cell.CellStyle = cellStyle;
-                    if (dt.Rows[i][columnTitle[j].Prop].ToString() != "0") cell.SetCellValue(double.Parse(dt.Rows[i][columnTitle[j].Prop].ToString()));
+                    if (cell != null)
+                    {
+                        cell.CellStyle = cellStyle;
+                        if (dt.Rows[i][columnTitle[j].Prop].ToString() != "0") cell.SetCellValue(double.Parse(dt.Rows[i][columnTitle[j].Prop].ToString() ?? string.Empty));
+                    }
                 }
             }
         }
@@ -284,7 +303,7 @@ public class NpoiExcelUtility
                     dt.Columns.Add(column);
                 }
 
-                row[name] = pi.GetValue(t, null) is null ? "" : pi.GetValue(t, null).ToString();
+                row[name] = pi.GetValue(t, null) is null ? "" : pi.GetValue(t, null)?.ToString();
             }
 
             if (createColumn) createColumn = false;
@@ -297,9 +316,9 @@ public class NpoiExcelUtility
 
     public class ExportDataColumn
     {
-        public string Prop { get; set; }
-        public string Label { get; set; }
-        public int ColumnWidth { get; set; }
-        public string Type { set; get; }
+        public required string Prop { get; set; }
+        public required string Label { get; set; }
+        public required int ColumnWidth { get; set; }
+        public required string Type { set; get; }
     }
 }

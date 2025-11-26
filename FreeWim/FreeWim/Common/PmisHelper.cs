@@ -32,7 +32,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                 hasFile = (object)null!,
                 time = new object[] { }
             }
-        }, new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() } }).Result;
+        }, new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
         var json = JObject.Parse(postResponse.Content.ReadAsStringAsync().Result);
         //var result = JsonSerializer.Deserialize<QueryMyByDateOutput>(postResponse.Content.ReadAsStringAsync().Result);
         return json;
@@ -49,7 +49,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
         var httpHelper = new HttpRequestHelper();
         var getResponse = httpHelper.GetAsync(pmisInfo!.Url + $"/unioa/job/userWork/getByDateAndUserId?fillDate={fillDate}&userId={userId}&type=0",
-            new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() } }).Result;
+            new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
         var json = JObject.Parse(getResponse.Content.ReadAsStringAsync().Result);
         //var result = JsonSerializer.Deserialize<GetByDateAndUserIdResponse>(getResponse.Content.ReadAsStringAsync().Result);
         return json;
@@ -74,10 +74,10 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
             var attempt = 0;
             IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             var finishCount = 0;
-            var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+            var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
             var httpHelper = new HttpRequestHelper();
             var workLogBody = QueryWorkDetailByDate(fillDate, userId);
-            while (int.Parse(workLogBody["Code"].ToString()) != 0 || !bool.Parse(workLogBody["Success"].ToString()))
+            while (int.Parse(workLogBody["Code"]?.ToString() ?? string.Empty) != 0 || !bool.Parse(workLogBody["Success"]?.ToString() ?? string.Empty))
                 try
                 {
                     if (attempt >= 20)
@@ -89,8 +89,9 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                     attempt++;
                     workLogBody = QueryWorkDetailByDate(fillDate, userId);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
+                    // ignored
                 }
 
             workLogBody["Response"]!["status"] = 1;
@@ -112,23 +113,25 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                 foreach (var jToken in dataArray)
                 {
                     var item = (JObject)jToken;
-                    item["target"] = zenTaoList.ContainsKey(jToken["ztTaskId"]?.ToString()) ? zenTaoList[jToken["ztTaskId"]?.ToString()].Target : item["description"];
-                    item["planFinishAct"] = zenTaoList.ContainsKey(jToken["ztTaskId"]?.ToString()) ? zenTaoList[jToken["ztTaskId"]?.ToString()].PlanFinishAct : item["description"];
+                    item["target"] = zenTaoList.ContainsKey(jToken["ztTaskId"]?.ToString() ?? string.Empty) ? zenTaoList[jToken["ztTaskId"]?.ToString() ?? string.Empty].Target : item["description"];
+                    item["planFinishAct"] = zenTaoList.ContainsKey(jToken["ztTaskId"]?.ToString() ?? string.Empty)
+                        ? zenTaoList[jToken["ztTaskId"]?.ToString() ?? string.Empty].PlanFinishAct
+                        : item["description"];
                     item["responsibility"] = pmisInfo.WorkContent;
                     item["workType"] = pmisInfo.WorkType;
-                    item["realJob"] = zenTaoList.ContainsKey(jToken["ztTaskId"]?.ToString()) ? zenTaoList[jToken["ztTaskId"]?.ToString()].RealJob : item["description"];
+                    item["realJob"] = zenTaoList.ContainsKey(jToken["ztTaskId"]?.ToString() ?? string.Empty) ? zenTaoList[jToken["ztTaskId"]?.ToString() ?? string.Empty].RealJob : item["description"];
                     finishCount++;
                 }
             }
 
             var res = workLogBody["Response"]?.ToString(Formatting.None);
             var postRespone = httpHelper.PostAsyncStringBody(pmisInfo?.Url + "/unioa/job/userWork/insert", workLogBody["Response"]?.ToString(Formatting.None),
-                    new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() } })
+                    new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } })
                 .Result;
             var result = JsonSerializer.Deserialize<PMISInsertResponse>(postRespone.Content.ReadAsStringAsync().Result);
-            if (result.Success) pushMessageHelper.Push("日报", $"{DateTime.Now:yyyy-MM-dd}已发送\n今日完成" + finishCount + " 条任务", PushMessageHelper.PushIcon.Note);
+            if (result is { Success: true }) pushMessageHelper.Push("日报", $"{DateTime.Now:yyyy-MM-dd}已发送\n今日完成" + finishCount + " 条任务", PushMessageHelper.PushIcon.Note);
             else pushMessageHelper.Push("日报错误", postRespone.Content.ReadAsStringAsync().Result, PushMessageHelper.PushIcon.Alert);
-            return result;
+            return result ?? new PMISInsertResponse();
         }
         catch (Exception e)
         {
@@ -147,7 +150,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
     {
         var projectInfo = new ProjectInfo();
         var httpHelper = new HttpRequestHelper();
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var requestObject = new
         {
             url = pmisInfo.Url + "/hddev/form/formobjectdata/project_query:1/query.json",
@@ -188,7 +191,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
             }
         };
         var postRespone = httpHelper.PostAsync(pmisInfo.Url + "/hddev/sys/sysinterface/externalInterface/post", requestObject,
-                new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() } })
+                new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } })
             .Result;
         var projectJson = JObject.Parse(postRespone.Content.ReadAsStringAsync().Result);
         if (projectJson["Response"] != null)
@@ -213,7 +216,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
     {
         var id = string.Empty;
         var httpHelper = new HttpRequestHelper();
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         //var projectInfo = GetProjectInfo(projectCode);
         var requestObject = new Dictionary<string, object?>
         {
@@ -249,7 +252,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
         };
         var json = JsonConvert.SerializeObject(requestObject, Formatting.Indented);
         var postRespone = httpHelper.PostAsync(pmisInfo.Url + "/hddev/form/formobjectdata/oa_workovertime_plan_apply:7/insert.json", requestObject,
-                new Dictionary<string, string> { { "token", tokenService.GetTokenAsync() }, { "uniwaterutoken", tokenService.GetTokenAsync() } })
+                new Dictionary<string, string> { { "token", tokenService.GetTokenAsync() ?? string.Empty }, { "uniwaterutoken", tokenService.GetTokenAsync() ?? string.Empty } })
             .Result;
         var projectJson = JObject.Parse(postRespone.Content.ReadAsStringAsync().Result);
         if (projectJson["Response"] == null) return id;
@@ -270,7 +273,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
     {
         var ProcessId = string.Empty;
         var httpHelper = new HttpRequestHelper();
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var requestObject = new Dictionary<string, object?>
         {
             { "child_groups", new object[] { } },
@@ -319,7 +322,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
 
         var json = JsonConvert.SerializeObject(requestObject, Formatting.Indented);
         var postRespone = httpHelper.PostAsync(pmisInfo.Url + "/bpm/customize-api/jiaban_test/create-order2", requestObject,
-                new Dictionary<string, string> { { "token", tokenService.GetTokenAsync() }, { "uniwaterutoken", tokenService.GetTokenAsync() } })
+                new Dictionary<string, string> { { "token", tokenService.GetTokenAsync() ?? string.Empty }, { "uniwaterutoken", tokenService.GetTokenAsync() ?? string.Empty } })
             .Result;
         var projectJson = JObject.Parse(postRespone.Content.ReadAsStringAsync().Result);
         if (projectJson["Response"] == null) return id;
@@ -338,7 +341,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
     {
         //var id = string.Empty;
         var httpHelper = new HttpRequestHelper();
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var requestObject = new
         {
             conditions = new[]
@@ -358,7 +361,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
 
         var json = JsonConvert.SerializeObject(requestObject, Formatting.Indented);
         var postRespone = httpHelper.PostAsync(pmisInfo.Url + "/hddev/form/formobjectdata/oa_workovertime_plan_apply:7/query.json", requestObject,
-                new Dictionary<string, string> { { "token", tokenService.GetTokenAsync() }, { "uniwaterutoken", tokenService.GetTokenAsync() } })
+                new Dictionary<string, string> { { "token", tokenService.GetTokenAsync() ?? string.Empty }, { "uniwaterutoken", tokenService.GetTokenAsync() ?? string.Empty } })
             .Result;
         var projectJson = JObject.Parse(postRespone.Content.ReadAsStringAsync().Result);
         return projectJson;
@@ -377,7 +380,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
         //var id = string.Empty;
         var processInfo = OvertimeWork_Query(id);
         var httpHelper = new HttpRequestHelper();
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var requestObject = new Dictionary<string, object?>
         {
             { "child_groups", new object[] { } },
@@ -420,7 +423,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
         };
         var json = JsonConvert.SerializeObject(requestObject, Formatting.Indented);
         var postRespone = httpHelper.PostAsync(pmisInfo.Url + "/hddev/form/formobjectdata/oa_workovertime_plan_apply:7/update.json", requestObject,
-                new Dictionary<string, string> { { "token", tokenService.GetTokenAsync() }, { "uniwaterutoken", tokenService.GetTokenAsync() } })
+                new Dictionary<string, string> { { "token", tokenService.GetTokenAsync() ?? string.Empty }, { "uniwaterutoken", tokenService.GetTokenAsync() ?? string.Empty } })
             .Result;
         var projectJson = JObject.Parse(postRespone.Content.ReadAsStringAsync().Result);
         return projectJson;
@@ -432,7 +435,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
     /// <returns></returns>
     public JObject QueryMyByWeek()
     {
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var httpHelper = new HttpRequestHelper();
         var postResponse = httpHelper.PostAsync(pmisInfo.Url + "/unioa/job/weekWork/queryMy", new
         {
@@ -452,7 +455,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                 beginDate = DateTime.Now.AddMonths(-1).ToString("yyyy-MM-dd"),
                 endDate = DateTime.Now.AddMonths(1).ToString("yyyy-MM-dd")
             }
-        }, new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() } }).Result;
+        }, new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
         var json = JObject.Parse(postResponse.Content.ReadAsStringAsync().Result);
         return json;
     }
@@ -464,7 +467,8 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
     /// <returns></returns>
     public JObject QueryWorkDetailByWeek(WeekDayInfo weekDayInfo)
     {
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        PMISInfo pmisInfo;
+        pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var httpHelper = new HttpRequestHelper();
         var getResponse = httpHelper.PostAsync(pmisInfo.Url + $"/unioa/job/userWork/queryMyCommit", new
             {
@@ -479,7 +483,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                     userId = pmisInfo.UserId
                 }
             },
-            new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() } }).Result;
+            new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
         var json = JObject.Parse(getResponse.Content.ReadAsStringAsync().Result);
         return json;
     }
@@ -491,10 +495,10 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
     /// <returns></returns>
     public JObject QueryWorkByWeek(WeekDayInfo weekDayInfo)
     {
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var httpHelper = new HttpRequestHelper();
         var getResponse = httpHelper.GetAsync(pmisInfo.Url + $"/unioa/job/weekWork/getByDateAndUserId?fillDate={weekDayInfo.StartOfWeek}&userId={pmisInfo.UserId}",
-            new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() } }).Result;
+            new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
         var json = JObject.Parse(getResponse.Content.ReadAsStringAsync().Result);
         return json;
     }
@@ -511,7 +515,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
         {
             var finishCount = 0;
             var httpHelper = new HttpRequestHelper();
-            var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+            var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
             IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             var repeat = false;
             //判断是否已提交过周报
@@ -546,8 +550,8 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                         var zenTaoList = dbConnection.Query(@"select id,executionname from public.zentaotask WHERE ID = ANY(:id)", new { id = ztTaskIds })
                             .ToDictionary(row => (string)row.id.ToString(), row => (string?)row.executionname ?? "");
                         foreach (var workItem in dataArray)
-                            if (zenTaoList.ContainsKey(workItem["ztTaskId"].ToString()))
-                                workContent += zenTaoList[workItem["ztTaskId"].ToString()] + "工作内容：" + workItem["taskName"] + "," + workItem["description"] + ";";
+                            if (zenTaoList.ContainsKey(workItem["ztTaskId"]?.ToString() ?? string.Empty))
+                                workContent += zenTaoList[workItem["ztTaskId"]?.ToString() ?? string.Empty] + "工作内容：" + workItem["taskName"] + "," + workItem["description"] + ";";
                             else
                                 workContent += workItem["taskName"] + "," + workItem["description"] + ";";
                     }
@@ -569,18 +573,22 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                         if (bool.Parse(workByWeek["Success"]?.ToString()!))
                         {
                             var workWeekBody = workByWeek["Response"];
-                            workWeekBody["status"] = 1;
-                            workWeekBody["workSummary"] = deepSeekContent;
-                            workWeekBody["recipientId"] = "6332da1056a7b316e0574816";
-                            workWeekBody["recipientName"] = "陈云";
-                            workWeekBody["details"] = new JArray(new string[] { });
-                            var postRespone = httpHelper.PostAsyncStringBody(pmisInfo?.Url + "/unioa/job/weekWork/insertDailyCommunication", workWeekBody.ToString(Formatting.None),
-                                    new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() } })
-                                .Result;
-                            result = JsonSerializer.Deserialize<PMISInsertResponse>(postRespone.Content.ReadAsStringAsync().Result);
-                            if (result.Success) pushMessageHelper.Push("周报", $"第{weekDayInfo.WeekNumber}周周报已发送\n本周完成" + finishCount + " 条任务", PushMessageHelper.PushIcon.Note);
-                            else pushMessageHelper.Push("周报错误:", postRespone.Content.ReadAsStringAsync().Result, PushMessageHelper.PushIcon.Alert);
-                            return result;
+                            if (workWeekBody != null)
+                            {
+                                workWeekBody["status"] = 1;
+                                workWeekBody["workSummary"] = deepSeekContent;
+                                workWeekBody["recipientId"] = "6332da1056a7b316e0574816";
+                                workWeekBody["recipientName"] = "陈云";
+                                workWeekBody["details"] = new JArray(new object[] { });
+                                var postRespone = httpHelper.PostAsyncStringBody(pmisInfo?.Url + "/unioa/job/weekWork/insertDailyCommunication", workWeekBody.ToString(Formatting.None),
+                                        new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } })
+                                    .Result;
+                                result = JsonSerializer.Deserialize<PMISInsertResponse>(postRespone.Content.ReadAsStringAsync().Result);
+                                if (result is { Success: true }) pushMessageHelper.Push("周报", $"第{weekDayInfo.WeekNumber}周周报已发送\n本周完成" + finishCount + " 条任务", PushMessageHelper.PushIcon.Note);
+                                else pushMessageHelper.Push("周报错误:", postRespone.Content.ReadAsStringAsync().Result, PushMessageHelper.PushIcon.Alert);
+                            }
+
+                            return result ?? new PMISInsertResponse();
                         }
                     }
                 }
@@ -592,7 +600,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
         {
             pushMessageHelper.Push("周报异常:", e.Message, PushMessageHelper.PushIcon.Alert);
             logger.LogError("周报异常:" + e.Message);
-            return result;
+            return result ?? new PMISInsertResponse();
         }
     }
 
@@ -658,13 +666,13 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
             ["remark"] = "备注"
         };
         var chatOptions = new ChatOptions { Tools = [] };
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var httpHelper = new HttpRequestHelper();
         //获取所有待处理的实际加班列表
         var postResponse = httpHelper.PostAsync(
             pmisInfo.Url + $@"/bpm/customize-api/task/query?uniwater_utoken={tokenService.GetTokenAsync()}&HDSN={pmisInfo.UserAccount}&orderState=todo&user={pmisInfo.UserId}&index=1&size=30", new
             {
-            }, new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() } }).Result;
+            }, new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
         var jsonArr = JArray.Parse(postResponse.Content.ReadAsStringAsync().Result);
         var results = new JArray();
         foreach (var item in jsonArr)
@@ -691,7 +699,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                 {
                     workDate = result["work_date"]?.ToString(),
                     userId = pmisInfo.UserId
-                }, new Dictionary<string, string> { { "uniwater_utoken", tokenService.GetTokenAsync() } }).Result;
+                }, new Dictionary<string, string> { { "uniwater_utoken", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
             var overTimeResult = JObject.Parse(overTimeResponse.Content.ReadAsStringAsync().Result);
             if (!bool.Parse(overTimeResult["success"]?.ToString() ?? string.Empty)) continue;
             if (string.IsNullOrEmpty(overTimeResult["data"]?["startTime"]?.ToString()) || string.IsNullOrEmpty(overTimeResult["data"]?["endTime"]?.ToString())) continue;
@@ -702,7 +710,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                 //不是今天的单子，并且没有加班时长，则作废申请单
                 if (result["work_date"]?.ToString() != DateTime.Now.ToString("yyyy-MM-dd"))
                 {
-                    var intervalDays = (DateTime.Now - DateTime.Parse(result["work_date"]?.ToString())).Days;
+                    var intervalDays = (DateTime.Now - DateTime.Parse(result["work_date"]?.ToString() ?? string.Empty)).Days;
                     if (intervalDays > 2)
                     {
                         var cancelResponse = httpHelper.PostAsync(
@@ -713,7 +721,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                                 isRecover = 0,
                                 message = "1",
                                 type = "error"
-                            }, new Dictionary<string, string> { { "uniwaterutoken", tokenService.GetTokenAsync() } }).Result;
+                            }, new Dictionary<string, string> { { "uniwaterutoken", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
                         var cancelResult = JObject.Parse(cancelResponse.Content.ReadAsStringAsync().Result);
                         if (int.Parse(cancelResult["Code"]?.ToString() ?? string.Empty) != 0 || cancelResult["Message"]?.ToString().ToLower() != "ok") continue;
                         dbConnection.Execute($@"update
@@ -735,21 +743,21 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                     pmisInfo.Url + $@"/hddev/form/formobjectdata/oa_work_overtime_real_apply:13/detail.json", new
                     {
                         id = result["id"]?.ToString()
-                    }, new Dictionary<string, string> { { "uniwater_utoken", tokenService.GetTokenAsync() } }).Result;
+                    }, new Dictionary<string, string> { { "uniwater_utoken", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
                 var realApplyResult = JObject.Parse(realApplyResponse.Content.ReadAsStringAsync().Result);
                 if (int.Parse(realApplyResult["Code"]?.ToString() ?? string.Empty) != 0 || realApplyResult["Message"]?.ToString().ToLower() != "ok") continue;
                 //获取$$formHtmlId参数信息
                 var historyResponse = httpHelper.GetAsync(
                     pmisInfo.Url + $@"/bpm/customize-api/instance/{obj["instance"]?["id"]?.ToString()}/history?formHtmlId={result["$$formHtmlId"]?.ToString()}&noSubformField=1",
-                    new Dictionary<string, string> { { "uniwater_utoken", tokenService.GetTokenAsync() } }).Result;
+                    new Dictionary<string, string> { { "uniwater_utoken", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
                 if (!historyResponse.IsSuccessStatusCode) continue;
                 var historyjsonArray = JArray.Parse(historyResponse.Content.ReadAsStringAsync().Result);
                 var targetTaskId = realApplyResult["Response"]?["hddev_proc_task_code"]?.ToString();
-                string outFormId = null;
+                string? outFormId = null;
                 foreach (var historyitem in historyjsonArray)
                 {
                     var taskId = historyitem["task"]?["id"]?.ToString();
-                    if (!string.IsNullOrEmpty(taskId) && taskId.Contains(targetTaskId))
+                    if (!string.IsNullOrEmpty(taskId) && targetTaskId != null && taskId.Contains(targetTaskId))
                     {
                         var initFormPropertyStr = historyitem["extensionProperties"]?["initFormProperty"]?.ToString();
                         if (!string.IsNullOrEmpty(initFormPropertyStr))
@@ -758,7 +766,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                                 var initFormJson = JObject.Parse(initFormPropertyStr);
                                 outFormId = initFormJson["outFormId"]?.ToString();
                             }
-                            catch (Exception ex)
+                            catch (Exception)
                             {
                                 continue;
                             }
@@ -810,9 +818,9 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
 
                 var nextDeptTaskLimitResponse = httpHelper.GetAsync(
                     pmisInfo.Url + $@"/bpm/customize-api/task/{obj["task"]?["id"]?.ToString()}/getNextDeptTaskLimit?deptId=67", null,
-                    new Dictionary<string, string> { { "uniwaterutoken", tokenService.GetTokenAsync() } }).Result;
+                    new Dictionary<string, string> { { "uniwaterutoken", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
                 var nextDeptTaskLimitResult = JObject.Parse(nextDeptTaskLimitResponse.Content.ReadAsStringAsync().Result);
-                if (int.Parse(nextDeptTaskLimitResult["Code"].ToString()) != 0 || nextDeptTaskLimitResult["Message"].ToString().ToLower() != "ok") continue;
+                if (int.Parse(nextDeptTaskLimitResult["Code"]?.ToString() ?? string.Empty) != 0 || nextDeptTaskLimitResult["Message"]?.ToString().ToLower() != "ok") continue;
                 var suspendedResponse = httpHelper.PostAsync(
                     pmisInfo.Url + $@"/bpm/customize-api/{obj["instance"]?["id"]?.ToString()}/suspended?taskId=", new
                     {
@@ -823,17 +831,17 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                         comment = false,
                         type = "",
                         nextAssignee = "",
-                        bpmSuspendedReminder = (object)null
+                        bpmSuspendedReminder = (object)null!
                     },
-                    new Dictionary<string, string> { { "uniwaterutoken", tokenService.GetTokenAsync() } }).Result;
+                    new Dictionary<string, string> { { "uniwaterutoken", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
                 var suspendedResult = JObject.Parse(suspendedResponse.Content.ReadAsStringAsync().Result);
-                if (int.Parse(suspendedResult["Code"].ToString()) != 0 || suspendedResult["Message"].ToString().ToLower() != "ok") continue;
+                if (int.Parse(suspendedResult["Code"]?.ToString() ?? string.Empty) != 0 || suspendedResult["Message"]?.ToString().ToLower() != "ok") continue;
 
                 var completeResponse = httpHelper.PostAsyncStringBody(
                     pmisInfo.Url + $@"/bpm/customize-api/{obj["task"]?["id"]?.ToString()}/complete", result.ToString(Formatting.Indented),
-                    new Dictionary<string, string> { { "uniwaterutoken", tokenService.GetTokenAsync() } }).Result;
+                    new Dictionary<string, string> { { "uniwaterutoken", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
                 var completeResult = JObject.Parse(completeResponse.Content.ReadAsStringAsync().Result);
-                if (int.Parse(completeResult["Code"].ToString()) != 0 || completeResult["Message"].ToString().ToLower() != "ok") continue;
+                if (int.Parse(completeResult["Code"]?.ToString() ?? string.Empty) != 0 || completeResult["Message"]?.ToString().ToLower() != "ok") continue;
                 dbConnection.Execute($@"update
                                         	public.overtimerecord
                                         set
@@ -857,10 +865,12 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
     /// <returns></returns>
     public int GetTodayClockInDetail(string clockInDate)
     {
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var httpHelper = new HttpRequestHelper();
         var getResponse = httpHelper.GetAsync(pmisInfo.Url + $"/app/hd-oa/api/oaUserClockInRecord/todayClockInDetail?clockInDate={clockInDate}&detailStatus=1",
-            new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() }, { "appid", pmisInfo.AppId }, { "app", pmisInfo.App } }).Result;
+                new Dictionary<string, string>
+                    { { "authorization", tokenService.GetTokenAsync() ?? string.Empty }, { "appid", pmisInfo.AppId ?? string.Empty }, { "app", pmisInfo.App ?? string.Empty } })
+            .Result;
         var json = JObject.Parse(getResponse.Content.ReadAsStringAsync().Result);
         // 安全地取出 detailList
         var detailList = json["data"]?["detailList"] as JArray;
@@ -885,7 +895,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                 : new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).ToString("yyyy-MM-dd");
 
         var workovertimeresult = new Dictionary<string, double>();
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var httpHelper = new HttpRequestHelper();
         var postResponse = httpHelper.PostAsync(pmisInfo.Url + $"/hddev/form/formobjectdata/oa_workovertime_plan_apply:15/query.json", new
             {
@@ -923,16 +933,17 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                 },
                 conditionsSql = new string[] { }
             },
-            new Dictionary<string, string> { { "token", tokenService.GetTokenAsync() }, { "uniwaterUtoken", tokenService.GetTokenAsync() } }).Result;
+            new Dictionary<string, string> { { "token", tokenService.GetTokenAsync() ?? string.Empty }, { "uniwaterUtoken", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
         var json = JObject.Parse(postResponse.Content.ReadAsStringAsync().Result);
         // 安全地取出 detailList
         var detailList = json["Response"]?["rows"] as JArray;
-        foreach (var historyitem in detailList)
-        {
-            var workDate = historyitem["work_date"]?.ToString();
-            var realtime = historyitem["realtime"]?.ToString();
-            if (!string.IsNullOrEmpty(workDate) && !string.IsNullOrEmpty(realtime)) workovertimeresult.Add(workDate, double.Parse(realtime));
-        }
+        if (detailList != null)
+            foreach (var historyitem in detailList)
+            {
+                var workDate = historyitem["work_date"]?.ToString();
+                var realtime = historyitem["realtime"]?.ToString();
+                if (!string.IsNullOrEmpty(workDate) && !string.IsNullOrEmpty(realtime)) workovertimeresult.Add(workDate, double.Parse(realtime));
+            }
 
         IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var AttendancedateList = dbConnection.Query<OaWorkoverTimeOutput>($@"select
@@ -949,7 +960,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                                                                                 	ar.attendancedate asc").ToList();
         var result = AttendancedateList.AsParallel().Select(item =>
         {
-            if (workovertimeresult.ContainsKey(item.Attendancedate))
+            if (item.Attendancedate != null && workovertimeresult.ContainsKey(item.Attendancedate))
             {
                 item.Realtime = workovertimeresult[item.Attendancedate];
                 item.Amount = workovertimeresult[item.Attendancedate] >= 2 ? 15 : 0;

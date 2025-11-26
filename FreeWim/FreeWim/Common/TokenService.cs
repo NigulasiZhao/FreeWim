@@ -14,11 +14,11 @@ public class TokenService(IConfiguration configuration)
     private const int TokenExpirationDuration = 24; // 24 hours
     private static readonly MemoryCache _cache = new(new MemoryCacheOptions());
 
-    public string GetTokenAsync()
+    public string? GetTokenAsync()
     {
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         // Try to get the token from memory cache first
-        if (_cache.TryGetValue(TokenCacheKey, out string cachedToken)) return cachedToken;
+        if (_cache.TryGetValue(TokenCacheKey, out string? cachedToken)) return cachedToken;
 
         // If token is not found in cache, fetch a new one
         var token = FetchTokenFromApiAsync(pmisInfo.DlmeasureUrl, pmisInfo.UserAccount, pmisInfo.PassWord);
@@ -29,11 +29,11 @@ public class TokenService(IConfiguration configuration)
         return token;
     }
 
-    public string GetAdminTokenAsync()
+    public string? GetAdminTokenAsync()
     {
-        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         // Try to get the token from memory cache first
-        if (_cache.TryGetValue(AdminTokenCacheKey, out string cachedToken)) return cachedToken;
+        if (_cache.TryGetValue(AdminTokenCacheKey, out string? cachedToken)) return cachedToken;
 
         // If token is not found in cache, fetch a new one
         var token = FetchTokenFromApiAsync(pmisInfo.DlmeasureUrl, "720", "720123!");
@@ -44,7 +44,7 @@ public class TokenService(IConfiguration configuration)
         return token;
     }
 
-    private string FetchTokenFromApiAsync(string dlmeasureUrl, string userAccount, string passWord)
+    private string? FetchTokenFromApiAsync(string dlmeasureUrl, string userAccount, string passWord)
     {
         var token = string.Empty;
         var httpClient = new HttpClient();
@@ -58,7 +58,8 @@ public class TokenService(IConfiguration configuration)
         rsaByteContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         var rsaResponse = httpClient.GetAsync(dlmeasureUrl + "/uniwim/ump/key").Result;
         var projectJson = JObject.Parse(rsaResponse.Content.ReadAsStringAsync().Result);
-        var publicKeyClean = projectJson["Response"]["publicKey"].ToString().Replace("-----BEGIN RSA Public Key-----", "")
+        var publicKeyClean = projectJson["Response"]?["publicKey"]
+            ?.ToString().Replace("-----BEGIN RSA Public Key-----", "")
             .Replace("-----END RSA Public Key-----", "")
             .Replace("\n", "")
             .Replace("\r", "");
@@ -67,37 +68,40 @@ public class TokenService(IConfiguration configuration)
 
         #region 处理密码加密
 
-        var publicKeyBytes =
-            Convert.FromBase64String(publicKeyClean);
-        var rsa = RSA.Create();
-        rsa.ImportSubjectPublicKeyInfo(publicKeyBytes, out _);
-        var plaintextBytes = System.Text.Encoding.UTF8.GetBytes(passWord);
-        var encryptedBytes = rsa.Encrypt(plaintextBytes, RSAEncryptionPadding.Pkcs1);
-
-        #endregion
-
-        #region 登录
-
-        var loginData = JsonConvert.SerializeObject(new
+        if (publicKeyClean != null)
         {
-            username = userAccount,
-            password = EnCode(Convert.ToBase64String(encryptedBytes)),
-            pwdForRemember = EnCode(passWord),
-            validation = "",
-            cid = "",
-            cfg = "",
-            appgroup = "",
-            mac = "",
-            tenantName = "和达科技",
-            tenantId = "5d89917712441d7a5073058c"
-        });
-        var response = httpClient.PostAsync(dlmeasureUrl + "/uniwim/dmp/login", new StringContent(JsonConvert.SerializeObject(new
-        {
-            data = EnCode(loginData)
-        }))).Result;
-        if (!response.IsSuccessStatusCode) return token;
-        var tokenObject = JObject.Parse(response.Content.ReadAsStringAsync().Result);
-        token = tokenObject["Response"]["token"].ToString();
+            var publicKeyBytes =
+                Convert.FromBase64String(publicKeyClean);
+            var rsa = RSA.Create();
+            rsa.ImportSubjectPublicKeyInfo(publicKeyBytes, out _);
+            var plaintextBytes = System.Text.Encoding.UTF8.GetBytes(passWord);
+            var encryptedBytes = rsa.Encrypt(plaintextBytes, RSAEncryptionPadding.Pkcs1);
+
+            #endregion
+
+            #region 登录
+
+            var loginData = JsonConvert.SerializeObject(new
+            {
+                username = userAccount,
+                password = EnCode(Convert.ToBase64String(encryptedBytes)),
+                pwdForRemember = EnCode(passWord),
+                validation = "",
+                cid = "",
+                cfg = "",
+                appgroup = "",
+                mac = "",
+                tenantName = "和达科技",
+                tenantId = "5d89917712441d7a5073058c"
+            });
+            var response = httpClient.PostAsync(dlmeasureUrl + "/uniwim/dmp/login", new StringContent(JsonConvert.SerializeObject(new
+            {
+                data = EnCode(loginData)
+            }))).Result;
+            if (!response.IsSuccessStatusCode) return token;
+            var tokenObject = JObject.Parse(response.Content.ReadAsStringAsync().Result);
+            token = tokenObject["Response"]?["token"]?.ToString();
+        }
 
         #endregion
 

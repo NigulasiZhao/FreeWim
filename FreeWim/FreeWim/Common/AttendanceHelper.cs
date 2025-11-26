@@ -8,7 +8,7 @@ using Hangfire.Server;
 
 namespace FreeWim.Common;
 
-public class AttendanceHelper(IConfiguration configuration, ILogger<ZentaoHelper> logger)
+public class AttendanceHelper(IConfiguration configuration)
 {
     /// <summary>
     /// 根据日期获取当日工时
@@ -101,16 +101,16 @@ public class AttendanceHelper(IConfiguration configuration, ILogger<ZentaoHelper
         Nearest
     }
 
-    public void AutoCheckIniclock(PerformContext context)
+    public void AutoCheckIniclock(PerformContext? context)
     {
         IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
-        var jobId = context.BackgroundJob.Id;
+        var jobId = context?.BackgroundJob.Id;
         if (!string.IsNullOrEmpty(jobId))
         {
             var autoCheckInRecord = dbConnection.Query<AutoCheckInRecord>($@"SELECT * FROM public.autocheckinrecord WHERE jobid = '{jobId}'").FirstOrDefault();
             if (autoCheckInRecord != null)
             {
-                var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+                var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
                 var url = $"{pmisInfo.ZkUrl}/iclock/cdata?SN={pmisInfo.ZkSN}&table=ATTLOG&Stamp=9999";
                 var contentString = $"100{pmisInfo.UserAccount}\t{autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss}\t0\t15\t0\t0\t0";
                 // using var client = new HttpClient();
