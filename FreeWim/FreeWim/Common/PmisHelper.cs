@@ -885,14 +885,10 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
     public List<OaWorkoverTimeOutput> GetOaWorkoverTime(string startTime = "", string endTime = "")
     {
         if (string.IsNullOrEmpty(startTime))
-            startTime = DateTime.Now.Day < 26
-                ? new DateTime(DateTime.Now.Year, DateTime.Now.Month, 26).AddMonths(-2).ToString("yyyy-MM-dd")
-                : new DateTime(DateTime.Now.Year, DateTime.Now.Month, 26).AddMonths(-1).ToString("yyyy-MM-dd");
+            startTime = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 26).AddMonths(-1).ToString("yyyy-MM-dd");
 
         if (string.IsNullOrEmpty(endTime))
-            endTime = DateTime.Now.Day < 26
-                ? new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).AddMonths(-1).ToString("yyyy-MM-dd")
-                : new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).ToString("yyyy-MM-dd");
+            endTime = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).ToString("yyyy-MM-dd");
 
         var workovertimeresult = new Dictionary<string, double>();
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;

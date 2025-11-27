@@ -51,8 +51,6 @@ public class HangFireHelper(
         RecurringJob.AddOrUpdate("餐补提醒", () => MealAllowanceReminder(), "0 0 14 24,25,26 * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
     }
 
-    //private static readonly MemoryCache Cache = new(new MemoryCacheOptions());
-
     /// <summary>
     /// 考勤数据同步
     /// 每小时的5分，35分调用一次查询当月考勤数据接口；接口结果对比本地库中数据，如果接口返回有新数据，则更新本地数据库
@@ -547,12 +545,8 @@ public class HangFireHelper(
     /// </summary>
     public void MealAllowanceReminder()
     {
-        var startTime = DateTime.Now.Day < 26
-            ? new DateTime(DateTime.Now.Year, DateTime.Now.Month, 26).AddMonths(-2).ToString("yyyy-MM-dd")
-            : new DateTime(DateTime.Now.Year, DateTime.Now.Month, 26).AddMonths(-1).ToString("yyyy-MM-dd");
-        var endTime = DateTime.Now.Day < 26
-            ? new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).AddMonths(-1).ToString("yyyy-MM-dd")
-            : new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).ToString("yyyy-MM-dd");
+        var startTime = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 26).AddMonths(-1).ToString("yyyy-MM-dd");
+        var endTime = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).ToString("yyyy-MM-dd");
         var result = pmisHelper.GetOaWorkoverTime(startTime, endTime);
         if (result.Any(e => e.Realtime >= 2))
             pushMessageHelper.Push("餐补提醒",
