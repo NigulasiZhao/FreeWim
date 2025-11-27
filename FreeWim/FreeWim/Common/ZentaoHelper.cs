@@ -172,7 +172,7 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
                     var outer = JsonSerializer.Deserialize<FinishZentaoTaskResponse>(getResponse.Content.ReadAsStringAsync().Result);
                     if (outer != null)
                         dbConnection.Execute(
-                            $@"UPDATE public.zentaotask SET consumed =consumed+ {outer.Consumed},timeleft = {outer.Left},registerhours = registerhours + {task.TimeConsuming},taskstatus = '{outer.Status}' WHERE ID = {outer.id}");
+                            $@"UPDATE public.zentaotask SET consumed =consumed+ {outer.consumed},timeleft = {outer.left},registerhours = registerhours + {task.TimeConsuming},taskstatus = '{outer.status}' WHERE ID = {outer.id}");
                 }
 
                 pushMessage = "已处理 " + tasklist.Count + " 条任务\n共登记 " + tasklist.Sum(e => e.TimeConsuming) + " 工时";
