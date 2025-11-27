@@ -288,8 +288,17 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
                 var res = chatClient.GetResponseAsync(chatHistory, chatOptions).Result;
                 if (string.IsNullOrWhiteSpace(res?.Text)) return;
                 var taskContent = JsonConvert.DeserializeObject<dynamic>(res.Text.Replace("```json", "").Replace("```", "").Trim());
+                var parameters = new
+                {
+                    target = taskContent?.target.ToString(),
+                    planfinishact = taskContent?.planFinishAct.ToString(),
+                    realjob = taskContent?.realJob.ToString(),
+                    id = (int)task.id
+                };
                 dbConnection.Execute(
-                    $"UPDATE public.zentaotask SET target= '{taskContent?.target}',planfinishact= '{taskContent?.planFinishAct}',realjob= '{taskContent?.realJob}' where id = {task.id}");
+                    $@"UPDATE public.zentaotask SET target= @target,
+                                                        planfinishact= @planfinishact,
+                                                        realjob= @realJob where id = @id", parameters);
 
                 string target = taskContent?.target.ToString() ?? "";
                 string planFinishAct = taskContent?.planFinishAct.ToString() ?? "";
