@@ -605,7 +605,7 @@
                         const time = row.cells[5].data;
                         const status = row.cells[6].data;
                         let badge = "";
-                        if (status === "迟到" || status === "缺卡") badge = `<span class="badge yellow" style="margin-left:4px; font-size:10px;">${status}</span>`;
+                        if (status !== "正常") badge = `<span class="badge yellow" style="margin-left:4px; font-size:10px;">${status}</span>`;
                         return gridjs.html(`${time}${badge}`);
                     }
                 },
@@ -616,7 +616,7 @@
                         const time = row.cells[7].data;
                         const status = row.cells[8].data;
                         let badge = "";
-                        if (status === "早退" || status === "缺卡") badge = `<span class="badge yellow" style="margin-left:4px; font-size:10px;">${status}</span>`;
+                        if (status !== "正常") badge = `<span class="badge yellow" style="margin-left:4px; font-size:10px;">${status}</span>`;
                         return gridjs.html(`${time}${badge}`);
                     }
                 },
