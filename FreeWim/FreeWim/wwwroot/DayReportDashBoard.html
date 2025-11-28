@@ -468,8 +468,8 @@
         document.getElementById('endDate').value = end;
         document.getElementById('weekstartDate').value = start;
         document.getElementById('weekendDate').value = end;
-        document.getElementById('oaWorkoverStartDate').value = start;
-        document.getElementById('oaWorkoverEndDate').value = end;
+        // document.getElementById('oaWorkoverStartDate').value = start;
+        // document.getElementById('oaWorkoverEndDate').value = end;
     }
 
     function switchTab(tab) {
@@ -774,10 +774,10 @@
     async function ExportOaWorkoverTime() {
         const start = document.getElementById("oaWorkoverStartDate").value;
         const end = document.getElementById("oaWorkoverEndDate").value;
-        if (!start || !end) {
-            alert("请选择日期");
-            return;
-        }
+        // if (!start || !end) {
+        //     alert("请选择日期");
+        //     return;
+        // }
 
         try {
             const excelRes = await fetch(`/api/PmisAndZentao/ExportOaWorkoverTime?startTime=${start}&endTime=${end}`, {method: 'POST'});
