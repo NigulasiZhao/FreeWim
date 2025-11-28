@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Data;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.AI;
 using Npgsql;
 using FreeWim.Common;
 using FreeWim.Models.PmisAndZentao;
+using FreeWim.Models.PmisAndZentao.Dto;
 using Newtonsoft.Json.Linq;
 using NPOI.SS.Formula.Functions;
 
@@ -367,7 +369,7 @@ public class PmisAndZentaoController(
     }
 
     /// <summary>
-    /// 阀门专业填单记录导出
+    /// 导出餐补记录
     /// </summary>
     /// <returns></returns>
     [Tags("PMIS")]
@@ -449,5 +451,136 @@ public class PmisAndZentaoController(
         // 返回文件
         var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read);
         return File(fs, "application/vnd.ms-excel", fileName);
+    }
+
+    /// <summary>
+    /// 获取PMIS日报汇总
+    /// </summary>
+    /// <returns></returns>
+    [Tags("PMIS")]
+    [EndpointSummary("获取PMIS日报汇总")]
+    [HttpPost]
+    public IResult QueryJobUserWorkSum(QueryJobUserWorkSumInput input)
+    {
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
+        var targetUrl = pmisInfo.Url.TrimEnd('/') + "/unioa/job/userWorkSum/queryJobUserWorkSum";
+        var httpHelper = new HttpRequestHelper();
+        var postResponse = httpHelper.PostAsync(targetUrl, new
+        {
+            index = 1,
+            size = -1,
+            conditions = Array.Empty<object>(),
+            order = Array.Empty<object>(),
+            data = new
+            {
+                systemId = (string?)null,
+                groupId = (string?)null,
+                classId = (string?)null,
+                time = new[] { input.StartDate, input.EndDate },
+                restDay = false,
+                beginDate = input.StartDate,
+                endDate = input.EndDate
+            }
+        }, new Dictionary<string, string> { { "authorization", tokenService.GetAdminTokenAsync() ?? string.Empty } }).Result;
+
+        var result = postResponse.Content.ReadAsStringAsync().Result;
+        return Results.Content(result, "application/json");
+    }
+
+    /// <summary>
+    /// 获取PMIS日报明细
+    /// </summary>
+    /// <returns></returns>
+    [Tags("PMIS")]
+    [EndpointSummary("获取PMIS日报明细")]
+    [HttpPost]
+    public IResult QueryUserWorkSumDetail(QueryUserWorkSumDetailInput input)
+    {
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
+        var targetUrl = pmisInfo.Url.TrimEnd('/') + "/unioa/job/userWorkSum/queryUserWorkSumDetail";
+        var httpHelper = new HttpRequestHelper();
+        var postResponse = httpHelper.PostAsync(targetUrl, new
+        {
+            index = 1,
+            size = -1,
+            conditions = Array.Empty<object>(),
+            order = Array.Empty<object>(),
+            data = new
+            {
+                systemId = (string?)null,
+                groupId = (string?)null,
+                classId = (string?)null,
+                createDate = input.CreateDate
+            }
+        }, new Dictionary<string, string> { { "authorization", tokenService.GetAdminTokenAsync() ?? string.Empty } }).Result;
+
+        var result = postResponse.Content.ReadAsStringAsync().Result;
+        return Results.Content(result, "application/json");
+    }
+
+    /// <summary>
+    /// 获取PMIS周报汇总
+    /// </summary>
+    /// <returns></returns>
+    [Tags("PMIS")]
+    [EndpointSummary("获取PMIS周报汇总")]
+    [HttpPost]
+    public IResult QueryJobUserWorkWeekSum(QueryJobUserWorkSumInput input)
+    {
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
+        var targetUrl = pmisInfo.Url.TrimEnd('/') + "/unioa/job/userWorkWeekSum/queryJobUserWorkWeekSum";
+        var httpHelper = new HttpRequestHelper();
+        var postResponse = httpHelper.PostAsync(targetUrl, new
+        {
+            index = 1,
+            size = -1,
+            conditions = Array.Empty<object>(),
+            order = Array.Empty<object>(),
+            data = new
+            {
+                systemId = (string?)null,
+                groupId = (string?)null,
+                classId = (string?)null,
+
+                time = new[] { input.StartDate, input.EndDate },
+                restDay = false,
+                beginDate = input.StartDate,
+                endDate = input.EndDate
+            }
+        }, new Dictionary<string, string> { { "authorization", tokenService.GetAdminTokenAsync() ?? string.Empty } }).Result;
+
+        var result = postResponse.Content.ReadAsStringAsync().Result;
+        return Results.Content(result, "application/json");
+    }
+
+    /// <summary>
+    /// 获取PMIS周报明细
+    /// </summary>
+    /// <returns></returns>
+    [Tags("PMIS")]
+    [EndpointSummary("获取PMIS周报明细")]
+    [HttpPost]
+    public IResult QueryUserWorkWeekSumDetail(queryUserWorkWeekSumDetailInput input)
+    {
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
+        var targetUrl = pmisInfo.Url.TrimEnd('/') + "/unioa/job/userWorkWeekSum/queryUserWorkWeekSumDetail";
+        var httpHelper = new HttpRequestHelper();
+        var postResponse = httpHelper.PostAsync(targetUrl, new
+        {
+            index = 1,
+            size = -1,
+            conditions = Array.Empty<object>(),
+            order = Array.Empty<object>(),
+            data = new
+            {
+                systemId = (string?)null,
+                groupId = (string?)null,
+                classId = (string?)null,
+                weekStart = input.WeekStart
+            }
+        }, new Dictionary<string, string> { { "authorization", tokenService.GetAdminTokenAsync() ?? string.Empty } }).Result;
+
+        var result = postResponse.Content.ReadAsStringAsync().Result;
+        return Results.Content(result, "application/json");
     }
 }

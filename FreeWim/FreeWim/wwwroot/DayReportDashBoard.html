@@ -252,26 +252,13 @@
     async function loadMainTable() {
         //const recentDates = getRecentDates(10);
         const body = {
-            index: 1,
-            size: -1,
-            conditions: [],
-            order: [],
-            data: {
-                systemId: null,
-                groupId: null,
-                classId: null,
-                time: [document.getElementById('startDate').value, document.getElementById('endDate').value],
-                restDay: false,
-                beginDate: document.getElementById('startDate').value,
-                endDate: document.getElementById('endDate').value
-            }
+            StartDate: document.getElementById('startDate').value,
+            EndDate: document.getElementById('endDate').value
         };
-
-        const res = await fetch(Url + "/unioa/job/userWorkSum/queryJobUserWorkSum", {
+        const res = await fetch("/api/PmisAndZentao/QueryJobUserWorkSum", {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
-                "Authorization": authToken // 默认
+                "Content-Type": "application/json"
             },
             body: JSON.stringify(body)
         });
@@ -333,23 +320,13 @@
     // 渲染子表
     async function loadDetail(systemName, groupName, className, createDate) {
         const body = {
-            index: 1,
-            size: -1,
-            conditions: [],
-            order: [],
-            data: {
-                systemId: null, // 真实环境要换成 systemId
-                groupId: null,  // 真实环境要换成 groupId
-                classId: null,  // 真实环境要换成 classId
-                createDate
-            }
+            CreateDate: createDate
         };
 
-        const res = await fetch(Url + "/unioa/job/userWorkSum/queryUserWorkSumDetail", {
+        const res = await fetch("/api/PmisAndZentao/QueryUserWorkSumDetail", {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
-                "Authorization": authToken
+                "Content-Type": "application/json"
             },
             body: JSON.stringify(body)
         });
@@ -468,26 +445,13 @@
 
     async function loadWeekMainTable() {
         const body = {
-            index: 1,
-            size: -1,
-            conditions: [],
-            order: [],
-            data: {
-                systemId: null,
-                groupId: null,
-                classId: null,
-                time: [document.getElementById('weekstartDate').value, document.getElementById('weekendDate').value],
-                restDay: false,
-                beginDate: document.getElementById('weekstartDate').value,
-                endDate: document.getElementById('weekendDate').value
-            }
+            StartDate: document.getElementById('weekstartDate').value,
+            EndDate: document.getElementById('weekendDate').value
         };
-
-        const res = await fetch(Url + "/unioa/job/userWorkWeekSum/queryJobUserWorkWeekSum", {
+        const res = await fetch("/api/PmisAndZentao/QueryJobUserWorkWeekSum", {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
-                "Authorization": authToken // 默认
+                "Content-Type": "application/json"
             },
             body: JSON.stringify(body)
         });
@@ -550,22 +514,12 @@
     // 渲染子表
     async function loadweekDetail(systemId, groupId, classId, weekStart) {
         const body = {
-            index: 1,
-            size: -1,
-            conditions: [],
-            order: [],
-            data: {
-                systemId: null, // 真实环境要换成 systemId
-                groupId: null,  // 真实环境要换成 groupId
-                classId: null,  // 真实环境要换成 classId
-                weekStart
-            }
+            WeekStart: weekStart
         };
-        const res = await fetch(Url + "/unioa/job/userWorkWeekSum/queryUserWorkWeekSumDetail", {
+        const res = await fetch("/api/PmisAndZentao/QueryUserWorkWeekSumDetail", {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
-                "Authorization": authToken
+                "Content-Type": "application/json"
             },
             body: JSON.stringify(body)
         });
@@ -634,22 +588,13 @@
         loadWeekMainTable();
     }
 
-    let authToken = null;
-    let Url = null;
 
     async function fetchToken() {
-        try {
-            const res = await fetch("/api/PmisAndZentao/GetPmisAdminToken");
-            const data = await res.json();
-            authToken = data.token; // 假设接口返回 { "token": "xxxx" }
-            Url = data.url;
-            // 页面初始化时加载主表
-            getRecentDates(10);
-            loadMainTable();
-            loadWeekMainTable();
-        } catch (err) {
-            console.error("获取 token 失败:", err);
-        }
+
+        // 页面初始化时加载主表
+        getRecentDates(10);
+        loadMainTable();
+        loadWeekMainTable();
     }
 
     async function ExportOaWorkoverTime() {
