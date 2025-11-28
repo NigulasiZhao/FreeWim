@@ -19,6 +19,10 @@ public class WorkFlowExecutor(
         try
         {
             IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            var existautocheckin =
+                dbConnection.Query<int>($"SELECT COUNT(0) FROM public.autocheckinrecord WHERE to_char(clockintime,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}' and clockinstate = 0 ").First();
+            if (existautocheckin > 0) return;
+
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
             var workHours = attendanceHelper.GetWorkHoursByDate(DateTime.Today);
             if (workHours > 0)

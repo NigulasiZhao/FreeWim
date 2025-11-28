@@ -629,6 +629,9 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
     public JArray RealOverTimeList()
     {
         IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        var existautocheckin =
+            dbConnection.Query<int>($"SELECT COUNT(0) FROM public.autocheckinrecord WHERE to_char(clockintime,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}' and clockinstate = 0 ").First();
+        if (existautocheckin > 0) return new JArray();
         var projectCode = string.Empty;
         var fieldMap = new JObject
         {
