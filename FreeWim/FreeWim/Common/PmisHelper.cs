@@ -449,11 +449,11 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                 hasFile = (string?)null,
                 timeList = new[]
                 {
-                    DateTime.Now.AddMonths(-1).ToString("yyyy-MM-dd"),
-                    DateTime.Now.AddMonths(1).ToString("yyyy-MM-dd")
+                    DateTime.Now.AddDays(-7).ToString("yyyy-MM-dd"),
+                    DateTime.Now.AddDays(7).ToString("yyyy-MM-dd")
                 },
-                beginDate = DateTime.Now.AddMonths(-1).ToString("yyyy-MM-dd"),
-                endDate = DateTime.Now.AddMonths(1).ToString("yyyy-MM-dd")
+                beginDate = DateTime.Now.AddDays(-7).ToString("yyyy-MM-dd"),
+                endDate = DateTime.Now.AddDays(7).ToString("yyyy-MM-dd")
             }
         }, new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
         var json = JObject.Parse(postResponse.Content.ReadAsStringAsync().Result);

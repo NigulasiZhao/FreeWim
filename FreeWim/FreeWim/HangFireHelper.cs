@@ -30,7 +30,7 @@ public class HangFireHelper(
         //每小时0 0 * * * ?
         //每五分钟0 0/5 * * * ?
         //RecurringJob.AddOrUpdate("SpeedTest", () => SpeedTest(), "0 0 */1 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        // 
+
         using (var connection = JobStorage.Current.GetConnection())
         {
             var recurringJobs = connection.GetRecurringJobs();
@@ -39,7 +39,7 @@ public class HangFireHelper(
         }
 
 
-        RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "0 0/3 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "5,35 * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("Keep数据同步", () => KeepRecord(), "0 0 */3 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("高危人员打卡预警", () => CheckInWarning(), "0 0/5 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("同步禅道任务", () => SynchronizationZentaoTask(), "0 15,17,19 * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
@@ -67,10 +67,10 @@ public class HangFireHelper(
         client.DefaultRequestHeaders.Add("Authorization", tokenService.GetTokenAsync());
         var startDate = DateTime.Now;
         if (DateTime.Now.Hour <= 7 || DateTime.Now.Hour >= 23) return;
-        var clockInCount = pmisHelper.GetTodayClockInDetail(startDate.ToString("yyyy-MM-dd"));
-        if (clockInCount == 0) return;
-        var inStorageClockInCount = dbConnection.Query<int>($@"select count(0) from public.attendancerecorddaydetail where to_char(attendancedate,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}'").First();
-        if (clockInCount == inStorageClockInCount) return;
+        // var clockInCount = pmisHelper.GetTodayClockInDetail(startDate.ToString("yyyy-MM-dd"));
+        // if (clockInCount == 0) return;
+        // var inStorageClockInCount = dbConnection.Query<int>($@"select count(0) from public.attendancerecorddaydetail where to_char(attendancedate,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}'").First();
+        // if (clockInCount == inStorageClockInCount) return;
         var response = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.ToString("yyyy-MM")).Result;
         var result = response.Content.ReadAsStringAsync().Result;
         var resultModel = JsonConvert.DeserializeObject<AttendanceResponse>(result);
@@ -83,13 +83,13 @@ public class HangFireHelper(
                                             from
                                             	public.attendancerecorddaydetail
                                             where
-                                            	to_char(attendancedate,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}'
+                                            	to_char(attendancedate,'yyyy-MM-dd') = '{startDate:yyyy-MM-dd}'
                                             group by
                                             	clockintype").ToList();
             if (resultModel.Data != null)
                 if (resultModel.Data.DayVoList != null)
                     if (resultModel.Data.DayVoList.Count > 0)
-                        foreach (var daydetail in resultModel.Data.DayVoList.Where(e => e.Day == DateTime.Today.Day))
+                        foreach (var daydetail in resultModel.Data.DayVoList.Where(e => e.Day == startDate.Day))
                             if (daydetail.DetailList != null)
                                 foreach (var daydetailitem in daydetail.DetailList)
                                     if (!todayAttendanceList.Any(e => daydetailitem.ClockInType != null &&
