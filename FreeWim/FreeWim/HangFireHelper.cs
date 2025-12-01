@@ -79,13 +79,12 @@ public class HangFireHelper(
             //查询已有的今日打卡记录
             var todayAttendanceList = dbConnection.Query<WorkHoursInOutTime>($@"select
                                             	clockintype,
-                                            	max(clockintime) as clockintime
+                                            	clockintime
                                             from
                                             	public.attendancerecorddaydetail
                                             where
                                             	to_char(attendancedate,'yyyy-MM-dd') = '{startDate:yyyy-MM-dd}'
-                                            group by
-                                            	clockintype").ToList();
+                                            ").ToList();
             if (resultModel.Data != null)
                 if (resultModel.Data.DayVoList != null)
                     if (resultModel.Data.DayVoList.Count > 0)
