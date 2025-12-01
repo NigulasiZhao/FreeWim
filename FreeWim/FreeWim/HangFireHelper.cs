@@ -327,21 +327,23 @@ public class HangFireHelper(
             var result = response.Content.ReadAsStringAsync().Result;
             var resultModel = JsonConvert.DeserializeObject<ZktResponse>(result);
             if (resultModel?.Data is { Count: > 0 })
-                foreach (var addressBookItem in listOfPersonnel)
-                    if (resultModel.Data.Items?.FirstOrDefault(e => e.Ename == addressBookItem.RealName) != null)
+            {
+                var personList = resultModel.Data.Items?.Where(e => e is { Alias: "郑州", Deptname: "郑州驻外办" }).ToList();
+                if (personList is { Count: > 0 })
+                    foreach (var person in personList)
                     {
-                        var checktime = resultModel.Data.Items?.FirstOrDefault(e => e.Ename == addressBookItem.RealName)?.Checktime;
+                        var checktime = person.Checktime;
                         var waringcount = dbConnection.Query<int>(
-                                $@"SELECT COUNT(0) FROM public.checkinwarning WHERE name = '{addressBookItem.RealName}' AND clockintime = '{checktime}'")
+                                $@"SELECT COUNT(0) FROM public.checkinwarning WHERE name = '{person.Ename}' AND clockintime = '{checktime}'")
                             .First();
                         if (waringcount > 0) continue;
-                        if (checktime != null)
-                        {
-                            pushMessage += addressBookItem.FlowerName + "-打卡时间:" +
+                        if (checktime == null) continue;
+                        if (listOfPersonnel.FirstOrDefault(e => e.RealName == person.Ename) != null)
+                            pushMessage += listOfPersonnel.FirstOrDefault(e => e.RealName == person.Ename)!.FlowerName + "-打卡时间:" +
                                            DateTime.Parse(checktime).ToString("HH:mm:ss") + "\n";
-                            dbConnection.Execute($@"INSERT INTO public.checkinwarning(id,name,clockintime) VALUES('{Guid.NewGuid()}','{addressBookItem.RealName}','{checktime}')");
-                        }
+                        dbConnection.Execute($@"INSERT INTO public.checkinwarning(id,name,clockintime) VALUES('{Guid.NewGuid()}','{person.Ename}','{checktime}')");
                     }
+            }
         }
 
         if (string.IsNullOrEmpty(pushMessage)) return;

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工时排行榜</title>
+    <style>
+        :root {
+            --ios-blue: #007AFF;
+            --glass-bg: rgba(255, 255, 255, 0.85); /* 更不透明一点，增强可读性 */
+            --glass-border: rgba(255, 255, 255, 0.6);
+            --text-primary: #1C1C1E;
+            --text-secondary: #8E8E93;
+            --card-radius: 16px;
+            --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.08);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            /* 更加细腻的深色动态背景 */
+            background-image: 
+                radial-gradient(at 10% 10%, hsla(253,16%,7%,0.05) 0, transparent 50%), 
+                radial-gradient(at 90% 90%, hsla(220,39%,30%,0.05) 0, transparent 50%);
+            min-height: 100vh;
+            color: var(--text-primary);
+            padding: 20px;
+            overflow-y: scroll; /* 保持滚动条 */
+        }
+
+        /* 装饰球 */
+        .blob {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: -1;
+            opacity: 0.6;
+        }
+        .blob-1 { top: -100px; left: -100px; width: 500px; height: 500px; background: #a1c4fd; animation: float 15s infinite; }
+        .blob-2 { bottom: -100px; right: -100px; width: 600px; height: 600px; background: #c2e9fb; animation: float 20s infinite reverse; }
+        @keyframes float { 0%,100% { transform: translate(0,0); } 50% { transform: translate(30px, 50px); } }
+
+        .container {
+            width: 95%; /* 页面变宽 */
+            max-width: 1600px; /*在大屏上限制最大宽度 */
+            margin: 0 auto;
+        }
+
+        /* --- 顶部筛选栏 --- */
+        .control-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--card-radius);
+            padding: 20px;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 20px;
+            position: sticky;
+            top: 20px;
+            z-index: 100; /* 保证筛选栏在滚动时在最上层 */
+        }
+
+        .filter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        h1 { font-size: 22px; font-weight: 700; margin: 0; }
+        
+        /* 统计小字 */
+        .data-summary { font-size: 13px; color: var(--text-secondary); }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); /* 响应式Grid */
+            gap: 12px;
+            align-items: end;
+        }
+
+        .input-group label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            display: block;
+            margin-left: 4px;
+            font-weight: 600;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(0,0,0,0.08);
+            background: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .input-group input:focus { background: #fff; box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15); outline: none; border-color: var(--ios-blue); }
+
+        .search-btn {
+            background: var(--ios-blue);
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            height: 40px;
+            transition: all 0.2s;
+        }
+        .search-btn:active { transform: scale(0.97); }
+
+        /* --- 表格区域 --- */
+        .table-wrapper {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: var(--card-radius);
+            box-shadow: var(--shadow-lg);
+            overflow: hidden; /* 包含遮罩层 */
+            position: relative;
+            min-height: 300px; /* 防止初始加载高度太小 */
+        }
+
+        /* 遮罩层 Loading (用于第一页加载) */
+        .loading-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.6);
+            backdrop-filter: blur(5px);
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .loading-overlay.active { opacity: 1; pointer-events: all; }
+
+        .table-scroll {
+            overflow-x: auto;
+            width: 100%;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1200px; /* 保证最小宽度，防止内容挤压 */
+        }
+
+        thead {
+            background: rgba(240, 240, 245, 0.5);
+            position: sticky;
+            top: 0; /* 表头粘性定位 (相对于table-scroll) */
+        }
+
+        th {
+            text-align: left;
+            padding: 14px 16px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            user-select: none;
+        }
+        th:hover { color: var(--ios-blue); background: rgba(0,0,0,0.02); }
+
+        td {
+            padding: 16px;
+            font-size: 14px;
+            color: var(--text-primary);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            vertical-align: top; /* 顶部对齐，适应长文本换行 */
+            line-height: 1.5;
+        }
+
+        tr:last-child td { border-bottom: none; }
+
+        /* 列样式 */
+        .col-rank { text-align: center; width: 60px; }
+        .col-num { font-family: "SF Mono", monospace; font-weight: 600; }
+        .col-blue { color: var(--ios-blue); }
+        .col-orange { color: #FF9500; }
+        
+        /* 关键修改：描述列允许换行，并给足宽度 */
+        .col-desc { 
+            min-width: 350px; 
+            white-space: normal; /* 允许换行 */
+            color: #555;
+            font-size: 13px;
+        }
+
+        .rank-badge {
+            display: inline-flex; width: 28px; height: 28px;
+            align-items: center; justify-content: center;
+            border-radius: 50%; background: #e5e5ea;
+            font-weight: 700; font-size: 12px; color: #666;
+        }
+        .rank-1 .rank-badge { background: #FFD700; color: #fff; box-shadow: 0 2px 5px rgba(255, 215, 0, 0.4); }
+        .rank-2 .rank-badge { background: #C0C0C0; color: #fff; }
+        .rank-3 .rank-badge { background: #CD7F32; color: #fff; }
+
+        /* 底部加载更多指示器 */
+        .load-more-indicator {
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 13px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .load-more-indicator.show { opacity: 1; }
+
+        /* Spinner 动画 */
+        .spinner {
+            width: 24px; height: 24px;
+            border: 2.5px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top-color: var(--ios-blue);
+            animation: spin 0.8s linear infinite;
+            margin-right: 10px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* 移动端调整 */
+        @media (max-width: 768px) {
+            .container { width: 100%; padding: 0 10px; }
+            .control-panel { position: static; margin-top: 10px; padding: 16px; }
+            .filter-grid { grid-template-columns: 1fr 1fr; }
+            .search-btn { grid-column: span 2; }
+            h1 { display: none; } /* 移动端为了省空间隐藏标题 */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <div class="container">
+        
+        <div class="control-panel">
+            <div class="filter-header">
+                <h1>工时排行榜</h1>
+                <span class="data-summary" id="dataSummary">加载中...</span>
+            </div>
+            <div class="filter-grid">
+                <div class="input-group">
+                    <label>开始日期</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="input-group">
+                    <label>结束日期</label>
+                    <input type="date" id="endDate">
+                </div>
+                <div class="input-group">
+                    <label>部门名称</label>
+                    <input type="text" id="orgName" placeholder="部门筛选">
+                </div>
+                <div class="input-group">
+                    <label>用户姓名</label>
+                    <input type="text" id="userName" placeholder="姓名筛选">
+                </div>
+                <button class="search-btn" onclick="resetSearch()">查询数据</button>
+            </div>
+        </div>
+
+        <div class="table-wrapper">
+            <div id="fullLoading" class="loading-overlay">
+                <div class="spinner" style="width: 40px; height: 40px; border-width: 4px;"></div>
+                <p style="margin-top: 10px; color: #666; font-size: 14px;">正在分析数据...</p>
+            </div>
+
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="col-rank" onclick="changeSort('total_work_hours')">排名 ↕</th>
+                            <th onclick="changeSort('user_name')">姓名 ↕</th>
+                            <th onclick="changeSort('org_name')">部门 ↕</th>
+                            <th onclick="changeSort('total_work_hours')">总工时 ↕</th>
+                            <th>超越人数</th>
+                            <th>超越比例</th>
+                            <th onclick="changeSort('total_overtime')">加班工时 ↕</th>
+                            <th onclick="changeSort('overtime_rank')">加班排名 ↕</th>
+                            <th>加班超越人数</th>
+                            <th>加班超越比例</th>
+                            <th class="col-desc">详细描述</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        </tbody>
+                </table>
+            </div>
+
+            <div id="bottomSentinel" class="load-more-indicator">
+                <div class="spinner"></div>
+                <span>加载更多数据...</span>
+            </div>
+        </div>
+        
+        <div style="height: 40px;"></div>
+    </div>
+
+<script>
+    // --- 全局状态 ---
+    let state = {
+        page: 1,
+        rows: 100, // 每次加载20条，方便演示分页
+        loading: false,
+        hasMore: true,
+        sortField: 'total_work_hours',
+        sortOrder: 'desc',
+        totalCount: 0
+    };
+
+    // --- 初始化日期 ---
+    function initDates() {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), 0, 1);
+        const end = new Date(now.getFullYear(), 11, 31);
+        
+        const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        document.getElementById('startDate').value = fmt(start);
+        document.getElementById('endDate').value = fmt(end);
+    }
+
+    // --- 核心数据获取 ---
+    async function fetchData(isReset = false) {
+        if (state.loading || (!isReset && !state.hasMore)) return;
+
+        state.loading = true;
+        
+        // UI 状态控制
+        const fullLoading = document.getElementById('fullLoading');
+        const bottomSentinel = document.getElementById('bottomSentinel');
+        
+        if (isReset) {
+            state.page = 1;
+            state.hasMore = true;
+            document.getElementById('tableBody').innerHTML = ''; // 重置时清空
+            fullLoading.classList.add('active'); // 显示全屏Loading
+            bottomSentinel.classList.remove('show');
+        } else {
+            bottomSentinel.classList.add('show'); // 显示底部Loading
+        }
+
+        const payload = {
+            startTime: document.getElementById('startDate').value,
+            endTime: document.getElementById('endDate').value,
+            orgName: document.getElementById('orgName').value || null,
+            userName: document.getElementById('userName').value || null,
+            page: state.page,
+            rows: state.rows,
+            order: state.sortField,
+            sort: state.sortOrder
+        };
+
+        try {
+            // 模拟网络延迟 600ms，体验“丝滑”
+            await new Promise(r => setTimeout(r, 600));
+
+            let dataList = [];
+            
+            // 尝试真实请求
+            try {
+                const res = await fetch('https://localhost:44338/api/AttendanceRecord/RankingOfWorkingHours', {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if(res.ok) {
+                    dataList = await res.json();
+                } else {
+                    throw new Error("API Fail");
+                }
+            } catch (e) {
+                console.log("使用Mock数据演示分页");
+            }
+
+            renderTable(dataList);
+            
+            // 更新状态
+            if (dataList.length < state.rows) {
+                state.hasMore = false;
+                bottomSentinel.innerHTML = "<span>没有更多数据了</span>";
+            } else {
+                state.page++;
+                // 恢复 Sentinel 原始状态
+                bottomSentinel.innerHTML = '<div class="spinner"></div><span>加载更多数据...</span>';
+            }
+            
+            // 更新总数显示 (模拟)
+            document.getElementById('dataSummary').innerText = `当前展示前 ${(state.page-1) * state.rows} 名`;
+
+        } catch (err) {
+            console.error(err);
+        } finally {
+            state.loading = false;
+            fullLoading.classList.remove('active'); // 隐藏全屏Loading
+            if (!state.hasMore) {
+                 bottomSentinel.classList.add('show'); // 保持显示"没有更多"
+            } else {
+                 bottomSentinel.classList.remove('show'); // 隐藏Loading条，等待下次滚动
+            }
+        }
+    }
+
+    // --- 渲染逻辑 ---
+    function renderTable(list) {
+        const tbody = document.getElementById('tableBody');
+        const fragment = document.createDocumentFragment();
+
+        list.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.className = `rank-${item.workRank}`;
+            tr.innerHTML = `
+                <td class="col-rank"><span class="rank-badge">${item.workRank}</span></td>
+                <td>${item.userName}</td>
+                <td style="font-size:13px; color:#666;">${item.orgName || '-'}</td>
+                <td class="col-num col-blue">${item.totalWorkHours.toFixed(1)}</td>
+                <td>${item.workSurpassedCount}</td>
+                <td>${item.workSurpassedPercent}%</td>
+                <td class="col-num col-orange">${Number(item.totalOvertime).toFixed(1)}</td>
+                <td style="text-align:center">${item.overtimeRank}</td>
+                <td>${item.overtimeSurpassedCount}</td>
+                <td>${item.overtimeSurpassedPercent}%</td>
+                <td class="col-desc">${item.rankDescription}</td>
+            `;
+            fragment.appendChild(tr);
+        });
+
+        tbody.appendChild(fragment);
+    }
+
+    // --- 排序逻辑 ---
+    function changeSort(field) {
+        if (state.sortField === field) {
+            state.sortOrder = state.sortOrder === 'desc' ? 'asc' : 'desc';
+        } else {
+            state.sortField = field;
+            state.sortOrder = 'desc';
+        }
+        resetSearch();
+    }
+
+    // --- 重置/重新查询 ---
+    function resetSearch() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        fetchData(true);
+    }
+
+    // --- Infinite Scroll 监听器 ---
+    function initInfiniteScroll() {
+        const sentinel = document.getElementById('bottomSentinel');
+        
+        const observer = new IntersectionObserver((entries) => {
+            // 当底部元素进入视口，且没有正在加载，且还有更多数据时
+            if (entries[0].isIntersecting && !state.loading && state.hasMore) {
+                fetchData(false); // 加载下一页
+            }
+        }, {
+            rootMargin: '200px', // 提前200px触发，体验更无缝
+            threshold: 0.1
+        });
+
+        observer.observe(sentinel);
+    }
+
+    // --- 启动 ---
+    initDates();
+    initInfiniteScroll();
+    resetSearch(); // 首次加载
+
+</script>
+</body>
+</html>

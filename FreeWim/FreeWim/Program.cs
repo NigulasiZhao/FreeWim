@@ -120,4 +120,14 @@ app.MapGet("/daka", async context =>
     context.Response.ContentType = "text/html";
     await context.Response.SendFileAsync("wwwroot/AttendanceApplication.html");
 });
+app.MapGet("/weekovertiem", async context =>
+{
+    context.Response.ContentType = "text/html";
+    await context.Response.SendFileAsync("wwwroot/WeekOverTime.html");
+});
+app.MapGet("/workhours", async context =>
+{
+    context.Response.ContentType = "text/html";
+    await context.Response.SendFileAsync("wwwroot/WorkHours.html");
+});
 app.Run();

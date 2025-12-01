@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>周末加班统计</title>
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.25);
+            --glass-border: rgba(255, 255, 255, 0.5);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+            --primary-color: #007AFF;
+            --text-main: #1d1d1f;
+            --text-secondary: #86868b;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "San Francisco", "Helvetica Neue", sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            /* --- 关键修复点 1: 确保背景固定，消除滚动时的颜色断层 --- */
+            background-attachment: fixed;
+
+            box-sizing: border-box;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 40px 0;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* 动态背景球的动画效果保持不变，它们会继续漂浮在固定背景之上 */
+        .blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: -1;
+            opacity: 0.8;
+            animation: float 10s infinite ease-in-out;
+        }
+
+        .blob-1 {
+            top: -10%;
+            left: -10%;
+            width: 500px;
+            height: 500px;
+            background: #ff9a9e;
+            animation-delay: 0s;
+        }
+
+        .blob-2 {
+            bottom: -10%;
+            right: -10%;
+            width: 400px;
+            height: 400px;
+            background: #a18cd1;
+            animation-delay: 2s;
+        }
+
+        .blob-3 {
+            top: 40%;
+            left: 40%;
+            width: 300px;
+            height: 300px;
+            background: #fad0c4;
+            animation-delay: 4s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translate(0, 0);
+            }
+            50% {
+                transform: translate(30px, 50px);
+            }
+            100% {
+                transform: translate(0, 0);
+            }
+        }
+
+        .glass-container {
+            width: 90%;
+            max-width: 1000px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: 24px;
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            padding: 30px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            transition: height 0.3s ease;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 5px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        input[type="date"] {
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-family: inherit;
+            color: var(--text-main);
+            outline: none;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(4px);
+        }
+
+        input[type="date"]:focus {
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
+            border-color: var(--primary-color);
+        }
+
+        button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(0, 122, 255, 0.4);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+
+        th {
+            text-align: left;
+            padding: 16px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            cursor: pointer;
+            user-select: none;
+            background: rgba(255, 255, 255, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            backdrop-filter: blur(10px);
+        }
+
+        th:hover {
+            color: var(--primary-color);
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        th.active-sort {
+            color: var(--primary-color);
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .sort-icon {
+            display: inline-block;
+            margin-left: 4px;
+            font-size: 10px;
+            opacity: 0.3;
+        }
+
+        th.active-sort .sort-icon {
+            opacity: 1;
+        }
+
+        td {
+            padding: 16px;
+            color: var(--text-main);
+            font-size: 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            vertical-align: middle;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        tbody tr.data-row {
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr.data-row:hover td {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-high {
+            background: rgba(255, 59, 48, 0.15);
+            color: #ff3b30;
+        }
+
+        .badge-norm {
+            background: rgba(52, 199, 89, 0.15);
+            color: #34c759;
+        }
+
+        .status-row td {
+            text-align: center;
+            padding: 60px 0;
+            color: var(--text-secondary);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(0, 122, 255, 0.2);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 10px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .controls {
+                width: 100%;
+            }
+
+            .input-group, button {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+<div class="blob blob-3"></div>
+
+<div class="glass-container">
+    <div class="header">
+        <h1>周末加班统计</h1>
+        <div class="controls">
+            <div class="input-group">
+                <input type="date" id="startDate">
+            </div>
+            <div class="input-group">
+                <input type="date" id="endDate">
+            </div>
+            <button onclick="fetchData()">查询</button>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table id="dataTable">
+            <thead>
+            <tr>
+                <th onclick="handleSort('name')">姓名 <span class="sort-icon" id="icon-name">↕</span></th>
+                <th onclick="handleSort('statisticsdate')" class="active-sort">统计日期 <span class="sort-icon"
+                                                                                              id="icon-statisticsdate">↓</span>
+                </th>
+                <th onclick="handleSort('signInTime')">签到时间 <span class="sort-icon"
+                                                                      id="icon-signInTime">↕</span></th>
+                <th onclick="handleSort('signOutTime')">签退时间 <span class="sort-icon"
+                                                                       id="icon-signOutTime">↕</span></th>
+                <th onclick="handleSort('hoursDiff')">加班时长 (H) <span class="sort-icon"
+                                                                         id="icon-hoursDiff">↕</span></th>
+            </tr>
+            </thead>
+            <tbody id="tableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let currentOrder = 'statisticsdate';
+    let currentSort = 'desc';
+
+    function initDates() {
+        const today = new Date();
+        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const formatDate = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+        document.getElementById('startDate').value = formatDate(start);
+        document.getElementById('endDate').value = formatDate(end);
+        fetchData();
+    }
+
+    function formatTime(isoString) {
+        if (!isoString) return '--:--';
+        try {
+            return isoString.split('T')[1].split('.')[0];
+        } catch (e) {
+            return isoString;
+        }
+    }
+
+    function handleSort(columnKey) {
+        if (currentOrder === columnKey) {
+            currentSort = currentSort === 'desc' ? 'asc' : 'desc';
+        } else {
+            currentOrder = columnKey;
+            currentSort = 'desc';
+        }
+        updateHeaderUI();
+        fetchData();
+    }
+
+    function updateHeaderUI() {
+        document.querySelectorAll('th').forEach(th => th.classList.remove('active-sort'));
+        document.querySelectorAll('.sort-icon').forEach(icon => icon.innerText = '↕');
+        const activeTh = document.querySelector(`th[onclick="handleSort('${currentOrder}')"]`);
+        const activeIcon = document.getElementById(`icon-${currentOrder}`);
+        if (activeTh && activeIcon) {
+            activeTh.classList.add('active-sort');
+            activeIcon.innerText = currentSort === 'asc' ? '↑' : '↓';
+        }
+    }
+
+    async function fetchData() {
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const tbody = document.getElementById('tableBody');
+
+        // --- 核心改动 START ---
+        // 1. 不再隐藏 table，而是向 tbody 插入 Loading 行
+        // 2. colspan="5" 确保占据整行，不会破坏表格结构
+        // 3. 这样表头(thead)会一直固定在上方，不会跑位
+        tbody.innerHTML = `
+                <tr class="status-row">
+                    <td colspan="5">
+                        <div class="loading-spinner"></div>
+                        <div style="opacity:0.7">正在加载数据...</div>
+                    </td>
+                </tr>
+            `;
+        // --- 核心改动 END ---
+
+        const payload = {
+            startTime: startDate,
+            endTime: endDate,
+            page: 1,
+            rows: 100,
+            order: currentOrder,
+            sort: currentSort
+        };
+
+        try {
+            const response = await fetch('/api/AttendanceRecord/WorkingOvertimeOnWeekends', {
+                method: 'POST',
+                headers: {'accept': '*/*', 'content-type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+            const data = await response.json();
+
+            // 清空 Loading 状态
+            tbody.innerHTML = '';
+
+            if (data && data.length > 0) {
+                data.forEach((item, index) => {
+                    const tr = document.createElement('tr');
+                    // 添加 class data-row 用于 hover 效果和淡入动画
+                    tr.className = 'data-row';
+                    // 增加一点点动画延迟，形成瀑布流出现的效果
+                    tr.style.animationDelay = `${index * 0.05}s`;
+
+                    const hoursClass = item.hoursDiff > 8 ? 'badge-high' : 'badge-norm';
+                    tr.innerHTML = `
+                            <td><span style="font-weight: 500;">${item.name}</span></td>
+                            <td>${item.statisticsDate}</td>
+                            <td>${formatTime(item.signInTime)}</td>
+                            <td>${formatTime(item.signOutTime)}</td>
+                            <td><span class="badge ${hoursClass}">${item.hoursDiff} h</span></td>
+                        `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                // 无数据状态，同样使用 colspan="5" 插入表格内部
+                tbody.innerHTML = `
+                        <tr class="status-row">
+                            <td colspan="5">
+                                <div style="font-size: 40px; margin-bottom: 10px;">🍃</div>
+                                <div>该时间段内无加班记录</div>
+                            </td>
+                        </tr>
+                    `;
+            }
+
+        } catch (error) {
+            console.error('Fetch Error:', error);
+            // 错误状态
+            tbody.innerHTML = `
+                    <tr class="status-row">
+                        <td colspan="5">
+                            <div style="color: #ff3b30; font-weight: 500;">请求失败</div>
+                            <div style="font-size: 12px; margin-top:5px;">${error.message}</div>
+                        </td>
+                    </tr>
+                `;
+        }
+    }
+
+    initDates();
+</script>
+</body>
+
+</html>

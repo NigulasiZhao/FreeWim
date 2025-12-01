@@ -10,6 +10,8 @@ using FreeWim.Common;
 using FreeWim.Models.Attendance.Dto;
 using FreeWim.Models.PmisAndZentao;
 using Hangfire;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using MySql.Data.MySqlClient;
 using Npgsql;
 
 namespace FreeWim.Controllers;
@@ -485,5 +487,79 @@ limit 10;";
         IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var offset = (page - 1) * rows;
         return Json(dbConnection.Query<AutoCheckInRecord>($@"SELECT * FROM public.autocheckinrecord ORDER BY clockintime desc LIMIT :rows OFFSET :offset", new { rows, offset }).ToList());
+    }
+
+    [Tags("考勤")]
+    [EndpointSummary("获取周末加班数据")]
+    [HttpPost]
+    public ActionResult WorkingOvertimeOnWeekends(WorkingOvertimeOnWeekendsInput input)
+    {
+        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        var offset = (input.Page - 1) * input.Rows;
+        return Json(dbConnection.Query<WorkingOvertimeOnWeekendsIOutput>($@"SELECT 
+																		    name,
+																		    to_char(clockintime, 'yyyy-MM-dd') as statisticsdate,
+																		    MIN(clockintime) as signintime,
+																		    MAX(clockintime) as signouttime,
+																		    ROUND(EXTRACT(EPOCH FROM (MAX(clockintime) - MIN(clockintime))) / 3600, 1) as hoursdiff
+																		FROM public.checkinwarning 
+																		where
+																			clockintime >= to_timestamp(:starttime,'yyyy-mm-dd hh24:mi:ss')
+																			and clockintime <= to_timestamp(:endtime,'yyyy-mm-dd hh24:mi:ss')
+																		GROUP BY name,to_char(clockintime, 'yyyy-MM-dd') 
+																		ORDER BY {input.Order} {input.Sort}
+																		 LIMIT :rows OFFSET :offset;",
+            new { order = input.Order, rows = input.Rows, offset = offset, sort = input.Sort, starttime = input.StartTime + " 00:00:00", endtime = input.EndTime + " 23:59:59" }).ToList());
+    }
+
+    [Tags("考勤")]
+    [EndpointSummary("工时排名")]
+    [HttpPost]
+    public ActionResult RankingOfWorkingHours(RankingOfWorkingHoursInput input)
+    {
+        IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
+        var offset = (input.Page - 1) * input.Rows;
+        return Json(dbConnection.Query<RankingOfWorkingHoursOutput>($@"WITH user_stats AS (
+                                   SELECT 
+                                       user_name,user_id,GROUP_CONCAT(DISTINCT org_name) as org_name,
+                                       SUM(work_hours) as total_work_hours,
+                                       SUM(work_overtime/60) as total_overtime,
+                                       -- 工作工时排名
+                                       RANK() OVER (ORDER BY SUM(work_hours) DESC) as work_rank,
+                                       -- 加班排名
+                                       RANK() OVER (ORDER BY SUM(work_overtime) DESC) as overtime_rank,
+                                       COUNT(*) OVER () as total_users
+                                   FROM hd_oa.oa_user_clock_in_record
+                                   where clock_in_date BETWEEN @starttime AND @endtime
+                                   GROUP BY user_name,user_id
+                               )
+                               SELECT 
+                                   user_name as UserName,user_id as UserId,org_name as OrgName,
+                                   total_work_hours as TotalWorkHours,
+                                   total_overtime as TotalOvertime,
+                                   -- 工作工时相关统计
+                                   work_rank as WorkRank,
+                                   total_users - work_rank as WorkSurpassedCount,
+                                   ROUND((total_users - work_rank) * 100.0 / GREATEST(total_users - 1, 1), 2) as WorkSurpassedPercent,
+                                   
+                                   -- 加班相关统计
+                                   overtime_rank as OvertimeRank,
+                                   total_users - overtime_rank as OvertimeSurpassedCount,
+                                   ROUND((total_users - overtime_rank) * 100.0 / GREATEST(total_users - 1, 1), 2) as OvertimeSurpassedPercent,
+                                   
+                                   -- 综合描述
+                                   CONCAT('工时排名第', work_rank, '名，超越了', total_users - work_rank, '人(', 
+                                          ROUND((total_users - work_rank) * 100.0 / GREATEST(total_users - 1, 1), 2), '%)；',
+                                          '加班排名第', overtime_rank, '名，超越了', total_users - overtime_rank, '人(', 
+                                          ROUND((total_users - overtime_rank) * 100.0 / GREATEST(total_users - 1, 1), 2), '%)') as RankDescription
+                               FROM user_stats
+                               where 1=1  {(string.IsNullOrEmpty(input.OrgName) ? "" : " AND org_name like @orgname ")} {(string.IsNullOrEmpty(input.UserName) ? "" : " AND user_name like @username ")}
+                               order by  {input.Order} {input.Sort}
+                                LIMIT {input.Rows} OFFSET {offset};",
+            new
+            {
+                starttime = input.StartTime, endtime = input.EndTime, orgname = $"%{input.OrgName}%",
+                username = $"%{input.UserName}%"
+            }).ToList());
     }
 }
