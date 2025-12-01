@@ -375,7 +375,7 @@
             
             // 尝试真实请求
             try {
-                const res = await fetch('https://localhost:44338/api/AttendanceRecord/RankingOfWorkingHours', {
+                const res = await fetch('/api/AttendanceRecord/RankingOfWorkingHours', {
                     method: 'POST',
                     headers: { 'content-type': 'application/json' },
                     body: JSON.stringify(payload)
