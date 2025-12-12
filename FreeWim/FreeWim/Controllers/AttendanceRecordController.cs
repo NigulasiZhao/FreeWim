@@ -448,6 +448,12 @@ limit 10;";
                 var offsetSeconds = rand.Next(0, 500);
                 input.SelectTime = input.SelectTime.Value.AddSeconds(offsetSeconds);
             }
+            else
+            {
+                var rand = new Random();
+                var offsetSeconds = rand.Next(0, 59);
+                input.SelectTime = input.SelectTime.Value.AddSeconds(offsetSeconds);
+            }
 
             IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             var currentQuantity = dbConnection.Query<int>($@"SELECT count(0) FROM public.autocheckinrecord where to_char(clockintime,'yyyy-mm-dd') = '{input.SelectTime.Value:yyyy-MM-dd}'").First();
