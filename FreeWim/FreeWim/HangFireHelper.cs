@@ -4,6 +4,7 @@ using Npgsql;
 using FreeWim.Models.Attendance;
 using FreeWim.Models.EventInfo;
 using System.Data;
+using System.Globalization;
 using System.Text;
 using Hangfire;
 using Hangfire.Storage;
@@ -49,6 +50,7 @@ public class HangFireHelper(
         RecurringJob.AddOrUpdate("DeepSeek余额预警", () => DeepSeekBalance(), "0 0 */2 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("提交所有待处理实际加班申请", () => RealOverTime(), "0 0 9 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("餐补提醒", () => MealAllowanceReminder(), "0 0 14 24,25,26 * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("一诺自动聊天", () => AutomaticallySendMessage(), "0 0/5 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
     }
 
     /// <summary>
@@ -554,5 +556,31 @@ public class HangFireHelper(
                 DateTime.Parse(endTime).ToString("yyyy年MM月") + ",你居然有" + result.Count(e => e.Realtime >= 2) + "天加班超过2小时,最后只换来" + result.Where(e => e.Realtime >= 2).Sum(e => e.Amount) +
                 "元餐补。请尽快填写餐补,不然这点钱也没了。",
                 PushMessageHelper.PushIcon.Amount);
+    }
+
+    public void AutomaticallySendMessage()
+    {
+        if (DateTime.Now.Hour <= 8 || DateTime.Now.Hour >= 23 || DateTime.Now.DayOfWeek == DayOfWeek.Saturday || DateTime.Now.DayOfWeek == DayOfWeek.Sunday) return;
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
+        var httpHelper = new HttpRequestHelper();
+        var message = AesHelp.EncryptAes(DateTime.Now.ToString(CultureInfo.InvariantCulture));
+        var getResponse = httpHelper.PostAsync(pmisInfo.Url + $"/uniwim/message/chat/send", new
+            {
+                content = message,
+                receiverName = "",
+                receiverPhone = "",
+                receiverUserHead = "",
+                receiverUserId = "",
+                sendName = "",
+                sendPhone = "",
+                avatar = "",
+                sendUserId = "",
+                tenantId = "5d89917712441d7a5073058c",
+                sendType = 1,
+                appType = 1,
+                aiType = "deepseek",
+                msgId = "3631D4A3115C4463B8C4CE6B1639B5A3"
+            },
+            new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
     }
 }
