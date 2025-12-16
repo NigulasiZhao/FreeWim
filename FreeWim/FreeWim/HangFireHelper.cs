@@ -581,7 +581,7 @@ public class HangFireHelper(
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var httpHelper = new HttpRequestHelper();
         var message = AesHelp.EncryptAes(DateTime.Now.ToString(CultureInfo.InvariantCulture));
-        var getResponse = httpHelper.PostAsync(pmisInfo.Url + $"/uniwim/message/chat/send", new
+        var getResponse = await httpHelper.PostAsync(pmisInfo.Url + $"/uniwim/message/chat/send", new
             {
                 content = message,
                 receiverName = "",
@@ -598,6 +598,6 @@ public class HangFireHelper(
                 aiType = "deepseek",
                 msgId = "3631D4A3115C4463B8C4CE6B1639B5A3"
             },
-            new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
+            new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } });
     }
 }
