@@ -50,7 +50,7 @@ public class HangFireHelper(
         RecurringJob.AddOrUpdate("DeepSeek余额预警", () => DeepSeekBalance(), "0 0 */2 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("提交所有待处理实际加班申请", () => RealOverTime(), "0 0 9 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("餐补提醒", () => MealAllowanceReminder(), "0 0 14 24,25,26 * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("一诺自动聊天", () => AutomaticallySendMessage(), "0 0/5 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("一诺自动聊天", () => AutomaticallySendMessage(), "0 0/10 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
     }
 
     /// <summary>
@@ -558,8 +558,25 @@ public class HangFireHelper(
                 PushMessageHelper.PushIcon.Amount);
     }
 
-    public void AutomaticallySendMessage()
+    public async Task AutomaticallySendMessage()
     {
+        var random = new Random();
+        var delayMilliseconds = random.Next(1, 8) * 60 * 1000;
+        await Task.Delay(delayMilliseconds);
+        await SendMessage();
+    }
+
+    public async Task SendMessage()
+    {
+        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        var lastDay = dbConnection.Query<string>($@"select
+                                                                                                	checkinrule
+                                                                                                from
+                                                                                                	public.attendancerecordday
+                                                                                                where
+                                                                                                	to_char(attendancedate,
+                                                                                                	'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}'").FirstOrDefault();
+        if (lastDay is null or "休息") return;
         if (DateTime.Now.Hour <= 8 || DateTime.Now.Hour >= 23 || DateTime.Now.DayOfWeek == DayOfWeek.Saturday || DateTime.Now.DayOfWeek == DayOfWeek.Sunday) return;
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var httpHelper = new HttpRequestHelper();
