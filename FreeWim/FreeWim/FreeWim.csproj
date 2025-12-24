@@ -73,6 +73,9 @@
         <Content Update="wwwroot\WorkHours.html">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
+            <Content Update="wwwroot\Yinuo.html">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
 
     <ItemGroup>

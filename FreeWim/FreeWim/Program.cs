@@ -9,10 +9,11 @@ using OpenAI;
 using Scalar.AspNetCore;
 using Serilog;
 using FreeWim.Common;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 if (!Directory.Exists(AppDomain.CurrentDomain.BaseDirectory + "Logs")) Directory.CreateDirectory(AppDomain.CurrentDomain.BaseDirectory + "Logs");
-Log.Logger = new LoggerConfiguration()
+Log.Logger = new LoggerConfiguration().WriteTo.Console()
     .WriteTo.File(AppDomain.CurrentDomain.BaseDirectory + "Logs/log.txt", rollingInterval: RollingInterval.Day) // 每天一个文件
     .CreateLogger();
 
@@ -108,26 +109,32 @@ app.UseStaticFiles(); // 启用 wwwroot 文件夹
 app.MapGet("/dashboard", async context =>
 {
     context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync("wwwroot/AttendanceDashBoard.html");
+    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot"), "WorAttendanceDashBoardkHours.html"));
 });
 app.MapGet("/daydashboard", async context =>
 {
     context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync("wwwroot/DayReportDashBoard.html");
+    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot"), "DayReportDashBoard.html"));
 });
 app.MapGet("/daka", async context =>
 {
     context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync("wwwroot/AttendanceApplication.html");
+    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot"), "AttendanceApplication.html"));
 });
 app.MapGet("/weekovertiem", async context =>
 {
     context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync("wwwroot/WeekOverTime.html");
+    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot"), "WeekOverTime.html"));
 });
 app.MapGet("/workhours", async context =>
 {
     context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync("wwwroot/WorkHours.html");
+    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot"), "WorkHours.html"));
 });
+app.MapGet("/yinuo", async context =>
+{
+    context.Response.ContentType = "text/html";
+    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot"), "Yinuo.html"));
+});
+app.MapGet("/", () => Results.Redirect("/scalar"));
 app.Run();

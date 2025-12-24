@@ -4,13 +4,13 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Dapper;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.AI;
-using Npgsql;
 using FreeWim.Common;
 using FreeWim.Models.PmisAndZentao;
 using FreeWim.Models.PmisAndZentao.Dto;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.AI;
 using Newtonsoft.Json.Linq;
+using Npgsql;
 using NPOI.SS.Formula.Functions;
 
 namespace FreeWim.Controllers;
@@ -580,6 +580,58 @@ public class PmisAndZentaoController(
             }
         }, new Dictionary<string, string> { { "authorization", tokenService.GetAdminTokenAsync() ?? string.Empty } }).Result;
 
+        var result = postResponse.Content.ReadAsStringAsync().Result;
+        return Results.Content(result, "application/json");
+    }
+    /// <summary>
+    /// 获取一诺部门使用情况
+    /// </summary>
+    /// <returns></returns>
+    [Tags("PMIS")]
+    [EndpointSummary("获取一诺部门使用情况")]
+    [HttpPost]
+    public IResult OrgPage(OrgPageInput input)
+    {
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
+        var targetUrl = pmisInfo.Url.TrimEnd('/') + "/uniwim/message/useSta/orgPage";
+        var httpHelper = new HttpRequestHelper();
+        var postResponse = httpHelper.PostAsync(targetUrl, new
+        {
+            index = 1,
+            size = -1,
+            data = new
+            {
+                endTime = input.EndTime,
+                startTime = input.StartTime,
+                orgIds = input.OrgIds
+            }
+        }, new Dictionary<string, string> { { "authorization", tokenService.GetAdminTokenAsync() ?? string.Empty } }).Result;
+        var result = postResponse.Content.ReadAsStringAsync().Result;
+        return Results.Content(result, "application/json");
+    }
+    /// <summary>
+    /// 获取一诺人员使用情况
+    /// </summary>
+    /// <returns></returns>
+    [Tags("PMIS")]
+    [EndpointSummary("获取一诺人员使用情况")]
+    [HttpPost]
+    public IResult PersonPage(OrgPageInput input)
+    {
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
+        var targetUrl = pmisInfo.Url.TrimEnd('/') + "/uniwim/message/useSta/personPage";
+        var httpHelper = new HttpRequestHelper();
+        var postResponse = httpHelper.PostAsync(targetUrl, new
+        {
+            index = 1,
+            size = -1,
+            data = new
+            {
+                endTime = input.EndTime,
+                startTime = input.StartTime,
+                orgIds = input.OrgIds
+            }
+        }, new Dictionary<string, string> { { "authorization", tokenService.GetAdminTokenAsync() ?? string.Empty } }).Result;
         var result = postResponse.Content.ReadAsStringAsync().Result;
         return Results.Content(result, "application/json");
     }

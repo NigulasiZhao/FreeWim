@@ -499,7 +499,7 @@ public class HangFireHelper(
     /// </summary>
     public void TaskDescriptionComplete()
     {
-        zentaoHelper.TaskDescriptionComplete();
+        if (DateTime.Now.Hour >= 8) zentaoHelper.TaskDescriptionComplete();
     }
 
     /// <summary>
