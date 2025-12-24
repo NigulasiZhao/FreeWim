@@ -5,305 +5,337 @@
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>全量数据监控</title>
+    <title>使用情况汇总</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css">
     <style>
         :root {
-            --ios-blue: #007AFF;
-            --glass-bg: rgba(255, 255, 255, 0.75);
-            --ios-gray: #8E8E93;
-        }
-
-        * {
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
+            --primary-color: #007AFF;
+            --glass-bg: rgba(255, 255, 255, 0.3);
+            --glass-border: rgba(255, 255, 255, 0.4);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+            --text-main: #1d1d1f;
+            --text-secondary: #515154;
+            --ios-green: #34C759;
         }
 
         body {
-            font-family: -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif;
             margin: 0;
-            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif;
+            background: linear-gradient(135deg, #e0e7ff 0%, #f3f4f6 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
             display: flex;
-            flex-direction: column;
-            background: linear-gradient(160deg, #f0f2f5 0%, #e0e7ff 100%);
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px 0;
             overflow: hidden;
+            position: relative;
         }
 
-        /* 顶部装饰背景 */
-        body::before {
-            content: "";
-            position: absolute;
+        /* 动态背景球 */
+        .blob {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: -1;
+            opacity: 0.6;
+            animation: float 15s infinite ease-in-out;
+        }
+
+        .blob-1 {
+            top: -10%;
+            right: -10%;
+            width: 500px;
+            height: 500px;
+            background: #c7d2fe;
+        }
+
+        .blob-2 {
+            bottom: -5%;
+            left: -5%;
+            width: 400px;
+            height: 400px;
+            background: #ddd6fe;
+            animation-delay: -2s;
+        }
+
+        .blob-3 {
+            top: 20%;
+            left: 10%;
             width: 300px;
             height: 300px;
-            background: radial-gradient(circle, rgba(0, 122, 255, 0.15) 0%, transparent 70%);
-            top: -50px;
-            right: -50px;
-            z-index: -1;
+            background: #bae6fd;
+            animation-delay: -5s;
         }
 
-        /* 导航栏 */
-        .header {
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            50% {
+                transform: translate(40px, 60px) scale(1.1);
+            }
+        }
+
+        /* 主容器 */
+        .glass-container {
+            width: 95%;
+            max-width: 1400px;
             background: var(--glass-bg);
-            backdrop-filter: blur(25px) saturate(190%);
-            -webkit-backdrop-filter: blur(25px) saturate(190%);
-            border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
-            padding: calc(env(safe-area-inset-top) + 12px) 16px 16px;
-            z-index: 100;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 28px;
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            height: calc(100vh - 40px);
+            box-sizing: border-box;
         }
 
-        .header-top {
+        /* 头部 */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .title-area {
             display: flex;
             align-items: center;
-            margin-bottom: 12px;
+            gap: 12px;
         }
 
-        .title {
-            font-size: 22px;
+        h1 {
+            margin: 0;
+            font-size: 24px;
             font-weight: 700;
-            flex: 1;
+            color: var(--text-main);
             letter-spacing: -0.5px;
         }
 
         .btn-back {
-            color: var(--ios-blue);
+            color: var(--primary-color);
             cursor: pointer;
-            display: none;
             font-weight: 500;
-            font-size: 16px;
-            margin-right: 12px;
+            display: none;
+            padding: 6px 12px;
+            border-radius: 10px;
+            background: rgba(0, 122, 255, 0.1);
+            transition: 0.2s;
         }
 
-        /* 日期选择器容器 */
-        .filter-group {
+        .btn-back:active {
+            transform: scale(0.95);
+        }
+
+        /* 筛选器 */
+        .controls {
             display: flex;
-            background: rgba(0, 0, 0, 0.05);
-            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.4);
             padding: 4px;
+            border-radius: 14px;
+            border: 1px solid var(--glass-border);
             align-items: center;
-            width: 25%;
-            box-sizing: border-box;
         }
 
         .date-picker {
-            flex: 1;
-            border: none;
             background: transparent;
-            padding: 10px;
+            border: none;
+            padding: 8px 15px;
             font-size: 14px;
             font-weight: 600;
-            color: var(--ios-blue);
+            color: var(--primary-color);
+            outline: none;
+            width: 220px;
             text-align: center;
-            font-family: inherit;
         }
 
         .btn-query {
-            background: var(--ios-blue);
+            background: var(--primary-color);
             color: white;
             border: none;
-            padding: 8px 18px;
-            border-radius: 10px;
+            padding: 8px 20px;
+            border-radius: 11px;
             font-weight: 600;
+            cursor: pointer;
             box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2);
-            transition: all 0.2s;
         }
 
-        .btn-query:active {
-            transform: scale(0.95);
-            opacity: 0.8;
-        }
-
-        /* 表格容器 */
-        .container {
-            flex: 1;
-            margin: 16px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .scroll-box {
-            flex: 1;
+        /* 表格样式 */
+        .table-wrapper {
             overflow: auto;
-            /* 允许横纵滚动 */
-            -webkit-overflow-scrolling: touch;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            position: relative;
         }
 
         table {
+            width: 100%;
             border-collapse: separate;
             border-spacing: 0;
-            min-width: 1200px;
-            width: 100%;
+            min-width: 1100px;
         }
 
-        /* 锁死表头与首列 */
-        thead th {
+        th {
             position: sticky;
             top: 0;
-            z-index: 30;
-            background: rgba(248, 248, 250, 0.9);
-            padding: 14px 12px;
-            font-size: 12px;
-            color: var(--ios-gray);
+            z-index: 20;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
             text-align: left;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+            padding: 14px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
             cursor: pointer;
-            transition: background 0.2s;
         }
 
-        thead th:hover {
-            background: rgba(0, 0, 0, 0.03);
-        }
-
-        .th-active {
-            color: var(--ios-blue) !important;
-            background: rgba(0, 122, 255, 0.05) !important;
-        }
-
-        th:first-child,
-        td:first-child {
+        /* 首列锁定 */
+        td:first-child,
+        th:first-child {
             position: sticky;
             left: 0;
-            z-index: 20;
-            width: 330px;
-            min-width: 80px;
-            max-width: 330px;
-            background: rgba(255, 255, 255, 0.98);
-            border-right: 1px solid rgba(0, 0, 0, 0.04);
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            width: 200px;
+            border-right: 1px solid rgba(0, 0, 0, 0.03);
         }
 
-        thead th:first-child {
-            z-index: 40;
-            background: #f8f8fa;
+        th:first-child {
+            z-index: 30;
         }
 
         td {
-            padding: 16px 12px;
+            padding: 16px;
             font-size: 14px;
-            border-bottom: 0.5px solid rgba(0, 0, 0, 0.03);
-            white-space: nowrap;
-            color: #1d1d1f;
+            color: var(--text-main);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        td:first-child {
-            font-weight: 700;
-            color: #000;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        tbody tr:hover td {
+            background: rgba(255, 255, 255, 0.4) !important;
         }
 
-        /* 行效果 */
-        tr:nth-child(even) {
-            background: rgba(255, 255, 255, 0.3);
-        }
-
-        tr:active {
-            background: rgba(0, 122, 255, 0.08) !important;
-        }
-
-        /* 数据条与徽章 */
-        .bar-wrap {
+        /* 数据组件 */
+        .rate-container {
             display: flex;
             align-items: center;
             gap: 8px;
         }
 
-        .bar-bg {
-            width: 50px;
-            height: 5px;
+        .rate-bar-bg {
+            width: 60px;
+            height: 6px;
             background: rgba(0, 0, 0, 0.05);
             border-radius: 3px;
             overflow: hidden;
         }
 
-        .bar-fill {
+        .rate-bar-fill {
             height: 100%;
-            background: var(--ios-blue);
+            background: var(--primary-color);
             border-radius: 3px;
         }
 
         .badge {
+            padding: 4px 8px;
+            border-radius: 8px;
             font-size: 11px;
-            padding: 3px 6px;
-            border-radius: 6px;
-            font-weight: 600;
+            font-weight: 700;
         }
 
-        .b-green {
-            background: #e3f9e9;
-            color: #198754;
+        .badge-green {
+            background: rgba(52, 199, 89, 0.15);
+            color: #248a3d;
         }
 
-        .b-blue {
-            background: #e7f3ff;
-            color: #007bff;
+        .badge-gray {
+            background: rgba(0, 0, 0, 0.05);
+            color: #666;
         }
 
         .loading-mask {
-            padding: 80px;
+            padding: 100px 0;
             text-align: center;
-            color: var(--ios-gray);
-            font-size: 15px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* 动画 */
+        @keyframes rowIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .row-anim {
+            animation: rowIn 0.4s ease forwards;
         }
     </style>
 </head>
 
 <body>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
 
-    <header class="header">
-        <div class="header-top">
-            <span class="btn-back" id="btn-back" onclick="initPage()">❮ 返回</span>
-            <div class="title" id="page-title">部门概览看板</div>
-        </div>
-        <div class="filter-group">
-            <input type="text" id="date-range" class="date-picker" placeholder="请选择日期范围">
-            <button class="btn-query" onclick="fetchData()">查询数据</button>
-        </div>
-    </header>
+    <div class="glass-container">
+        <header class="header">
+            <div class="title-area">
+                <span class="btn-back" id="btn-back" onclick="initPage()">❮ 返回</span>
+                <h1 id="page-title">部门概览看板</h1>
+            </div>
+            <div class="controls">
+                <input type="text" id="date-range" class="date-picker">
+                <button class="btn-query" onclick="fetchData()">查询数据</button>
+            </div>
+        </header>
 
-    <div class="container">
-        <div class="scroll-box" id="scroll-box">
-            <div class="loading-mask">选择日期后点击查询</div>
+        <div class="table-wrapper" id="scroll-box">
+            <div class="loading-mask">请先选择日期范围</div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
     <script>
-        const API_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NjY0Njg1MTEsImlkIjoiNjMxNmM2ZWI1NmE3YjMxNmUwNTZmYWNlIiwiand0SWQiOiJlYTQ3MWY0MDAwOTk0YjVmOTZlODVmODllMDExZmM1NCIsInVpZCI6IjYzMTZjNmViNTZhN2IzMTZlMDU2ZmFjZSIsInRlbmFudElkIjoiNWQ4OTkxNzcxMjQ0MWQ3YTUwNzMwNThjIiwiY2lkIjoiNWQ4OTkxNzcxMjQ0MWQ3YTUwNzMwNThjIiwibWFpbklkIjoiMTYxOCIsImF2YXRhciI6Imh0dHBzOi8vaGRrai5kbG1lYXN1cmUuY29tXFx1bml3aW1cXHVwbG9hZHNcXDIwMjRcXDFcXDYzMTZjNmViNTZhN2IzMTZlMDU2ZmFjZS5wbmciLCJuYW1lIjoi6LW15LquIiwiYWNjb3VudCI6IjkyNSIsIm1vYmlsZSI6IjE1MjkwMDMyMTIwIiwic24iOiI5MjUiLCJncm91cCI6IjY3IiwiZ3JvdXBOYW1lIjoi566h572R5Lqn5ZOB57uEIiwieWhsb051bSI6IjU5NzIxIiwiaXNBZG1pbiI6ZmFsc2UsImNoYW5uZWwiOiJ3ZWIiLCJyb2xlcyI6WyIxOTI5ODQ0ODg0NDczMTY3ODczIiwiMTk3NjQ2NTQzMzEzNTcwMjAxNyJdLCJjb21wYW55Ijp7ImlkIjoiNjciLCJuYW1lIjoi566h572R5Lqn5ZOB57uEIiwiY29kZSI6IjY3In0sInRva2VuZnJvbSI6InVuaXdpbSIsInVzZXJUeXBlIjoidXNlciIsImV4cCI6MTc2NzA3MzYxMX0.gA4FbzHG_gUTaQW_IxD8GXqHJNlNynuFcIuLmvM5htA'; // 🔴 填入有效TOKEN
         const URLS = {
             dept: '/api/PmisAndZentao/orgPage',
             user: '/api/PmisAndZentao/personPage'
         };
 
-        let fp; // Flatpickr 实例
-        let currentRows = [];
-        let isDeptMode = true;
-        let sortInfo = { key: 'onlineRate', asc: false };
+        let fp, currentRows = [], isDeptMode = true, sortInfo = { key: 'onlineRate', asc: false };
 
-        // 初始化页面
         window.onload = () => {
-            //const today = new Date();
-            const today = new Date();
-            today.setDate(today.getDate() - 1);
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
             fp = flatpickr("#date-range", {
-                mode: "range",
-                locale: "zh",
-                dateFormat: "Y-m-d",
-                defaultDate: [today, today],
-                onReady: (sd, dt, inst) => { inst.input.value = `${inst.formatDate(today, "Y-m-d")} 至 ${inst.formatDate(today, "Y-m-d")}`; }
+                mode: "range", locale: "zh", dateFormat: "Y-m-d", defaultDate: [yesterday, yesterday]
             });
             initPage();
         };
 
         function initPage() {
-            sortInfo = { key: 'onlineRate', asc: false };
             isDeptMode = true;
+            sortInfo = { key: 'onlineRate', asc: false };
             document.getElementById('page-title').innerText = "部门概览看板";
             document.getElementById('btn-back').style.display = "none";
             fetchData();
@@ -311,24 +343,23 @@
 
         async function fetchData() {
             const dates = fp.selectedDates;
-            if (dates.length < 1) return alert("请选择日期");
-
+            if (dates.length < 1) return;
             const start = fp.formatDate(dates[0], "Y-m-d") + " 00:00:00";
             const end = fp.formatDate(dates[dates.length - 1], "Y-m-d") + " 23:59:59";
 
-            document.getElementById('scroll-box').innerHTML = '<div class="loading-mask">正在加载...</div>';
+            document.getElementById('scroll-box').innerHTML = '<div class="loading-mask">正在加载数据...</div>';
 
             try {
                 const resp = await fetch(isDeptMode ? URLS.dept : URLS.user, {
                     method: 'POST',
-                    headers: { 'authorization': API_TOKEN, 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ startTime: start, endTime: end, orgIds: isDeptMode ? ["1", "2", "11", "60", "58", "53", "38", "35", "34", "14", "9", "52", "48", "32", "24", "22", "8", "56", "108", "109", "5", "80", "71", "105", "106", "3", "43", "33", "23", "15", "7", "6", "59", "57", "51", "77", "47", "46", "45", "44", "42", "41", "31", "30", "29", "26", "25", "21", "19", "18", "17", "13", "4", "49", "79", "76", "73", "69", "67", "40", "70", "39", "78", "68", "20", "72", "65", "62", "107", "104", "1762768804865126401", "1759130558729895938", "1754062725373243393", "1754063095117918209", "1840657742874861569", "1887766346995871745"] : [window.currentOrgId] })
                 });
                 const json = await resp.json();
                 currentRows = json.Response.rows || [];
                 render();
             } catch (e) {
-                document.getElementById('scroll-box').innerHTML = '<div class="loading-mask">加载失败，请检查Token</div>';
+                document.getElementById('scroll-box').innerHTML = '<div class="loading-mask" style="color:#ff3b30">数据同步失败，请检查Token效期</div>';
             }
         }
 
@@ -337,7 +368,7 @@
             isDeptMode = false;
             sortInfo = { key: 'pcDurationH', asc: false };
             document.getElementById('page-title').innerText = orgName;
-            document.getElementById('btn-back').style.display = "block";
+            document.getElementById('btn-back').style.display = "inline-block";
             fetchData();
         }
 
@@ -349,57 +380,55 @@
 
         function render() {
             if (!currentRows.length) {
-                document.getElementById('scroll-box').innerHTML = '<div class="loading-mask">暂无符合条件的数据</div>';
+                document.getElementById('scroll-box').innerHTML = '<div class="loading-mask">该时段下无相关业务数据</div>';
                 return;
             }
 
-            // 排序逻辑
             currentRows.sort((a, b) => {
                 let v1 = a[sortInfo.key] ?? 0, v2 = b[sortInfo.key] ?? 0;
                 return sortInfo.asc ? (v1 > v2 ? 1 : -1) : (v1 < v2 ? 1 : -1);
             });
 
-            // 字段映射
             const cols = isDeptMode ? [
                 { k: 'orgNameAll', t: '部门名称' }, { k: 'onlineRate', t: '上线率' }, { k: 'personNum', t: '总人数' },
-                { k: 'onlineNum', t: '上线人数' }, { k: 'useRate', t: '使用占比' }, { k: 'sendMessageTotal', t: '消息总量' },
-                { k: 'sendMessagePersonNum', t: '发送人数' }, { k: 'installDesktopNum', t: '桌面安装' },
-                { k: 'installAppNum', t: '移动安装' }, { k: 'staDay', t: '统计日期' }
+                { k: 'onlineNum', t: '上线数' }, { k: 'useRate', t: '使用占比' }, { k: 'sendMessageTotal', t: '消息总量' },
+                { k: 'sendMessagePersonNum', t: '发送人数' },
+                //{ k: 'installDesktopNum', t: '桌面端' },
+                //{ k: 'installAppNum', t: '移动端' }, 
+                { k: 'staDay', t: '日期' }
             ] : [
-                { k: 'userName', t: '人员姓名' }, { k: 'pcDurationH', t: '在线时长(h)' }, { k: 'sendMessageTotal', t: '发消息' },
+                { k: 'userName', t: '姓名' }, { k: 'staDay', t: '日期' }, { k: 'pcDurationH', t: '时长(H)' }, { k: 'sendMessageTotal', t: '消息' },
                 { k: 'sn', t: '工号' }, { k: 'appOnlineNum', t: '上线次数' }, { k: 'installDesktop', t: '桌面端' },
                 { k: 'installApp', t: '移动端' }, { k: 'pcVersion', t: '桌面版本' }, { k: 'nativeVersion', t: '移动版本' }
             ];
 
             let html = '<table><thead><tr>';
             cols.forEach(c => {
-                const activeCls = sortInfo.key === c.k ? 'class="th-active"' : '';
                 const arrow = sortInfo.key === c.k ? (sortInfo.asc ? ' ↑' : ' ↓') : '';
-                html += `<th ${activeCls} onclick="handleSort('${c.k}')">${c.t}${arrow}</th>`;
+                html += `<th onclick="handleSort('${c.k}')">${c.t}${arrow}</th>`;
             });
             html += '</tr></thead><tbody>';
 
-            currentRows.forEach(row => {
-                html += `<tr ${isDeptMode ? `onclick="showUser('${row.orgId}', '${row.orgNameAll}')"` : ''}>`;
-                cols.forEach((col, idx) => {
+            currentRows.forEach((row, idx) => {
+                html += `<tr class="row-anim" style="animation-delay: ${idx * 0.03}s" ${isDeptMode ? `onclick="showUser('${row.orgId}', '${row.orgNameAll.split('>').pop()}')"` : ''}>`;
+                cols.forEach((col, cIdx) => {
                     let v = row[col.k];
-                    // 渲染特殊逻辑
-                    if (col.k === 'onlineRate' || col.k === 'useRate') {
-                        v = `<div class="bar-wrap"><span>${Number(v).toFixed(1)}%</span><div class="bar-bg"><div class="bar-fill" style="width:${v}%"></div></div></div>`;
+                    let display = v ?? '-';
+                    if (cIdx === 0) display = `<span style="font-weight:700">${v.split('>').pop()}</span>`;
+                    else if (col.k === 'onlineRate' || col.k === 'useRate') {
+                        display = `<div class="rate-container"><span>${Number(v).toFixed(1)}%</span><div class="rate-bar-bg"><div class="rate-bar-fill" style="width:${v}%"></div></div></div>`;
                     } else if (col.k === 'pcDurationH') {
-                        v = `<span style="color:var(--ios-blue); font-weight:700">${Number(v || 0).toFixed(1)}</span>`;
+                        display = `<span style="color:var(--primary-color); font-weight:700">${Number(v || 0).toFixed(1)}</span>`;
                     } else if (col.k.includes('install') && !isDeptMode) {
-                        v = v == 1 ? '<span class="badge b-green">已安装</span>' : '<span class="badge b-gray" style="color:#8e8e93">未检测</span>';
+                        display = v == 1 ? '<span class="badge badge-green">已安装</span>' : '<span class="badge badge-gray">未发现</span>';
                     } else if (col.k === 'sendMessageTotal' && v > 0) {
-                        v = `<span style="color:#28a745; font-weight:700">${v}</span>`;
-                    } else if (col.k === 'staDay') {
-                        v = v.split(' ')[0];
-                    }
-                    html += `<td>${v ?? '-'}</td>`;
+                        display = `<span style="color:var(--ios-green); font-weight:700">${v}</span>`;
+                    } else if (col.k === 'staDay') display = v.split(' ')[0];
+
+                    html += `<td>${display}</td>`;
                 });
                 html += '</tr>';
             });
-
             document.getElementById('scroll-box').innerHTML = html + '</tbody></table>';
         }
     </script>
