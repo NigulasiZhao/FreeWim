@@ -8,6 +8,17 @@ ENV ASPNETCORE_URLS=http://+:9940
 
 RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 RUN echo 'Asia/Shanghai' >/etc/timezone
+
+# 安装 Ookla Speedtest CLI
+RUN apt-get update && \
+    apt-get install -y curl gnupg && \
+    # 添加 Ookla 官方仓库
+    curl -s https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | bash && \
+    # 安装 speedtest
+    apt-get install -y speedtest && \
+    # 清理缓存
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 # 此阶段用于生成服务项目
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release

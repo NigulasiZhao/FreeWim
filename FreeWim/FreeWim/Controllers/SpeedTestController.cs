@@ -1,9 +1,6 @@
-﻿using Dapper;
-using Microsoft.AspNetCore.Mvc;
-using Npgsql;
+﻿using Microsoft.AspNetCore.Mvc;
 using FreeWim.Models;
-using System.Data;
-using Microsoft.Extensions.Caching.Memory;
+using FreeWim.Common;
 
 namespace FreeWim.Controllers;
 
@@ -11,36 +8,58 @@ namespace FreeWim.Controllers;
 [Route("api/[controller]/[action]")]
 public class SpeedTestController : Controller
 {
-    private readonly IConfiguration _Configuration;
-    private static readonly MemoryCache Cache = new(new MemoryCacheOptions());
+    private readonly SpeedTestService _speedTestService;
     private readonly ILogger<SpeedTestController> _logger;
 
-    public SpeedTestController(IConfiguration configuration, ILogger<SpeedTestController> logger)
+    public SpeedTestController(SpeedTestService speedTestService, ILogger<SpeedTestController> logger)
     {
-        _Configuration = configuration;
+        _speedTestService = speedTestService;
         _logger = logger;
     }
 
     [Tags("网络测速")]
     [EndpointSummary("执行网络测速")]
     [HttpGet]
-    public string Index()
+    public async Task<IActionResult> Index()
     {
-        return string.Format("下载速度: {0} Mbps;  上传速度: {1} Mbps", 1000, 1000);
+        try
+        {
+            var result = await _speedTestService.ExecuteSpeedTestAsync();
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "测速异常");
+            return Problem($"系统异常: {ex.Message}");
+        }
     }
 
     [Tags("网络测速")]
     [EndpointSummary("网络测速结果查询")]
     [HttpGet]
-    public ActionResult latest()
+    public ActionResult Latest()
     {
-        IDbConnection _DbConnection = new NpgsqlConnection(_Configuration["Connection"]);
-        var speedRecord = _DbConnection.Query<SpeedRecord>("select * from speedrecord order by created_at desc").First();
-        _DbConnection.Dispose();
-        var speedRecordResponse = new SpeedRecordResponse();
-        speedRecordResponse.Message = "ok";
-        speedRecordResponse.Data = speedRecord;
-        // 返回结果
-        return Json(speedRecordResponse);
+        try
+        {
+            var data = _speedTestService.GetLatestRecord();
+            
+            if (data == null)
+            {
+                return NotFound(new { Message = "没有找到测速记录" });
+            }
+
+            var response = new SpeedRecordResponse
+            {
+                Message = "ok",
+                Data = data
+            };
+
+            return Json(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "查询测速记录异常");
+            return Problem($"查询失败: {ex.Message}");
+        }
     }
 }

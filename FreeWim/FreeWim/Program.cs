@@ -56,6 +56,7 @@ builder.Services.AddHangfire(config =>
         }));
 builder.Services.AddHangfireServer();
 builder.Services.AddSingleton<TokenService>();
+builder.Services.AddSingleton<SpeedTestService>();
 builder.Services.AddSingleton<HangFireHelper>();
 builder.Services.AddSingleton<DatabaseInitializer>();
 builder.Services.AddSingleton<ZentaoHelper>();

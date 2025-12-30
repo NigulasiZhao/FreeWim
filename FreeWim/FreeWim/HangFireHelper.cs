@@ -23,7 +23,9 @@ public class HangFireHelper(
     ZentaoHelper zentaoHelper,
     TokenService tokenService,
     IChatClient chatClient,
-    WorkFlowExecutor workFlowExecutor)
+    WorkFlowExecutor workFlowExecutor,
+    ILogger<HangFireHelper> logger,
+    SpeedTestService speedTestService)
 {
     public void StartHangFireTask()
     {
@@ -39,18 +41,20 @@ public class HangFireHelper(
             foreach (var job in recurringJobs) RecurringJob.RemoveIfExists(job.Id);
         }
 
-
-        RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "5,35 * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("Keep数据同步", () => KeepRecord(), "0 0 */3 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("高危人员打卡预警", () => CheckInWarning(), "0 0/5 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("同步禅道任务", () => SynchronizationZentaoTask(), "0 15,17,19 * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("执行禅道完成任务、日报、周报发送", () => ExecuteAllWork(), "0 0/40 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("自动加班申请", () => CommitOvertimeWork(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("禅道衡量目标、计划完成成果、实际从事工作与成果信息补全", () => TaskDescriptionComplete(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("DeepSeek余额预警", () => DeepSeekBalance(), "0 0 */2 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("提交所有待处理实际加班申请", () => RealOverTime(), "0 0 9 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("餐补提醒", () => MealAllowanceReminder(), "0 0 14 24,25,26 * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        RecurringJob.AddOrUpdate("一诺自动聊天", () => AutomaticallySendMessage(), "0 0/10 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // 每日凌晨1点执行网络测速
+        RecurringJob.AddOrUpdate("网络测速", () => DailySpeedTest(), "0 0 1 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        
+        // RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "5,35 * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("Keep数据同步", () => KeepRecord(), "0 0 */3 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("高危人员打卡预警", () => CheckInWarning(), "0 0/5 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("同步禅道任务", () => SynchronizationZentaoTask(), "0 15,17,19 * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("执行禅道完成任务、日报、周报发送", () => ExecuteAllWork(), "0 0/40 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("自动加班申请", () => CommitOvertimeWork(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("禅道衡量目标、计划完成成果、实际从事工作与成果信息补全", () => TaskDescriptionComplete(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("DeepSeek余额预警", () => DeepSeekBalance(), "0 0 */2 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("提交所有待处理实际加班申请", () => RealOverTime(), "0 0 9 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("餐补提醒", () => MealAllowanceReminder(), "0 0 14 24,25,26 * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        // RecurringJob.AddOrUpdate("一诺自动聊天", () => AutomaticallySendMessage(), "0 0/10 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
     }
 
     /// <summary>
@@ -599,5 +603,35 @@ public class HangFireHelper(
                 msgId = "3631D4A3115C4463B8C4CE6B1639B5A3"
             },
             new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } });
+    }
+
+    /// <summary>
+    /// 每日网络测速任务
+    /// 每天凌晨1点自动执行网络测速，将结果存入数据库
+    /// </summary>
+    public async Task DailySpeedTest()
+    {
+        try
+        {
+            logger.LogInformation("开始执行定时网络测速任务...");
+            
+            var result = await speedTestService.ExecuteSpeedTestAsync();
+            
+            logger.LogInformation("定时测速任务完成: {Message}, 下载速度: {Download}, 上传速度: {Upload}", 
+                result.Message, 
+                result.Data?.Download, 
+                result.Data?.Upload);
+            
+            // 可选：发送通知
+            // pushMessageHelper.Push("网络测速", 
+            //     $"测速完成\n下载: {result.Data?.Download}\n上传: {result.Data?.Upload}", 
+            //     PushMessageHelper.PushIcon.Alert);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "定时测速任务失败");
+            // 可选：发送失败通知
+            // pushMessageHelper.Push("网络测速失败", ex.Message, PushMessageHelper.PushIcon.Alert);
+        }
     }
 }
