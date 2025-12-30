@@ -1,18 +1,18 @@
-﻿using Dapper;
-using Newtonsoft.Json;
-using Npgsql;
-using FreeWim.Models.Attendance;
-using FreeWim.Models.EventInfo;
-using System.Data;
+﻿using System.Data;
 using System.Globalization;
 using System.Text;
+using Dapper;
+using FreeWim.Common;
+using FreeWim.Models.Attendance;
+using FreeWim.Models.Attendance.Dto;
+using FreeWim.Models.EventInfo;
+using FreeWim.Models.PmisAndZentao;
 using Hangfire;
 using Hangfire.Storage;
 using Microsoft.Extensions.AI;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using FreeWim.Common;
-using FreeWim.Models.Attendance.Dto;
-using FreeWim.Models.PmisAndZentao;
+using Npgsql;
 
 namespace FreeWim;
 
@@ -41,20 +41,19 @@ public class HangFireHelper(
             foreach (var job in recurringJobs) RecurringJob.RemoveIfExists(job.Id);
         }
 
-        // 每日凌晨1点执行网络测速
+        RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "5,35 * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("Keep数据同步", () => KeepRecord(), "0 0 */3 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("高危人员打卡预警", () => CheckInWarning(), "0 0/5 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("同步禅道任务", () => SynchronizationZentaoTask(), "0 15,17,19 * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("执行禅道完成任务、日报、周报发送", () => ExecuteAllWork(), "0 0/40 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("自动加班申请", () => CommitOvertimeWork(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("禅道衡量目标、计划完成成果、实际从事工作与成果信息补全", () => TaskDescriptionComplete(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("DeepSeek余额预警", () => DeepSeekBalance(), "0 0 */2 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("提交所有待处理实际加班申请", () => RealOverTime(), "0 0 9 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("餐补提醒", () => MealAllowanceReminder(), "0 0 14 24,25,26 * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("一诺自动聊天", () => AutomaticallySendMessage(), "0 0/10 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("网络测速", () => DailySpeedTest(), "0 0 1 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        
-        // RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "5,35 * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        // RecurringJob.AddOrUpdate("Keep数据同步", () => KeepRecord(), "0 0 */3 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        // RecurringJob.AddOrUpdate("高危人员打卡预警", () => CheckInWarning(), "0 0/5 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        // RecurringJob.AddOrUpdate("同步禅道任务", () => SynchronizationZentaoTask(), "0 15,17,19 * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        // RecurringJob.AddOrUpdate("执行禅道完成任务、日报、周报发送", () => ExecuteAllWork(), "0 0/40 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        // RecurringJob.AddOrUpdate("自动加班申请", () => CommitOvertimeWork(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        // RecurringJob.AddOrUpdate("禅道衡量目标、计划完成成果、实际从事工作与成果信息补全", () => TaskDescriptionComplete(), "0 0/30 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        // RecurringJob.AddOrUpdate("DeepSeek余额预警", () => DeepSeekBalance(), "0 0 */2 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        // RecurringJob.AddOrUpdate("提交所有待处理实际加班申请", () => RealOverTime(), "0 0 9 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        // RecurringJob.AddOrUpdate("餐补提醒", () => MealAllowanceReminder(), "0 0 14 24,25,26 * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-        // RecurringJob.AddOrUpdate("一诺自动聊天", () => AutomaticallySendMessage(), "0 0/10 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        RecurringJob.AddOrUpdate("网络异常提醒", () => SpeedAbnormalAlert(), "0 0 10 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
     }
 
     /// <summary>
@@ -148,23 +147,27 @@ public class HangFireHelper(
             }
         }
 
-        var lastMonthData = dbConnection.Query<int>($@"select count(0) from public.attendancerecordday where yearmonth = '{startDate.AddMonths(1):yyyy-MM}'").First();
-        if (lastMonthData == 0)
+        var daysInMonth = DateTime.DaysInMonth(startDate.Year, startDate.Month);
+        if (startDate.Day >= daysInMonth - 1)
         {
-            var lastresponse = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.AddMonths(1).ToString("yyyy-MM")).Result;
-            var lastresult = lastresponse.Content.ReadAsStringAsync().Result;
-            var lastresultModel = JsonConvert.DeserializeObject<AttendanceResponse>(lastresult);
-            if (lastresultModel is { Code: 200, Data.DayVoList.Count: > 0 })
+            var lastMonthData = dbConnection.Query<int>($@"select count(0) from public.attendancerecordday where yearmonth = '{startDate.AddMonths(1):yyyy-MM}'").First();
+            if (lastMonthData == 0)
             {
-                dbConnection.Execute(
-                    $"INSERT INTO public.attendancerecord(attendancemonth,workdays,latedays,earlydays) VALUES('{startDate.AddMonths(1):yyyy-MM}',{lastresultModel.Data.WorkDays},{lastresultModel.Data.LateDays},{lastresultModel.Data.EarlyDays});");
-                foreach (var item in lastresultModel.Data.DayVoList)
+                var lastresponse = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.AddMonths(1).ToString("yyyy-MM")).Result;
+                var lastresult = lastresponse.Content.ReadAsStringAsync().Result;
+                var lastresultModel = JsonConvert.DeserializeObject<AttendanceResponse>(lastresult);
+                if (lastresultModel is { Code: 200, Data.DayVoList.Count: > 0 })
                 {
-                    var flagedate = DateTime.Parse(startDate.AddMonths(1).ToString("yyyy-MM") + "-" + item.Day);
-                    dbConnection.Execute($"""
-                                          INSERT INTO public.attendancerecordday(untilthisday,day,checkinrule,isnormal,isabnormal,isapply,clockinnumber,workhours,attendancedate,yearmonth)
-                                                                                                  VALUES({item.UntilThisDay},{item.Day},'{item.CheckInRule}','{item.IsNormal}','{item.IsAbnormal}','{item.IsApply}',{item.ClockInNumber},{(item.WorkHours == null ? 0 : item.WorkHours)},to_timestamp('{flagedate:yyyy-MM-dd 00:00:00}', 'yyyy-mm-dd hh24:mi:ss'),'{startDate.AddMonths(1):yyyy-MM}');
-                                          """);
+                    dbConnection.Execute(
+                        $"INSERT INTO public.attendancerecord(attendancemonth,workdays,latedays,earlydays) VALUES('{startDate.AddMonths(1):yyyy-MM}',{lastresultModel.Data.WorkDays},{lastresultModel.Data.LateDays},{lastresultModel.Data.EarlyDays});");
+                    foreach (var item in lastresultModel.Data.DayVoList)
+                    {
+                        var flagedate = DateTime.Parse(startDate.AddMonths(1).ToString("yyyy-MM") + "-" + item.Day);
+                        dbConnection.Execute($"""
+                                              INSERT INTO public.attendancerecordday(untilthisday,day,checkinrule,isnormal,isabnormal,isapply,clockinnumber,workhours,attendancedate,yearmonth)
+                                                                                                      VALUES({item.UntilThisDay},{item.Day},'{item.CheckInRule}','{item.IsNormal}','{item.IsAbnormal}','{item.IsApply}',{item.ClockInNumber},{(item.WorkHours == null ? 0 : item.WorkHours)},to_timestamp('{flagedate:yyyy-MM-dd 00:00:00}', 'yyyy-mm-dd hh24:mi:ss'),'{startDate.AddMonths(1):yyyy-MM}');
+                                              """);
+                    }
                 }
             }
         }
@@ -586,22 +589,22 @@ public class HangFireHelper(
         var httpHelper = new HttpRequestHelper();
         var message = AesHelp.EncryptAes(DateTime.Now.ToString(CultureInfo.InvariantCulture));
         var getResponse = await httpHelper.PostAsync(pmisInfo.Url + $"/uniwim/message/chat/send", new
-            {
-                content = message,
-                receiverName = "",
-                receiverPhone = "",
-                receiverUserHead = "",
-                receiverUserId = "",
-                sendName = "",
-                sendPhone = "",
-                avatar = "",
-                sendUserId = "",
-                tenantId = "5d89917712441d7a5073058c",
-                sendType = 1,
-                appType = 1,
-                aiType = "deepseek",
-                msgId = "3631D4A3115C4463B8C4CE6B1639B5A3"
-            },
+        {
+            content = message,
+            receiverName = "",
+            receiverPhone = "",
+            receiverUserHead = "",
+            receiverUserId = "",
+            sendName = "",
+            sendPhone = "",
+            avatar = "",
+            sendUserId = "",
+            tenantId = "5d89917712441d7a5073058c",
+            sendType = 1,
+            appType = 1,
+            aiType = "deepseek",
+            msgId = "3631D4A3115C4463B8C4CE6B1639B5A3"
+        },
             new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } });
     }
 
@@ -611,27 +614,52 @@ public class HangFireHelper(
     /// </summary>
     public async Task DailySpeedTest()
     {
+        var result = await speedTestService.ExecuteSpeedTestAsync();
+    }
+
+    /// <summary>
+    /// 网速异常提醒
+    /// 每天早上10点执行，查询最后一条测速记录，如果上传速度低于配置中的默认值则进行推送提醒
+    /// 如果没有配置，就默认上传低于10 Mbit/s提醒
+    /// </summary>
+    public void SpeedAbnormalAlert()
+    {
         try
         {
-            logger.LogInformation("开始执行定时网络测速任务...");
+            // 获取配置的上传速度阈值，默认为10 Mbit/s
+            var uploadThreshold = decimal.Parse(configuration["UploadThreshold"] ?? "10");
+            // 获取最后一条测速记录
+            var latestRecord = speedTestService.GetLatestRecord();
+            if (latestRecord == null)
+            {
+                return;
+            }
             
-            var result = await speedTestService.ExecuteSpeedTestAsync();
+            // 解析上传速度（移除单位 Mbit/s）
+            var uploadSpeedStr = latestRecord.Upload?.Replace(" Mbit/s", "").Trim();
+            if (string.IsNullOrEmpty(uploadSpeedStr) || uploadSpeedStr == "N/A")
+            {
+                return;
+            }
             
-            logger.LogInformation("定时测速任务完成: {Message}, 下载速度: {Download}, 上传速度: {Upload}", 
-                result.Message, 
-                result.Data?.Download, 
-                result.Data?.Upload);
+            if (!decimal.TryParse(uploadSpeedStr, out var uploadSpeed))
+            {
+                return;
+            }
             
-            // 可选：发送通知
-            // pushMessageHelper.Push("网络测速", 
-            //     $"测速完成\n下载: {result.Data?.Download}\n上传: {result.Data?.Upload}", 
-            //     PushMessageHelper.PushIcon.Alert);
+            // 判断是否低于阈值
+            if (uploadSpeed < uploadThreshold)
+            {
+                var message = $"网络异常预警\n" +
+                             $"测试时间: {latestRecord.TestTime:yyyy-MM-dd HH:mm:ss}\n" +
+                             $"上传速度: {latestRecord.Upload}Mbit/s\n" +
+                             $"下载速度: {latestRecord.Download}Mbit/s";
+                pushMessageHelper.Push("网速异常提醒", message, PushMessageHelper.PushIcon.SpeedTest);
+            }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "定时测速任务失败");
-            // 可选：发送失败通知
-            // pushMessageHelper.Push("网络测速失败", ex.Message, PushMessageHelper.PushIcon.Alert);
+            pushMessageHelper.Push("网速异常提醒任务异常", ex.Message, PushMessageHelper.PushIcon.Alert);
         }
     }
 }

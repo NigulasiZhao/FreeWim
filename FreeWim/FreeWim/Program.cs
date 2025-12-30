@@ -110,7 +110,7 @@ app.UseStaticFiles(); // 启用 wwwroot 文件夹
 app.MapGet("/dashboard", async context =>
 {
     context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot"), "WorAttendanceDashBoardkHours.html"));
+    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot"), "AttendanceDashBoard.html"));
 });
 app.MapGet("/daydashboard", async context =>
 {

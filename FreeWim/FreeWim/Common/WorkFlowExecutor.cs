@@ -1,5 +1,6 @@
 ﻿using System.Data;
 using Dapper;
+using FreeWim.Models.Attendance;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Npgsql;
@@ -52,24 +53,20 @@ public class WorkFlowExecutor(
             var workStart = new TimeSpan(17, 30, 0); // 16:30
             if (DateTime.Now.TimeOfDay < workStart) return;
             //验证是否发周报
-            var lastDay = dbConnection.Query<string>($@"select
-                                                                                                	checkinrule
-                                                                                                from
-                                                                                                	public.attendancerecordday
-                                                                                                where
-                                                                                                	to_char(attendancedate,
-                                                                                                	'yyyy-MM-dd') = '{DateTime.Now.AddDays(1):yyyy-MM-dd}'").FirstOrDefault();
-            if (string.IsNullOrEmpty(lastDay)) return;
-            if (lastDay != "休息") return;
             var weekInfo = pmisHelper.GetWeekDayInfo();
-            var weekHours = dbConnection.Query<double>($@"select
-                                                                        	sum(workhours)
-                                                                        from
-                                                                        	public.attendancerecordday
-                                                                        where
-                                                                        	attendancedate >= '{weekInfo.StartOfWeek} 00:00:00'
-                                                                        	and attendancedate <= '{weekInfo.EndOfWeek} 23:59:59'").FirstOrDefault();
-            if (weekHours > 0)
+            var weekSummary = dbConnection.Query<WeekSummaryDto>($@"select
+	                                                        to_char(MAX(attendancedate),'yyyy-MM-dd') AS lastday,
+                                                            sum(workhours) AS weekhours
+                                                        from
+                                                            public.attendancerecordday
+                                                        where
+                                                            attendancedate >= '{weekInfo.StartOfWeek} 00:00:00'
+                                                            and attendancedate <= '{weekInfo.EndOfWeek} 23:59:59'
+                                                            and checkinrule = '08:30-17:30' ").FirstOrDefault();
+            if (weekSummary == null || string.IsNullOrEmpty(weekSummary.LastDay)) return;
+            if (weekSummary.LastDay != DateTime.Now.ToString("yyyy-MM-dd")) return;
+
+            if (weekSummary.WeekHours > 0)
                 pmisHelper.CommitWorkLogByWeek(weekInfo);
         }
         catch (Exception e)

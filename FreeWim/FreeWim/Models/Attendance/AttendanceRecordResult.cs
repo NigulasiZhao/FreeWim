@@ -58,3 +58,9 @@ public class Detail
     public string? LaterEarlyMinutes { get; set; }
     public int? ClockMethod { get; set; }
 }
+
+public class WeekSummaryDto
+{
+    public string LastDay { get; set; } = string.Empty;
+    public double WeekHours { get; set; }
+}

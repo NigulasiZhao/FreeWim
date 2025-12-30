@@ -123,6 +123,7 @@ public class PushMessageHelper(IConfiguration configuration)
             PushIcon.Jenkins => "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/jenkins.png",
             PushIcon.Amount => "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/nextcloud-cospend.png",
             PushIcon.Zktime => "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/cloudreve.png",
+            PushIcon.SpeedTest => "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/myspeed.png",
             _ => ""
         };
     }
@@ -139,6 +140,7 @@ public class PushMessageHelper(IConfiguration configuration)
         DeepSeek,
         Jenkins,
         Amount,
-        Zktime
+        Zktime,
+        SpeedTest
     }
 }
