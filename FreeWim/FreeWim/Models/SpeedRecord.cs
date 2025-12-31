@@ -39,3 +39,16 @@ public class SpeedRecordResponse
     public string? Message { get; set; }
     public SpeedRecordDto? Data { get; set; }
 }
+
+/// <summary>
+/// 图表数据 DTO（用于前端图表展示）
+/// </summary>
+public class SpeedRecordForChart
+{
+    public string? id { get; set; }
+    public DateTime? created_at { get; set; }
+    public decimal? download { get; set; }
+    public decimal? upload { get; set; }
+    public decimal? ping { get; set; }
+    public string? server_name { get; set; }
+}

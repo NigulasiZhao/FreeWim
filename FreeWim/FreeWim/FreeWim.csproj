@@ -79,6 +79,9 @@
         <Content Update="wwwroot\tools\speedtest.exe">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
+        <Content Update="wwwroot\NetworkDashboard.html">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
 
     <ItemGroup>

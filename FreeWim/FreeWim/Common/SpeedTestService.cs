@@ -15,11 +15,17 @@ public class SpeedTestService
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<SpeedTestService> _logger;
+    private readonly int _maxRetryAttempts;
+    private readonly int _retryDelayMilliseconds;
 
     public SpeedTestService(IConfiguration configuration, ILogger<SpeedTestService> logger)
     {
         _configuration = configuration;
         _logger = logger;
+        
+        // 从配置读取重试参数，提供默认值
+        _maxRetryAttempts = _configuration.GetValue<int>("SpeedTest:MaxRetryAttempts", 10);
+        _retryDelayMilliseconds = _configuration.GetValue<int>("SpeedTest:RetryDelayMilliseconds", 5000);
     }
 
     /// <summary>
@@ -27,6 +33,43 @@ public class SpeedTestService
     /// </summary>
     /// <returns>测速结果响应对象</returns>
     public async Task<SpeedRecordResponse> ExecuteSpeedTestAsync()
+    {
+        Exception? lastException = null;
+        
+        // 重试逻辑：最多尝试 _maxRetryAttempts 次
+        for (int attempt = 1; attempt <= _maxRetryAttempts; attempt++)
+        {
+            try
+            {
+                _logger.LogInformation($"开始第 {attempt} 次测速尝试（最多 {_maxRetryAttempts} 次）");
+                return await ExecuteSpeedTestInternalAsync();
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                _logger.LogWarning(ex, $"第 {attempt} 次测速失败: {ex.Message}");
+                
+                // 如果还有重试机会，等待后重试
+                if (attempt < _maxRetryAttempts)
+                {
+                    // 指数退避：每次重试等待时间递增
+                    int delayMs = _retryDelayMilliseconds * attempt;
+                    _logger.LogInformation($"等待 {delayMs}ms 后进行第 {attempt + 1} 次重试...");
+                    await Task.Delay(delayMs);
+                }
+            }
+        }
+        
+        // 所有重试都失败后，记录失败并抛出异常
+        _logger.LogError(lastException, $"测速失败：已重试 {_maxRetryAttempts} 次仍然失败");
+        await SaveFailedRecordAsync($"重试 {_maxRetryAttempts} 次后失败: {lastException?.Message}");
+        throw new Exception($"测速失败：已重试 {_maxRetryAttempts} 次，最后错误: {lastException?.Message}", lastException);
+    }
+
+    /// <summary>
+    /// 执行单次测速（内部方法，供重试逻辑调用）
+    /// </summary>
+    private async Task<SpeedRecordResponse> ExecuteSpeedTestInternalAsync()
     {
         IDbConnection? dbConnection = null;
         try
@@ -58,9 +101,7 @@ public class SpeedTestService
 
             if (process.ExitCode != 0)
             {
-                // 记录失败记录
-                await SaveFailedRecordAsync(error);
-                throw new Exception($"测速失败: {error}");
+                throw new Exception($"测速进程返回非零退出码: {error}");
             }
 
             // 3. 解析 JSON 结果
@@ -136,9 +177,8 @@ public class SpeedTestService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "测速异常");
-            await SaveFailedRecordAsync(ex.Message);
-            throw; // 重新抛出异常，让调用方处理
+            _logger.LogError(ex, "单次测速执行异常");
+            throw; // 重新抛出异常，让重试逻辑处理
         }
         finally
         {
@@ -178,6 +218,49 @@ public class SpeedTestService
         catch (Exception ex)
         {
             _logger.LogError(ex, "查询测速记录异常");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 根据日期范围获取测速记录
+    /// </summary>
+    /// <param name="startDate">开始日期</param>
+    /// <param name="endDate">结束日期</param>
+    /// <returns>测速记录列表</returns>
+    public List<SpeedRecordForChart> GetRecordsByDateRange(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+            
+            var sql = @"
+                SELECT 
+                    id,
+                    created_at,
+                    download,
+                    upload,
+                    CAST(ping AS DECIMAL) as ping,
+                    server_name
+                FROM speedrecord 
+                WHERE (failed = 0 OR failed IS NULL)
+                  AND created_at >= @StartDate 
+                  AND created_at <= @EndDate
+                ORDER BY created_at DESC";
+            
+            var records = dbConnection.Query<SpeedRecordForChart>(sql, new 
+            { 
+                StartDate = startDate, 
+                EndDate = endDate.AddDays(1).AddSeconds(-1) // 包含结束日期的全天
+            }).ToList();
+            
+            _logger.LogInformation($"查询到 {records.Count} 条测速记录，时间范围：{startDate:yyyy-MM-dd} 至 {endDate:yyyy-MM-dd}");
+            
+            return records;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "根据日期范围查询测速记录异常");
             throw;
         }
     }
