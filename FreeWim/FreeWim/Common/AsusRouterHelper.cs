@@ -36,9 +36,9 @@ public class AsusRouterHelper
     {
         try
         {
-            var baseUrl = _configuration.GetValue<string>("AsusRouter:RouterIp", "192.168.50.1");
+            var baseUrl = _configuration.GetValue<string>("AsusRouter:RouterIp", "http://192.168.50.1");
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var url = $"http://{baseUrl}/update_clients.asp?_={timestamp}";
+            var url = $"{baseUrl}/update_clients.asp?_={timestamp}";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             
@@ -46,7 +46,7 @@ public class AsusRouterHelper
             request.Headers.TryAddWithoutValidation("Accept", "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01");
             request.Headers.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
             request.Headers.TryAddWithoutValidation("Connection", "keep-alive");
-            request.Headers.TryAddWithoutValidation("Referer", $"http://{baseUrl}/device-map/clients.asp");
+            request.Headers.TryAddWithoutValidation("Referer", $"{baseUrl}/device-map/clients.asp");
             request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0");
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
             
@@ -162,34 +162,23 @@ public class AsusRouterHelper
     {
         try
         {
-            var jsonData = ExtractJsonData(responseContent);
-            var root = JsonDocument.Parse(jsonData).RootElement;
-            
             var response = new AsusRouterResponse();
             var allDevices = new List<AsusRouterDevice>();
 
-            // 解析 fromNetworkmapd
-            if (root.TryGetProperty("fromNetworkmapd", out var fromNetworkmapd))
+            // 直接提取 fromNetworkmapd 数组
+            var fromNetworkmapd = ExtractArray(responseContent, "fromNetworkmapd");
+            if (!string.IsNullOrEmpty(fromNetworkmapd))
             {
-                var devices = ParseDeviceSource(fromNetworkmapd, "networkmapd");
+                var devices = ParseDeviceArray(fromNetworkmapd, "networkmapd");
                 allDevices.AddRange(devices);
                 response.FromNetworkmapCount = devices.Count;
-                
-                // 获取ClientAPILevel
-                if (fromNetworkmapd.ValueKind == JsonValueKind.Array && fromNetworkmapd.GetArrayLength() > 0)
-                {
-                    var firstElement = fromNetworkmapd[0];
-                    if (firstElement.TryGetProperty("ClientAPILevel", out var apiLevel))
-                    {
-                        response.ClientAPILevel = apiLevel.GetString();
-                    }
-                }
             }
 
-            // 解析 nmpClient
-            if (root.TryGetProperty("nmpClient", out var nmpClient))
+            // 直接提取 nmpClient 数组
+            var nmpClient = ExtractArray(responseContent, "nmpClient");
+            if (!string.IsNullOrEmpty(nmpClient))
             {
-                var devices = ParseDeviceSource(nmpClient, "nmpClient");
+                var devices = ParseDeviceArray(nmpClient, "nmpClient");
                 allDevices.AddRange(devices);
                 response.FromNmpClientCount = devices.Count;
             }
@@ -201,40 +190,116 @@ public class AsusRouterHelper
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "解析响应数据失败");
+            _logger.LogError(ex, $"解析响应数据失败: {ex.Message}");
+            
+            // 记录原始响应内容的前几行以便调试
+            var lines = responseContent.Split('\n');
+            var previewLines = string.Join("\n", lines.Take(10));
+            _logger.LogError($"响应内容前10行:\n{previewLines}");
+            
             throw new Exception($"解析响应数据失败: {ex.Message}", ex);
         }
     }
 
     /// <summary>
-    /// 从数组中解析设备列表
+    /// 从响应中提取指定属性的数组内容
     /// </summary>
-    private List<AsusRouterDevice> ParseDeviceSource(JsonElement arrayElement, string dataSource)
+    private string ExtractArray(string responseContent, string propertyName)
+    {
+        try
+        {
+            // 查找属性名开始位置: propertyName : [
+            var searchPattern = $"{propertyName} : [";
+            var startIndex = responseContent.IndexOf(searchPattern);
+            
+            if (startIndex == -1)
+            {
+                _logger.LogWarning($"未找到属性 {propertyName}");
+                return string.Empty;
+            }
+
+            // 从 [ 开始
+            startIndex = responseContent.IndexOf('[', startIndex);
+            if (startIndex == -1) return string.Empty;
+
+            // 查找匹配的 ]
+            int bracketCount = 0;
+            int endIndex = startIndex;
+            
+            for (int i = startIndex; i < responseContent.Length; i++)
+            {
+                if (responseContent[i] == '[')
+                {
+                    bracketCount++;
+                }
+                else if (responseContent[i] == ']')
+                {
+                    bracketCount--;
+                    if (bracketCount == 0)
+                    {
+                        endIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            var arrayContent = responseContent.Substring(startIndex, endIndex - startIndex + 1);
+            _logger.LogDebug($"提取的 {propertyName} 数组长度: {arrayContent.Length}");
+            
+            return arrayContent;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"提取数组 {propertyName} 失败");
+            return string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// 解析设备数组
+    /// </summary>
+    private List<AsusRouterDevice> ParseDeviceArray(string arrayJson, string dataSource)
     {
         var devices = new List<AsusRouterDevice>();
         
-        if (arrayElement.ValueKind != JsonValueKind.Array || arrayElement.GetArrayLength() == 0)
+        try
         {
-            return devices;
-        }
-
-        var element = arrayElement[0];
-        
-        // 获取MAC地址列表
-        if (element.TryGetProperty("maclist", out var macList) && macList.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var mac in macList.EnumerateArray())
+            var arrayElement = JsonDocument.Parse(arrayJson).RootElement;
+            
+            if (arrayElement.ValueKind != JsonValueKind.Array || arrayElement.GetArrayLength() == 0)
             {
-                var macString = mac.GetString();
-                if (!string.IsNullOrEmpty(macString) && element.TryGetProperty(macString, out var deviceElement))
+                return devices;
+            }
+
+            var element = arrayElement[0];
+            
+            // 获取MAC地址列表
+            if (element.TryGetProperty("maclist", out var macList) && macList.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var mac in macList.EnumerateArray())
                 {
-                    var device = ParseDevice(deviceElement, dataSource);
-                    devices.Add(device);
+                    var macString = mac.GetString();
+                    if (!string.IsNullOrEmpty(macString) && element.TryGetProperty(macString, out var deviceElement))
+                    {
+                        var device = ParseDevice(deviceElement, dataSource);
+                        devices.Add(device);
+                    }
                 }
             }
-        }
+            
+            // 获取ClientAPILevel（如果有）
+            if (element.TryGetProperty("ClientAPILevel", out var apiLevel))
+            {
+                _logger.LogDebug($"{dataSource} ClientAPILevel: {apiLevel.GetString()}");
+            }
 
-        return devices;
+            return devices;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"解析 {dataSource} 设备数组失败");
+            return devices;
+        }
     }
 
     /// <summary>
@@ -286,56 +351,6 @@ public class AsusRouterHelper
             AmeshBindBand = GetStringProperty(element, "amesh_bind_band"),
             DataSource = dataSource
         };
-    }
-
-    /// <summary>
-    /// 提取JavaScript中的JSON数据
-    /// </summary>
-    private string ExtractJsonData(string responseContent)
-    {
-        var lines = responseContent.Split('\n');
-        var dataLines = new List<string>();
-        var inData = false;
-        var braceCount = 0;
-
-        foreach (var line in lines)
-        {
-            var trimmed = line.Trim();
-            
-            // 找到 originData = { 开始
-            if (trimmed.StartsWith("originData = {"))
-            {
-                inData = true;
-                dataLines.Add("{");
-                braceCount = 1;
-                continue;
-            }
-
-            if (inData)
-            {
-                // 移除尾部分号
-                if (trimmed.EndsWith(";"))
-                {
-                    trimmed = trimmed[..^1].Trim();
-                }
-                
-                // 计算大括号数量
-                braceCount += trimmed.Count(c => c == '{');
-                braceCount -= trimmed.Count(c => c == '}');
-                
-                dataLines.Add(trimmed);
-                
-                // 当大括号完全匹配时结束
-                if (braceCount == 0)
-                {
-                    break;
-                }
-            }
-        }
-
-        var jsonString = string.Join("", dataLines);
-        _logger.LogDebug($"提取的JSON数据长度: {jsonString.Length}");
-        return jsonString;
     }
 
     /// <summary>

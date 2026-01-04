@@ -25,7 +25,8 @@ public class HangFireHelper(
     IChatClient chatClient,
     WorkFlowExecutor workFlowExecutor,
     ILogger<HangFireHelper> logger,
-    SpeedTestService speedTestService)
+    SpeedTestService speedTestService,
+    AsusRouterHelper asusRouterHelper)
 {
     public void StartHangFireTask()
     {
@@ -54,6 +55,11 @@ public class HangFireHelper(
         RecurringJob.AddOrUpdate("一诺自动聊天", () => AutomaticallySendMessage(), "0 0/10 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("网络测速", () => DailySpeedTest(), "0 0 1 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("网络异常提醒", () => SpeedAbnormalAlert(), "0 0 10 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+
+        if (!string.IsNullOrEmpty(configuration.GetValue<string>("AsusRouter:RouterIp")))
+        {
+            RecurringJob.AddOrUpdate("路由器设备同步", () => SyncRouterDevices(), "0 0 1 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+        }
     }
 
     /// <summary>
@@ -564,7 +570,9 @@ public class HangFireHelper(
                 "元餐补。请尽快填写餐补,不然这点钱也没了。",
                 PushMessageHelper.PushIcon.Amount);
     }
-
+    /// <summary>
+    /// 自动发送消息
+    /// </summary>
     public async Task AutomaticallySendMessage()
     {
         var random = new Random();
@@ -572,7 +580,9 @@ public class HangFireHelper(
         await Task.Delay(delayMilliseconds);
         await SendMessage();
     }
-
+    /// <summary>
+    /// 发送消息
+    /// </summary>
     public async Task SendMessage()
     {
         IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
@@ -584,11 +594,11 @@ public class HangFireHelper(
                                                                                                 	to_char(attendancedate,
                                                                                                 	'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}'").FirstOrDefault();
         if (lastDay is null or "休息") return;
-        if (DateTime.Now.Hour <= 8 || DateTime.Now.Hour >= 23 || DateTime.Now.DayOfWeek == DayOfWeek.Saturday || DateTime.Now.DayOfWeek == DayOfWeek.Sunday) return;
+        if (DateTime.Now.Hour < 8 || DateTime.Now.Hour >= 21) return;
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var httpHelper = new HttpRequestHelper();
         var message = AesHelp.EncryptAes(DateTime.Now.ToString(CultureInfo.InvariantCulture));
-        var getResponse = await httpHelper.PostAsync(pmisInfo.Url + $"/uniwim/message/chat/send", new
+        _ = await httpHelper.PostAsync(pmisInfo.Url + $"/uniwim/message/chat/send", new
         {
             content = message,
             receiverName = "",
@@ -627,26 +637,26 @@ public class HangFireHelper(
         try
         {
             // 获取配置的上传速度阈值，默认为10 Mbit/s
-            var uploadThreshold = decimal.Parse(configuration["UploadThreshold"] ?? "10");
+            var uploadThreshold = decimal.Parse(configuration["SpeedTest:UploadThreshold"] ?? "10");
             // 获取最后一条测速记录
             var latestRecord = speedTestService.GetLatestRecord();
             if (latestRecord == null)
             {
                 return;
             }
-            
+
             // 解析上传速度（移除单位 Mbit/s）
             var uploadSpeedStr = latestRecord.Upload?.Replace(" Mbit/s", "").Trim();
             if (string.IsNullOrEmpty(uploadSpeedStr) || uploadSpeedStr == "N/A")
             {
                 return;
             }
-            
+
             if (!decimal.TryParse(uploadSpeedStr, out var uploadSpeed))
             {
                 return;
             }
-            
+
             // 判断是否低于阈值
             if (uploadSpeed < uploadThreshold)
             {
@@ -662,4 +672,15 @@ public class HangFireHelper(
             pushMessageHelper.Push("网速异常提醒任务异常", ex.Message, PushMessageHelper.PushIcon.Alert);
         }
     }
+
+    /// <summary>
+    /// 路由器设备同步
+    /// 每天凌晨1点执行，获取路由器连接设备并保存到数据库
+    /// </summary>
+    public async Task SyncRouterDevices()
+    {
+        var devices = await asusRouterHelper.GetNetworkDevicesAsync();
+        var savedCount = await asusRouterHelper.SaveDevicesToDatabaseAsync(devices);
+    }
+
 }
