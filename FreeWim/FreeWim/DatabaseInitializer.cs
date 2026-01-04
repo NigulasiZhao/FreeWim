@@ -350,6 +350,109 @@ $$;
 $$;
 --GO
 ");
+
+        // 初始化华硕路由器设备表
+        if (TableExists("asusrouterdevice", _dbConnection))
+        {
+            var createTableSql = @"
+                CREATE TABLE public.asusrouterdevice (
+                    id varchar(36) NOT NULL,
+                    mac varchar(50) NOT NULL,
+                    ip varchar(50) NULL,
+                    name varchar(200) NULL,
+                    nickname varchar(200) NULL,
+                    vendor varchar(500) NULL,
+                    vendorclass varchar(500) NULL,
+                    type varchar(50) NULL,
+                    defaulttype varchar(50) NULL,
+                    iswl varchar(10) NULL,
+                    isgateway varchar(10) NULL,
+                    iswebserver varchar(10) NULL,
+                    isprinter varchar(10) NULL,
+                    isitunes varchar(10) NULL,
+                    isonline varchar(10) NULL,
+                    islogin varchar(10) NULL,
+                    ssid varchar(100) NULL,
+                    rssi varchar(50) NULL,
+                    curtx varchar(50) NULL,
+                    currx varchar(50) NULL,
+                    totaltx varchar(50) NULL,
+                    totalrx varchar(50) NULL,
+                    wlconnecttime varchar(50) NULL,
+                    ipmethod varchar(50) NULL,
+                    opmode varchar(10) NULL,
+                    rog varchar(10) NULL,
+                    groupname varchar(100) NULL,
+                    qoslevel varchar(50) NULL,
+                    internetmode varchar(50) NULL,
+                    internetstate varchar(10) NULL,
+                    dpitype varchar(50) NULL,
+                    dpidevice varchar(50) NULL,
+                    isgn varchar(10) NULL,
+                    macrepeat varchar(10) NULL,
+                    callback varchar(500) NULL,
+                    keeparp varchar(10) NULL,
+                    wtfast varchar(10) NULL,
+                    ostype int NULL,
+                    ameshisre varchar(10) NULL,
+                    ameshbindmac varchar(50) NULL,
+                    ameshbindband varchar(10) NULL,
+                    datasource varchar(50) NULL,
+                    createdat timestamp DEFAULT LOCALTIMESTAMP(0) NULL,
+                    updatedat timestamp DEFAULT LOCALTIMESTAMP(0) NULL,
+                    CONSTRAINT asusrouterdevice_pk PRIMARY KEY (id),
+                    CONSTRAINT asusrouterdevice_mac_unique UNIQUE (mac)
+                );
+
+                COMMENT ON TABLE public.asusrouterdevice IS '华硕路由器设备信息表';
+                COMMENT ON COLUMN public.asusrouterdevice.id IS '主键ID';
+                COMMENT ON COLUMN public.asusrouterdevice.mac IS 'MAC地址（设备唯一标识）';
+                COMMENT ON COLUMN public.asusrouterdevice.ip IS 'IP地址';
+                COMMENT ON COLUMN public.asusrouterdevice.name IS '设备名称';
+                COMMENT ON COLUMN public.asusrouterdevice.nickname IS '设备昵称';
+                COMMENT ON COLUMN public.asusrouterdevice.vendor IS '设备厂商';
+                COMMENT ON COLUMN public.asusrouterdevice.vendorclass IS '设备厂商类别';
+                COMMENT ON COLUMN public.asusrouterdevice.type IS '设备类型';
+                COMMENT ON COLUMN public.asusrouterdevice.defaulttype IS '默认设备类型';
+                COMMENT ON COLUMN public.asusrouterdevice.iswl IS '是否无线连接（0:有线, 1:2.4G WiFi, 2:5G WiFi）';
+                COMMENT ON COLUMN public.asusrouterdevice.isgateway IS '是否为网关';
+                COMMENT ON COLUMN public.asusrouterdevice.iswebserver IS '是否为Web服务器';
+                COMMENT ON COLUMN public.asusrouterdevice.isprinter IS '是否为打印机';
+                COMMENT ON COLUMN public.asusrouterdevice.isitunes IS '是否为iTunes设备';
+                COMMENT ON COLUMN public.asusrouterdevice.isonline IS '是否在线（1:在线, 0:离线）';
+                COMMENT ON COLUMN public.asusrouterdevice.islogin IS '是否登录';
+                COMMENT ON COLUMN public.asusrouterdevice.ssid IS 'SSID（WiFi名称）';
+                COMMENT ON COLUMN public.asusrouterdevice.rssi IS '信号强度（dBm）';
+                COMMENT ON COLUMN public.asusrouterdevice.curtx IS '当前上传速度（Mbps）';
+                COMMENT ON COLUMN public.asusrouterdevice.currx IS '当前下载速度（Mbps）';
+                COMMENT ON COLUMN public.asusrouterdevice.totaltx IS '总上传流量';
+                COMMENT ON COLUMN public.asusrouterdevice.totalrx IS '总下载流量';
+                COMMENT ON COLUMN public.asusrouterdevice.wlconnecttime IS '无线连接时长';
+                COMMENT ON COLUMN public.asusrouterdevice.ipmethod IS 'IP获取方式（DHCP, Manual）';
+                COMMENT ON COLUMN public.asusrouterdevice.opmode IS '操作模式';
+                COMMENT ON COLUMN public.asusrouterdevice.rog IS '是否为ROG设备';
+                COMMENT ON COLUMN public.asusrouterdevice.groupname IS '设备分组';
+                COMMENT ON COLUMN public.asusrouterdevice.qoslevel IS 'QoS等级';
+                COMMENT ON COLUMN public.asusrouterdevice.internetmode IS '互联网访问模式（allow, block）';
+                COMMENT ON COLUMN public.asusrouterdevice.internetstate IS '互联网状态';
+                COMMENT ON COLUMN public.asusrouterdevice.dpitype IS 'DPI类型';
+                COMMENT ON COLUMN public.asusrouterdevice.dpidevice IS 'DPI设备';
+                COMMENT ON COLUMN public.asusrouterdevice.isgn IS '是否为GN设备';
+                COMMENT ON COLUMN public.asusrouterdevice.macrepeat IS 'MAC地址是否重复';
+                COMMENT ON COLUMN public.asusrouterdevice.callback IS '回调地址';
+                COMMENT ON COLUMN public.asusrouterdevice.keeparp IS '是否保持ARP';
+                COMMENT ON COLUMN public.asusrouterdevice.wtfast IS 'WTFast状态';
+                COMMENT ON COLUMN public.asusrouterdevice.ostype IS '操作系统类型';
+                COMMENT ON COLUMN public.asusrouterdevice.ameshisre IS '是否为AiMesh中继器';
+                COMMENT ON COLUMN public.asusrouterdevice.ameshbindmac IS 'AiMesh绑定MAC地址';
+                COMMENT ON COLUMN public.asusrouterdevice.ameshbindband IS 'AiMesh绑定频段';
+                COMMENT ON COLUMN public.asusrouterdevice.datasource IS '数据来源（networkmapd, nmpClient）';
+                COMMENT ON COLUMN public.asusrouterdevice.createdat IS '创建时间';
+                COMMENT ON COLUMN public.asusrouterdevice.updatedat IS '更新时间';
+                ";
+            _dbConnection.Execute(createTableSql);
+        }
+
         _dbConnection.Dispose();
     }
 
