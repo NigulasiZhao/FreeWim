@@ -19,7 +19,14 @@ Log.Logger = new LoggerConfiguration().WriteTo.Console()
 
 builder.Host.UseSerilog();
 // Add services to the container.
-builder.Configuration.AddJsonFile(AppDomain.CurrentDomain.BaseDirectory + "appsettings.json", false, true);
+var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+var environment = builder.Environment.EnvironmentName;
+
+// 根据环境加载配置文件
+builder.Configuration
+    .AddJsonFile(Path.Combine(baseDirectory, "appsettings.json"), optional: false, reloadOnChange: true)
+    .AddJsonFile(Path.Combine(baseDirectory, $"appsettings.{environment}.json"), optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables(); // 添加环境变量支持
 builder.Services.AddDirectoryBrowser();
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi

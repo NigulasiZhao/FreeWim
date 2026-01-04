@@ -606,15 +606,28 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
 
     /// <summary>
     /// 获取当前是第几周，以及周一和周日的日期
+    /// 一周从周一开始到周日结束
+    /// 使用ISO 8601标准：基于周四确定周所属年份，确保同一周内所有日期返回相同的周数
     /// </summary>
     /// <returns></returns>
     public WeekDayInfo GetWeekDayInfo()
     {
         var currentDate = DateTime.Now;
-        var ci = new CultureInfo("zh-CN"); // 使用中国文化，可以根据需求修改
-        var weekNumber = ci.Calendar.GetWeekOfYear(currentDate, CalendarWeekRule.FirstDay, DayOfWeek.Monday);
-        var startOfWeek = currentDate.AddDays(-(int)currentDate.DayOfWeek + (int)DayOfWeek.Monday);
-        var endOfWeek = startOfWeek.AddDays(6);
+        var ci = new CultureInfo("zh-CN");
+        
+        // 计算本周的开始日期（周一）
+        var dayOfWeek = (int)currentDate.DayOfWeek;
+        // 处理周日的特殊情况：周日的DayOfWeek是0，需要退回到本周一
+        var daysFromMonday = dayOfWeek == 0 ? -6 : -(dayOfWeek - 1);
+        var startOfWeek = currentDate.AddDays(daysFromMonday); // 周一
+        var endOfWeek = startOfWeek.AddDays(6); // 周日
+        
+        // 使用本周的周四来计算周数，确保整周使用统一的周数
+        // 根据ISO 8601标准，周四所在的年份决定了这一周属于哪一年
+        // 例如：2025-12-29至2026-01-04这一周，周四是2026-01-01，所以这周是2026年第1周
+        var thursday = startOfWeek.AddDays(3); // 周四
+        var weekNumber = ci.Calendar.GetWeekOfYear(thursday, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
+        
         var info = new WeekDayInfo();
         info.WeekNumber = weekNumber;
         info.StartOfWeek = startOfWeek.ToString("yyyy-MM-dd");
