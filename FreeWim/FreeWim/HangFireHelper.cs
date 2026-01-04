@@ -59,6 +59,7 @@ public class HangFireHelper(
         if (!string.IsNullOrEmpty(configuration.GetValue<string>("AsusRouter:RouterIp")))
         {
             RecurringJob.AddOrUpdate("路由器设备同步", () => SyncRouterDevices(), "0 0 1 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+            RecurringJob.AddOrUpdate("设备流量统计", () => SyncDeviceTraffic(), "0 0 1 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         }
     }
 
@@ -681,6 +682,83 @@ public class HangFireHelper(
     {
         var devices = await asusRouterHelper.GetNetworkDevicesAsync();
         var savedCount = await asusRouterHelper.SaveDevicesToDatabaseAsync(devices);
+    }
+
+    /// <summary>
+    /// 设备流量统计
+    /// 每天凌晨1点执行，查询前一天每个设备的流量并存入数据库
+    /// </summary>
+    public async Task SyncDeviceTraffic()
+    {
+        try
+        {
+            // 获取前一天的日期
+            var yesterday = DateTime.Now.AddDays(-1).Date;
+            var dateTimestamp = new DateTimeOffset(yesterday).ToUnixTimeSeconds();
+            
+            IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            
+            // 查询所有在线设备的MAC地址
+            var devices = await dbConnection.QueryAsync<string>(
+                "SELECT DISTINCT mac FROM asusrouterdevice WHERE mac IS NOT NULL AND mac != ''"
+            );
+            
+            if (!devices.Any())
+            {
+                logger.LogWarning("未找到任何设备记录，跳过流量统计");
+                return;
+            }
+            
+            var totalDevices = devices.Count();
+            var successCount = 0;
+            var failedCount = 0;
+            
+            logger.LogInformation($"开始统计 {totalDevices} 个设备在 {yesterday:yyyy-MM-dd} 的流量数据");
+            
+            foreach (var mac in devices)
+            {
+                try
+                {
+                    // 获取设备流量数据
+                    var trafficData = await asusRouterHelper.GetDeviceTrafficAsync(mac, dateTimestamp);
+                    
+                    if (trafficData.Count > 0)
+                    {
+                        // 保存到数据库
+                        var savedCount = await asusRouterHelper.SaveDeviceTrafficToDatabaseAsync(mac, yesterday, trafficData);
+                        successCount++;
+                        logger.LogInformation($"设备 {mac} 流量数据保存成功，共 {savedCount} 条记录");
+                    }
+                    else
+                    {
+                        logger.LogWarning($"设备 {mac} 未返回流量数据");
+                        failedCount++;
+                    }
+                    
+                    // 防止请求过于频繁，稍微延迟
+                    await Task.Delay(1000);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, $"获取设备 {mac} 流量数据失败");
+                    failedCount++;
+                }
+            }
+            
+            var message = $"设备流量统计完成\n" +
+                         $"统计日期: {yesterday:yyyy-MM-dd}\n" +
+                         $"总设备数: {totalDevices}\n" +
+                         $"成功: {successCount}\n" +
+                         $"失败: {failedCount}";
+            
+            logger.LogInformation(message);
+            pushMessageHelper.Push("设备流量统计", message, PushMessageHelper.PushIcon.Network);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "设备流量统计任务异常");
+            pushMessageHelper.Push("设备流量统计异常", ex.Message, PushMessageHelper.PushIcon.Alert);
+        }
     }
 
 }

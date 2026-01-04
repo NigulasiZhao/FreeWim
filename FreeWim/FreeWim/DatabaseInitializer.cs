@@ -1,14 +1,11 @@
-﻿using Dapper;
-using Newtonsoft.Json.Linq;
-using Newtonsoft.Json;
-using FreeWim.Models.Attendance;
-using System.Data;
-using System.Data.Common;
-using Npgsql;
-using LibGit2Sharp;
-using System.IO;
+﻿using System.Data;
+using Dapper;
 using FreeWim.Common;
+using FreeWim.Models.Attendance;
 using FreeWim.Models.PmisAndZentao;
+using LibGit2Sharp;
+using Newtonsoft.Json;
+using Npgsql;
 
 namespace FreeWim;
 
@@ -453,6 +450,40 @@ $$;
                 COMMENT ON COLUMN public.asusrouterdevice.datasource IS '数据来源（networkmapd, nmpClient）';
                 COMMENT ON COLUMN public.asusrouterdevice.createdat IS '创建时间';
                 COMMENT ON COLUMN public.asusrouterdevice.updatedat IS '更新时间';
+                ";
+            _dbConnection.Execute(createTableSql);
+        }
+
+        // 初始化华硕路由器设备流量统计表
+        if (!existingTables.Contains("asusrouterdevicetraffic"))
+        {
+            var createTableSql = @"
+                CREATE TABLE public.asusrouterdevicetraffic (
+                    id varchar(50) NOT NULL,
+                    mac varchar(50) NOT NULL,
+                    statdate timestamp NOT NULL,
+                    hour int NOT NULL,
+                    uploadbytes bigint NOT NULL DEFAULT 0,
+                    downloadbytes bigint NOT NULL DEFAULT 0,
+                    createdat timestamp DEFAULT LOCALTIMESTAMP(0) NULL,
+                    updatedat timestamp DEFAULT LOCALTIMESTAMP(0) NULL,
+                    CONSTRAINT asusrouterdevicetraffic_pk PRIMARY KEY (id),
+                    CONSTRAINT asusrouterdevicetraffic_unique UNIQUE (mac, statdate, hour)
+                );
+
+                CREATE INDEX idx_asusrouterdevicetraffic_mac ON public.asusrouterdevicetraffic(mac);
+                CREATE INDEX idx_asusrouterdevicetraffic_statdate ON public.asusrouterdevicetraffic(statdate);
+                CREATE INDEX idx_asusrouterdevicetraffic_mac_statdate ON public.asusrouterdevicetraffic(mac, statdate);
+
+                COMMENT ON TABLE public.asusrouterdevicetraffic IS '华硕路由器设备流量统计表';
+                COMMENT ON COLUMN public.asusrouterdevicetraffic.id IS '主键ID';
+                COMMENT ON COLUMN public.asusrouterdevicetraffic.mac IS '设备MAC地址';
+                COMMENT ON COLUMN public.asusrouterdevicetraffic.statdate IS '统计日期';
+                COMMENT ON COLUMN public.asusrouterdevicetraffic.hour IS '小时（0-23）';
+                COMMENT ON COLUMN public.asusrouterdevicetraffic.uploadbytes IS '上传字节数';
+                COMMENT ON COLUMN public.asusrouterdevicetraffic.downloadbytes IS '下载字节数';
+                COMMENT ON COLUMN public.asusrouterdevicetraffic.createdat IS '创建时间';
+                COMMENT ON COLUMN public.asusrouterdevicetraffic.updatedat IS '更新时间';
                 ";
             _dbConnection.Execute(createTableSql);
         }
