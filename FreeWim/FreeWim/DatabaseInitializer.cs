@@ -27,7 +27,11 @@ public class DatabaseInitializer
     {
         var pmisInfo = _Configuration.GetSection("PMISInfo").Get<PMISInfo>();
         IDbConnection _dbConnection = new NpgsqlConnection(_Configuration["Connection"]);
-        if (TableExists("speedrecord", _dbConnection))
+        
+        // 一次性查询所有表，避免重复查询
+        var existingTables = GetExistingTables(_dbConnection);
+        
+        if (!existingTables.Contains("speedrecord"))
         {
             var createTableSql = @"
                                     CREATE TABLE public.speedrecord (
@@ -48,7 +52,7 @@ public class DatabaseInitializer
             _dbConnection.Execute(createTableSql);
         }
 
-        if (TableExists("attendancerecord", _dbConnection))
+        if (!existingTables.Contains("attendancerecord"))
         {
             var createTableSql = @"
                                     CREATE TABLE public.attendancerecord (
@@ -64,7 +68,7 @@ public class DatabaseInitializer
             _dbConnection.Execute(createTableSql);
         }
 
-        if (TableExists("attendancerecordday", _dbConnection))
+        if (!existingTables.Contains("attendancerecordday"))
         {
             var createTableSql = @"
                                     CREATE TABLE public.attendancerecordday (
@@ -82,7 +86,7 @@ public class DatabaseInitializer
             _dbConnection.Execute(createTableSql);
         }
 
-        if (TableExists("attendancerecorddaydetail", _dbConnection))
+        if (!existingTables.Contains("attendancerecorddaydetail"))
         {
             var createTableSql = @"
                                    CREATE TABLE public.attendancerecorddaydetail (
@@ -96,7 +100,7 @@ public class DatabaseInitializer
             _dbConnection.Execute(createTableSql);
         }
 
-        if (TableExists("eventinfo", _dbConnection))
+        if (!existingTables.Contains("eventinfo"))
         {
             var createTableSql = @"
                                    CREATE TABLE public.eventinfo (
@@ -112,7 +116,7 @@ public class DatabaseInitializer
             _dbConnection.Execute(createTableSql);
         }
 
-        if (TableExists("zentaotask", _dbConnection))
+        if (!existingTables.Contains("zentaotask"))
         {
             var createTableSql = @"
                                    CREATE TABLE public.zentaotask (
@@ -158,7 +162,7 @@ public class DatabaseInitializer
             _dbConnection.Execute(createTableSql);
         }
 
-        if (TableExists("overtimerecord", _dbConnection))
+        if (!existingTables.Contains("overtimerecord"))
         {
             var createTableSql = @"
                                    CREATE TABLE public.overtimerecord (
@@ -236,7 +240,7 @@ public class DatabaseInitializer
             }
         }
 
-        if (TableExists("gogsrecord", _dbConnection))
+        if (!existingTables.Contains("gogsrecord"))
         {
             var dataSql = "";
             var createTableSql = @"
@@ -274,7 +278,7 @@ public class DatabaseInitializer
             }
         }
 
-        if (TableExists("checkinwarning", _dbConnection))
+        if (!existingTables.Contains("checkinwarning"))
         {
             var createTableSql = @"
                                    CREATE TABLE public.checkinwarning (
@@ -286,7 +290,7 @@ public class DatabaseInitializer
             _dbConnection.Execute(createTableSql);
         }
 
-        if (TableExists("autocheckinrecord", _dbConnection))
+        if (!existingTables.Contains("autocheckinrecord"))
         {
             var createTableSql = @"
                                    CREATE TABLE public.autocheckinrecord (
@@ -352,7 +356,7 @@ $$;
 ");
 
         // 初始化华硕路由器设备表
-        if (TableExists("asusrouterdevice", _dbConnection))
+        if (!existingTables.Contains("asusrouterdevice"))
         {
             var createTableSql = @"
                 CREATE TABLE public.asusrouterdevice (
@@ -456,9 +460,13 @@ $$;
         _dbConnection.Dispose();
     }
 
-    private bool TableExists(string tableName, IDbConnection _dbConnection)
+    /// <summary>
+    /// 获取所有已存在的表名集合
+    /// </summary>
+    private HashSet<string> GetExistingTables(IDbConnection dbConnection)
     {
-        var checkTableSql = $@"select count(0) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '{tableName}';";
-        return _dbConnection.Query<int>(checkTableSql).First() == 0 ? true : false;
+        var sql = @"SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';";
+        var tables = dbConnection.Query<string>(sql);
+        return new HashSet<string>(tables, StringComparer.OrdinalIgnoreCase);
     }
 }

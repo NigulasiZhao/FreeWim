@@ -71,6 +71,7 @@ builder.Services.AddSingleton<AttendanceHelper>();
 builder.Services.AddSingleton<PmisHelper>();
 builder.Services.AddSingleton<PushMessageHelper>();
 builder.Services.AddSingleton<WorkFlowExecutor>();
+builder.Services.AddSingleton<AsusRouterHelper>();
 var app = builder.Build();
 var zh = new CultureInfo("zh-CN");
 zh.DateTimeFormat.FullDateTimePattern = "yyyy-MM-dd HH:mm:ss";
