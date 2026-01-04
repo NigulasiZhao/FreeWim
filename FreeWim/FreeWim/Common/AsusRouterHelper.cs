@@ -584,4 +584,205 @@ public class AsusRouterHelper
             throw new Exception($"保存流量数据到数据库失败: {ex.Message}", ex);
         }
     }
+
+    /// <summary>
+    /// 获取设备流量详细统计数据（按应用/协议分类）
+    /// </summary>
+    /// <param name="mac">设备MAC地址（需要URL编码）</param>
+    /// <param name="date">查询日期（Unix时间戳，秒级）</param>
+    /// <param name="mode">模式（detail:详细统计）</param>
+    /// <param name="dura">持续时间（小时数，默认24小时）</param>
+    /// <returns>按应用/协议分类的流量数据列表</returns>
+    public async Task<List<(string AppName, long Upload, long Download)>> GetDeviceTrafficDetailAsync(string mac, long date, string mode = "detail", int dura = 24)
+    {
+        try
+        {
+            var baseUrl = _configuration.GetValue<string>("AsusRouter:RouterIp", "http://192.168.50.1");
+            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var encodedMac = Uri.EscapeDataString(mac);
+            var url = $"{baseUrl}/getWanTraffic.asp?client={encodedMac}&mode={mode}&dura={dura}&date={date}&_={timestamp}";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            
+            // 设置请求头
+            request.Headers.TryAddWithoutValidation("Accept", "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01");
+            request.Headers.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
+            request.Headers.TryAddWithoutValidation("Connection", "keep-alive");
+            request.Headers.TryAddWithoutValidation("Referer", $"{baseUrl}/TrafficAnalyzer_Statistic.asp");
+            request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0");
+            request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+            
+            // 设置Cookie
+            var token = _tokenService.GetAsusRouterTokenAsync();
+            var cookie = $"hwaddr=7C:10:C9:E8:6D:C8; apps_last=; bw_rtab=WIRED; maxBandwidth=100; ASUS_TrafficMonitor_unit=1; ASUS_Traffic_unit=2; asus_token={token}; clickedItem_tab=7";
+            request.Headers.TryAddWithoutValidation("Cookie", cookie);
+
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            
+            var content = await response.Content.ReadAsStringAsync();
+            _logger.LogInformation($"成功获取设备 {mac} 的详细流量数据，内容长度: {content.Length}");
+            
+            return ParseTrafficDetailResponse(content);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"获取设备 {mac} 详细流量数据失败");
+            throw new Exception($"获取设备详细流量数据失败: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// 解析详细流量响应内容
+    /// 响应格式：var array_statistics = [["AppName", upload, download], ...]
+    /// </summary>
+    private List<(string AppName, long Upload, long Download)> ParseTrafficDetailResponse(string responseContent)
+    {
+        var result = new List<(string AppName, long Upload, long Download)>();
+        
+        try
+        {
+            // 查找 array_statistics = 开始位置
+            var startPattern = "array_statistics = [";
+            var startIndex = responseContent.IndexOf(startPattern);
+            
+            if (startIndex == -1)
+            {
+                _logger.LogWarning("未找到 array_statistics 数据");
+                return result;
+            }
+
+            // 从 [ 开始提取数组
+            startIndex = responseContent.IndexOf('[', startIndex);
+            if (startIndex == -1) return result;
+
+            // 查找匹配的 ]
+            int bracketCount = 0;
+            int endIndex = startIndex;
+            
+            for (int i = startIndex; i < responseContent.Length; i++)
+            {
+                if (responseContent[i] == '[')
+                {
+                    bracketCount++;
+                }
+                else if (responseContent[i] == ']')
+                {
+                    bracketCount--;
+                    if (bracketCount == 0)
+                    {
+                        endIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            var arrayContent = responseContent.Substring(startIndex, endIndex - startIndex + 1);
+            _logger.LogDebug($"提取的详细流量数组: {arrayContent}");
+            
+            // 使用 JSON 解析数组
+            var arrayElement = JsonDocument.Parse(arrayContent).RootElement;
+            
+            if (arrayElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in arrayElement.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.Array && item.GetArrayLength() == 3)
+                    {
+                        var appName = item[0].GetString() ?? "Unknown";
+                        var upload = item[1].GetInt64();
+                        var download = item[2].GetInt64();
+                        result.Add((appName, upload, download));
+                    }
+                }
+            }
+            
+            _logger.LogInformation($"解析详细流量数据完成，共 {result.Count} 条记录");
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "解析详细流量响应数据失败");
+            throw new Exception($"解析详细流量数据失败: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// 保存设备详细流量统计数据到数据库
+    /// </summary>
+    /// <param name="mac">设备MAC地址</param>
+    /// <param name="statDate">统计日期</param>
+    /// <param name="trafficDetailData">按应用/协议分类的流量数据</param>
+    public async Task<int> SaveDeviceTrafficDetailToDatabaseAsync(string mac, DateTime statDate, List<(string AppName, long Upload, long Download)> trafficDetailData)
+    {
+        using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+        
+        try
+        {
+            var now = DateTime.Now;
+            var savedCount = 0;
+
+            foreach (var traffic in trafficDetailData)
+            {
+                // 检查该记录是否已存在
+                var exists = await dbConnection.QueryFirstOrDefaultAsync<int>(
+                    "SELECT COUNT(1) FROM asusrouterdevicetrafficdetail WHERE mac = @Mac AND statdate = @StatDate AND appname = @AppName",
+                    new { Mac = mac, StatDate = statDate.Date, AppName = traffic.AppName }
+                );
+
+                if (exists > 0)
+                {
+                    // 更新现有记录
+                    var updateSql = @"
+                        UPDATE asusrouterdevicetrafficdetail SET
+                            uploadbytes = @UploadBytes,
+                            downloadbytes = @DownloadBytes,
+                            updatedat = @UpdatedAt
+                        WHERE mac = @Mac AND statdate = @StatDate AND appname = @AppName";
+                    
+                    await dbConnection.ExecuteAsync(updateSql, new
+                    {
+                        Mac = mac,
+                        StatDate = statDate.Date,
+                        AppName = traffic.AppName,
+                        UploadBytes = traffic.Upload,
+                        DownloadBytes = traffic.Download,
+                        UpdatedAt = now
+                    });
+                }
+                else
+                {
+                    // 插入新记录
+                    var insertSql = @"
+                        INSERT INTO asusrouterdevicetrafficdetail (
+                            id, mac, statdate, appname, uploadbytes, downloadbytes, createdat, updatedat
+                        ) VALUES (
+                            @Id, @Mac, @StatDate, @AppName, @UploadBytes, @DownloadBytes, @CreatedAt, @UpdatedAt
+                        )";
+                    
+                    await dbConnection.ExecuteAsync(insertSql, new
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Mac = mac,
+                        StatDate = statDate.Date,
+                        AppName = traffic.AppName,
+                        UploadBytes = traffic.Upload,
+                        DownloadBytes = traffic.Download,
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    });
+                }
+                
+                savedCount++;
+            }
+
+            _logger.LogInformation($"成功保存设备 {mac} 在 {statDate:yyyy-MM-dd} 的 {savedCount} 条详细流量数据到数据库");
+            return savedCount;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"保存设备 {mac} 详细流量数据到数据库失败");
+            throw new Exception($"保存详细流量数据到数据库失败: {ex.Message}", ex);
+        }
+    }
 }

@@ -687,6 +687,7 @@ public class HangFireHelper(
     /// <summary>
     /// 设备流量统计
     /// 每天凌晨1点执行，查询前一天每个设备的流量并存入数据库
+    /// 同时采集小时级流量和按应用/协议分类的详细流量
     /// </summary>
     public async Task SyncDeviceTraffic()
     {
@@ -705,33 +706,47 @@ public class HangFireHelper(
             
             if (!devices.Any())
             {
-                logger.LogWarning("未找到任何设备记录，跳过流量统计");
                 return;
             }
             
             var totalDevices = devices.Count();
             var successCount = 0;
             var failedCount = 0;
-            
-            logger.LogInformation($"开始统计 {totalDevices} 个设备在 {yesterday:yyyy-MM-dd} 的流量数据");
+            var hourlySuccessCount = 0;
+            var detailSuccessCount = 0;
             
             foreach (var mac in devices)
             {
                 try
                 {
-                    // 获取设备流量数据
-                    var trafficData = await asusRouterHelper.GetDeviceTrafficAsync(mac, dateTimestamp);
+                    // 1. 获取小时级流量数据 (mode=hour)
+                    var trafficData = await asusRouterHelper.GetDeviceTrafficAsync(mac, dateTimestamp, "hour", 24);
                     
                     if (trafficData.Count > 0)
                     {
-                        // 保存到数据库
                         var savedCount = await asusRouterHelper.SaveDeviceTrafficToDatabaseAsync(mac, yesterday, trafficData);
+                        hourlySuccessCount++;
+                    }
+                    
+                    // 稍微延迟，避免请求过于频繁
+                    await Task.Delay(500);
+                    
+                    // 2. 获取详细流量数据 (mode=detail)
+                    var trafficDetailData = await asusRouterHelper.GetDeviceTrafficDetailAsync(mac, dateTimestamp, "detail", 24);
+                    
+                    if (trafficDetailData.Count > 0)
+                    {
+                        var savedDetailCount = await asusRouterHelper.SaveDeviceTrafficDetailToDatabaseAsync(mac, yesterday, trafficDetailData);
+                        detailSuccessCount++;
+                    }
+                    
+                    // 如果两种数据都成功采集，计为成功
+                    if (trafficData.Count > 0 || trafficDetailData.Count > 0)
+                    {
                         successCount++;
-                        logger.LogInformation($"设备 {mac} 流量数据保存成功，共 {savedCount} 条记录");
                     }
                     else
                     {
-                        logger.LogWarning($"设备 {mac} 未返回流量数据");
                         failedCount++;
                     }
                     
@@ -740,24 +755,12 @@ public class HangFireHelper(
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, $"获取设备 {mac} 流量数据失败");
                     failedCount++;
                 }
             }
-            
-            var message = $"设备流量统计完成\n" +
-                         $"统计日期: {yesterday:yyyy-MM-dd}\n" +
-                         $"总设备数: {totalDevices}\n" +
-                         $"成功: {successCount}\n" +
-                         $"失败: {failedCount}";
-            
-            logger.LogInformation(message);
-            pushMessageHelper.Push("设备流量统计", message, PushMessageHelper.PushIcon.Network);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "设备流量统计任务异常");
-            pushMessageHelper.Push("设备流量统计异常", ex.Message, PushMessageHelper.PushIcon.Alert);
         }
     }
 

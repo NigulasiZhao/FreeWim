@@ -225,4 +225,238 @@ public class AsusRouterController : Controller
             });
         }
     }
+
+    [Tags("华硕")]
+    [EndpointSummary("获取设备小时级流量数据（调用路由器接口）")]
+    [HttpGet]
+    public async Task<ActionResult> GetDeviceHourlyTraffic(string mac, string date)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(mac))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "MAC地址不能为空"
+                });
+            }
+
+            if (string.IsNullOrEmpty(date))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "日期不能为空，格式: yyyy-MM-dd"
+                });
+            }
+
+            if (!DateTime.TryParse(date, out var queryDate))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "日期格式错误，请使用 yyyy-MM-dd 格式"
+                });
+            }
+
+            // 转换为Unix时间戳（秒级）
+            var dateTimestamp = new DateTimeOffset(queryDate.Date).ToUnixTimeSeconds();
+
+            _logger.LogInformation($"开始获取设备 {mac} 在 {date} 的小时级流量数据...");
+
+            // 调用路由器接口获取小时级流量数据
+            var trafficData = await _asusRouterHelper.GetDeviceTrafficAsync(mac, dateTimestamp, "hour", 24);
+
+            if (trafficData == null || trafficData.Count == 0)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = $"未获取到设备 {mac} 在 {date} 的流量数据，可能设备不存在或该日期无数据"
+                });
+            }
+
+            // 计算总流量
+            var totalUpload = trafficData.Sum(t => t.Upload);
+            var totalDownload = trafficData.Sum(t => t.Download);
+
+            // 格式化字节数
+            var formatBytes = (long bytes) =>
+            {
+                string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+                double len = bytes;
+                int order = 0;
+                while (len >= 1024 && order < sizes.Length - 1)
+                {
+                    order++;
+                    len = len / 1024;
+                }
+                return $"{len:0.##} {sizes[order]}";
+            };
+
+            _logger.LogInformation($"成功获取设备 {mac} 的流量数据，共 {trafficData.Count} 小时");
+
+            return Json(new
+            {
+                success = true,
+                message = "获取成功",
+                data = new
+                {
+                    mac = mac,
+                    date = date,
+                    totalUpload = totalUpload,
+                    totalDownload = totalDownload,
+                    totalUploadFormatted = formatBytes(totalUpload),
+                    totalDownloadFormatted = formatBytes(totalDownload),
+                    hourlyData = trafficData.Select((t, index) => new
+                    {
+                        hour = index,
+                        timeRange = $"{index:D2}:00 - {(index + 1):D2}:00",
+                        uploadBytes = t.Upload,
+                        downloadBytes = t.Download,
+                        uploadFormatted = formatBytes(t.Upload),
+                        downloadFormatted = formatBytes(t.Download)
+                    }).ToList()
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"获取设备小时级流量数据失败，MAC: {mac}, Date: {date}");
+            return Json(new
+            {
+                success = false,
+                message = $"获取失败: {ex.Message}"
+            });
+        }
+    }
+
+    [Tags("华硕")]
+    [EndpointSummary("获取设备详细流量数据（按应用/协议分类，调用路由器接口）")]
+    [HttpGet]
+    public async Task<ActionResult> GetDeviceDetailTraffic(string mac, string date)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(mac))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "MAC地址不能为空"
+                });
+            }
+
+            if (string.IsNullOrEmpty(date))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "日期不能为空，格式: yyyy-MM-dd"
+                });
+            }
+
+            if (!DateTime.TryParse(date, out var queryDate))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "日期格式错误，请使用 yyyy-MM-dd 格式"
+                });
+            }
+
+            // 转换为Unix时间戳（秒级）
+            var dateTimestamp = new DateTimeOffset(queryDate.Date).ToUnixTimeSeconds();
+
+            _logger.LogInformation($"开始获取设备 {mac} 在 {date} 的详细流量数据...");
+
+            // 调用路由器接口获取详细流量数据
+            var trafficDetailData = await _asusRouterHelper.GetDeviceTrafficDetailAsync(mac, dateTimestamp, "detail", 24);
+
+            if (trafficDetailData == null || trafficDetailData.Count == 0)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = $"未获取到设备 {mac} 在 {date} 的详细流量数据，可能设备不存在或该日期无数据"
+                });
+            }
+
+            // 计算总流量
+            var totalUpload = trafficDetailData.Sum(t => t.Upload);
+            var totalDownload = trafficDetailData.Sum(t => t.Download);
+
+            // 格式化字节数
+            var formatBytes = (long bytes) =>
+            {
+                string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+                double len = bytes;
+                int order = 0;
+                while (len >= 1024 && order < sizes.Length - 1)
+                {
+                    order++;
+                    len = len / 1024;
+                }
+                return $"{len:0.##} {sizes[order]}";
+            };
+
+            // 计算流量占比
+            var calculatePercentage = (long bytes, long total) =>
+            {
+                if (total == 0) return 0.0;
+                return Math.Round((double)bytes / total * 100, 2);
+            };
+
+            // 按下载量降序排列
+            var sortedData = trafficDetailData.OrderByDescending(t => t.Download).ToList();
+
+            _logger.LogInformation($"成功获取设备 {mac} 的详细流量数据，共 {trafficDetailData.Count} 个应用/协议");
+
+            return Json(new
+            {
+                success = true,
+                message = "获取成功",
+                data = new
+                {
+                    mac = mac,
+                    date = date,
+                    totalUpload = totalUpload,
+                    totalDownload = totalDownload,
+                    totalUploadFormatted = formatBytes(totalUpload),
+                    totalDownloadFormatted = formatBytes(totalDownload),
+                    appCount = sortedData.Count,
+                    topApps = sortedData.Take(10).Select(t => new
+                    {
+                        appName = t.AppName,
+                        uploadBytes = t.Upload,
+                        downloadBytes = t.Download,
+                        uploadFormatted = formatBytes(t.Upload),
+                        downloadFormatted = formatBytes(t.Download),
+                        uploadPercentage = calculatePercentage(t.Upload, totalUpload),
+                        downloadPercentage = calculatePercentage(t.Download, totalDownload)
+                    }).ToList(),
+                    allApps = sortedData.Select(t => new
+                    {
+                        appName = t.AppName,
+                        uploadBytes = t.Upload,
+                        downloadBytes = t.Download,
+                        uploadFormatted = formatBytes(t.Upload),
+                        downloadFormatted = formatBytes(t.Download),
+                        uploadPercentage = calculatePercentage(t.Upload, totalUpload),
+                        downloadPercentage = calculatePercentage(t.Download, totalDownload)
+                    }).ToList()
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"获取设备详细流量数据失败，MAC: {mac}, Date: {date}");
+            return Json(new
+            {
+                success = false,
+                message = $"获取失败: {ex.Message}"
+            });
+        }
+    }
 }

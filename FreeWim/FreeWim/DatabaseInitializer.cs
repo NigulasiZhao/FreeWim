@@ -488,6 +488,41 @@ $$;
             _dbConnection.Execute(createTableSql);
         }
 
+        // 初始化华硕路由器设备流量详细统计表
+        if (!existingTables.Contains("asusrouterdevicetrafficdetail"))
+        {
+            var createTableSql = @"
+                CREATE TABLE public.asusrouterdevicetrafficdetail (
+                    id varchar(50) NOT NULL,
+                    mac varchar(50) NOT NULL,
+                    statdate timestamp NOT NULL,
+                    appname varchar(200) NOT NULL,
+                    uploadbytes bigint NOT NULL DEFAULT 0,
+                    downloadbytes bigint NOT NULL DEFAULT 0,
+                    createdat timestamp DEFAULT LOCALTIMESTAMP(0) NULL,
+                    updatedat timestamp DEFAULT LOCALTIMESTAMP(0) NULL,
+                    CONSTRAINT asusrouterdevicetrafficdetail_pk PRIMARY KEY (id),
+                    CONSTRAINT asusrouterdevicetrafficdetail_unique UNIQUE (mac, statdate, appname)
+                );
+
+                CREATE INDEX idx_asusrouterdevicetrafficdetail_mac ON public.asusrouterdevicetrafficdetail(mac);
+                CREATE INDEX idx_asusrouterdevicetrafficdetail_statdate ON public.asusrouterdevicetrafficdetail(statdate);
+                CREATE INDEX idx_asusrouterdevicetrafficdetail_mac_statdate ON public.asusrouterdevicetrafficdetail(mac, statdate);
+                CREATE INDEX idx_asusrouterdevicetrafficdetail_appname ON public.asusrouterdevicetrafficdetail(appname);
+
+                COMMENT ON TABLE public.asusrouterdevicetrafficdetail IS '华硕路由器设备流量详细统计表（按应用/协议分类）';
+                COMMENT ON COLUMN public.asusrouterdevicetrafficdetail.id IS '主键ID';
+                COMMENT ON COLUMN public.asusrouterdevicetrafficdetail.mac IS '设备MAC地址';
+                COMMENT ON COLUMN public.asusrouterdevicetrafficdetail.statdate IS '统计日期';
+                COMMENT ON COLUMN public.asusrouterdevicetrafficdetail.appname IS '应用/协议名称';
+                COMMENT ON COLUMN public.asusrouterdevicetrafficdetail.uploadbytes IS '上传字节数';
+                COMMENT ON COLUMN public.asusrouterdevicetrafficdetail.downloadbytes IS '下载字节数';
+                COMMENT ON COLUMN public.asusrouterdevicetrafficdetail.createdat IS '创建时间';
+                COMMENT ON COLUMN public.asusrouterdevicetrafficdetail.updatedat IS '更新时间';
+                ";
+            _dbConnection.Execute(createTableSql);
+        }
+
         _dbConnection.Dispose();
     }
 
