@@ -110,7 +110,7 @@ app.MapScalarApiReference();
 
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
-    Authorization = new[] { new AllowAllDashboardAuthorizationFilter() }
+    Authorization = Array.Empty<Hangfire.Dashboard.IDashboardAuthorizationFilter>()
 });
 app.Services.GetRequiredService<HangFireService>().StartHangFireTask();
 app.UseHttpsRedirection();

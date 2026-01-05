@@ -245,15 +245,20 @@ git clone <repository-url>
 cd FreeWim/FreeWim
 
 # 配置数据库和服务（修改 appsettings.json）
+# 确保 PostgreSQL 数据库已启动并可访问
+
 # 运行项目
 dotnet run
+
+# 或使用 Docker Compose 快速启动
+docker-compose up -d
 ```
 
 ### 项目结构
 
 ```
 FreeWim/
-├── Services/            # 核心服务类（重构后的业务逻辑层）
+├── Services/            # 核心服务类（依赖注入统一管理）
 │   ├── AttendanceService.cs        # 考勤处理服务
 │   ├── ZentaoService.cs            # 禅道集成服务
 │   ├── PmisService.cs              # PMIS 集成服务
@@ -268,7 +273,7 @@ FreeWim/
 │   ├── WorkFlowExecutorService.cs  # 工作流执行服务
 │   ├── YhloWebSocketService.cs     # YHLO WebSocket 实时通信服务
 │   ├── DatabaseInitializerService.cs # 数据库初始化服务
-│   └── HangFireService.cs          # Hangfire 定时任务配置服务
+│   └── HangFireService.cs          # Hangfire 定时任务管理服务
 ├── Utils/               # 工具类
 │   ├── AesHelper.cs                # AES 加密工具
 │   ├── ExcelHelper.cs              # Excel 处理工具
@@ -298,10 +303,9 @@ FreeWim/
 │   ├── WeekOverTime.html           # 加班统计看板
 │   ├── AttendanceApplication.html  # 打卡设置页面
 │   └── Yinuo.html                  # 一诺消息页面
-├── AllowAllDashboardAuthorizationFilter.cs  # Hangfire 授权过滤器
-├── Program.cs                  # 应用入口及服务配置
+├── Program.cs                  # 应用入口及服务配置（包含自动服务注册）
 ├── Dockerfile                  # Docker 镜像构建文件
-└── appsettings.json           # 应用配置文件
+└── appsettings.json           # 应用配置文件（支持环境变量覆盖）
 ```
 
 -----
@@ -312,7 +316,7 @@ FreeWim/
 A: 请检查 Hangfire 管理面板（/hangfire），查看任务状态和错误日志。
 
 **Q: 如何修改任务执行频率？**
-A: 编辑 `HangFireService.cs` 文件中的 Cron 表达式，重新部署即可。
+A: 编辑 `Services/HangFireService.cs` 文件中的 Cron 表达式，重新部署即可。所有定时任务在 `StartHangFireTask()` 方法中统一配置。
 
 **Q: DeepSeek API 调用失败怎么办？**
 A: 检查 `appsettings.json` 中的 LLM 配置，确保 API Key 和 EndPoint 正确。
@@ -324,13 +328,13 @@ A: 确保 PostgreSQL 服务正常运行，Connection 字符串配置正确。
 A: 在 `appsettings.json` 中配置 AsusRouter 节点，填写路由器 IP、管理账号和密码即可。确保路由器启用了 Web 访问功能。
 
 **Q: 服务层重构后有什么变化？**
-A: 原来的 Helper 类已全部重构为 Service 类，采用依赖注入方式统一管理。所有 Service 类会在启动时自动注册，无需手动配置。
+A: 原来的 Helper 类已全部重构为 Service 类，统一迁移到 `Services` 命名空间。所有 Service 类通过 `Program.cs` 自动扫描并注册为单例服务，支持依赖注入，无需手动配置。包括 `DatabaseInitializerService` 和 `HangFireService` 在内的所有服务都已实现自动化管理。
 
 **Q: YHLO WebSocket 服务是做什么的？**
 A: YHLO WebSocket 服务用于维护与YHLO系统的实时连接，支持自动认证、心跳保活、消息推送等功能。系统会每小时检查并初始化连接，每30秒发送一次心跳，确保连接稳定。
 
 **Q: 数据库初始化包含哪些表？**
-A: 系统启动时会自动创建所需的数据库表，包括：考勤记录、禅道任务、加班记录、测速记录、事件信息、Git提交记录、华硕路由器设备及流量统计等共11张核心表。
+A: 系统启动时会通过 `DatabaseInitializerService` 自动创建所需的数据库表，包括：考勤记录、禅道任务、加班记录、测速记录、事件信息、Git提交记录、华硕路由器设备及流量统计等共11张核心表。初始化过程在应用启动时自动执行。
 
 -----
 
