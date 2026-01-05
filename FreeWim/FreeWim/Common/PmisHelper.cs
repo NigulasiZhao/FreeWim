@@ -525,7 +525,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                     foreach (var jToken in dataArray)
                     {
                         var item = (JObject)jToken;
-                        if (item["fillWeek"]!.ToString() == DateTime.Now.Year + "-" + weekDayInfo.WeekNumber)
+                        if (item["fillWeek"]!.ToString() == DateTime.Now.Year + "-" + weekDayInfo.WeekNumber.ToString().PadLeft(2, '0'))
                         {
                             repeat = true;
                             break;
@@ -614,20 +614,20 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
     {
         var currentDate = DateTime.Now;
         var ci = new CultureInfo("zh-CN");
-        
+
         // 计算本周的开始日期（周一）
         var dayOfWeek = (int)currentDate.DayOfWeek;
         // 处理周日的特殊情况：周日的DayOfWeek是0，需要退回到本周一
         var daysFromMonday = dayOfWeek == 0 ? -6 : -(dayOfWeek - 1);
         var startOfWeek = currentDate.AddDays(daysFromMonday); // 周一
         var endOfWeek = startOfWeek.AddDays(6); // 周日
-        
+
         // 使用本周的周四来计算周数，确保整周使用统一的周数
         // 根据ISO 8601标准，周四所在的年份决定了这一周属于哪一年
         // 例如：2025-12-29至2026-01-04这一周，周四是2026-01-01，所以这周是2026年第1周
         var thursday = startOfWeek.AddDays(3); // 周四
         var weekNumber = ci.Calendar.GetWeekOfYear(thursday, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
-        
+
         var info = new WeekDayInfo();
         info.WeekNumber = weekNumber;
         info.StartOfWeek = startOfWeek.ToString("yyyy-MM-dd");

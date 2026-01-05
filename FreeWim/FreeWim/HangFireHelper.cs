@@ -24,7 +24,6 @@ public class HangFireHelper(
     TokenService tokenService,
     IChatClient chatClient,
     WorkFlowExecutor workFlowExecutor,
-    ILogger<HangFireHelper> logger,
     SpeedTestService speedTestService,
     AsusRouterHelper asusRouterHelper)
 {
@@ -38,10 +37,10 @@ public class HangFireHelper(
         using (var connection = JobStorage.Current.GetConnection())
         {
             var recurringJobs = connection.GetRecurringJobs();
-
+        
             foreach (var job in recurringJobs) RecurringJob.RemoveIfExists(job.Id);
         }
-
+        
         RecurringJob.AddOrUpdate("考勤同步", () => AttendanceRecord(), "5,35 * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("Keep数据同步", () => KeepRecord(), "0 0 */3 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("高危人员打卡预警", () => CheckInWarning(), "0 0/5 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
@@ -55,11 +54,11 @@ public class HangFireHelper(
         RecurringJob.AddOrUpdate("一诺自动聊天", () => AutomaticallySendMessage(), "0 0/10 * * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("网络测速", () => DailySpeedTest(), "0 0 1 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         RecurringJob.AddOrUpdate("网络异常提醒", () => SpeedAbnormalAlert(), "0 0 10 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-
+        
         if (!string.IsNullOrEmpty(configuration.GetValue<string>("AsusRouter:RouterIp")))
         {
             RecurringJob.AddOrUpdate("路由器设备同步", () => SyncRouterDevices(), "0 0 1 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
-            RecurringJob.AddOrUpdate("设备流量统计", () => SyncDeviceTraffic(), "0 0 1 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+            RecurringJob.AddOrUpdate("设备流量统计", () => SyncDeviceTraffic(), "0 0 2 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         }
     }
 
@@ -694,7 +693,7 @@ public class HangFireHelper(
         try
         {
             // 获取前一天的日期
-            var yesterday = DateTime.Now.AddDays(-1).Date;
+            var yesterday = DateTime.Now.Date;
             var dateTimestamp = new DateTimeOffset(yesterday).ToUnixTimeSeconds();
             
             IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
@@ -719,13 +718,18 @@ public class HangFireHelper(
             {
                 try
                 {
-                    // 1. 获取小时级流量数据 (mode=hour)
+                    //1. 获取小时级流量数据 (mode=hour)
                     var trafficData = await asusRouterHelper.GetDeviceTrafficAsync(mac, dateTimestamp, "hour", 24);
                     
                     if (trafficData.Count > 0)
                     {
-                        var savedCount = await asusRouterHelper.SaveDeviceTrafficToDatabaseAsync(mac, yesterday, trafficData);
-                        hourlySuccessCount++;
+                        // 检查是否有有效流量数据（上传+下载总和大于0）
+                        var hasValidData = trafficData.Any(t => t.Upload > 0 || t.Download > 0);
+                        if (hasValidData)
+                        {
+                            var savedCount = await asusRouterHelper.SaveDeviceTrafficToDatabaseAsync(mac, yesterday, trafficData);
+                            hourlySuccessCount++;
+                        }
                     }
                     
                     // 稍微延迟，避免请求过于频繁
@@ -736,19 +740,24 @@ public class HangFireHelper(
                     
                     if (trafficDetailData.Count > 0)
                     {
-                        var savedDetailCount = await asusRouterHelper.SaveDeviceTrafficDetailToDatabaseAsync(mac, yesterday, trafficDetailData);
-                        detailSuccessCount++;
+                        // 检查是否有有效流量数据（上传+下载总和大于0）
+                        var hastrafficDetailData = trafficDetailData.Any(t => t.Upload > 0 || t.Download > 0);
+                        if (hastrafficDetailData)
+                        {
+                            var savedDetailCount = await asusRouterHelper.SaveDeviceTrafficDetailToDatabaseAsync(mac, yesterday, trafficDetailData);
+                            detailSuccessCount++;
+                        }
                     }
                     
                     // 如果两种数据都成功采集，计为成功
-                    if (trafficData.Count > 0 || trafficDetailData.Count > 0)
-                    {
-                        successCount++;
-                    }
-                    else
-                    {
-                        failedCount++;
-                    }
+                    // if (trafficData.Count > 0 || trafficDetailData.Count > 0)
+                    // {
+                    //     successCount++;
+                    // }
+                    // else
+                    // {
+                    //     failedCount++;
+                    // }
                     
                     // 防止请求过于频繁，稍微延迟
                     await Task.Delay(1000);

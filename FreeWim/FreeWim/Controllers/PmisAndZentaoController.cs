@@ -307,7 +307,7 @@ public class PmisAndZentaoController(
     public string GetWeekDayInfo()
     {
         var weekInfo = pmisHelper.GetWeekDayInfo();
-        return $"当前日期是本年的第 {weekInfo.WeekNumber} 周;周一：" + weekInfo.StartOfWeek + ";周日:" + weekInfo.EndOfWeek;
+        return $"当前日期是本年的第 {weekInfo.WeekNumber.ToString().PadLeft(2,'0')} 周;周一：" + weekInfo.StartOfWeek + ";周日:" + weekInfo.EndOfWeek;
     }
 
     [Tags("PMIS")]

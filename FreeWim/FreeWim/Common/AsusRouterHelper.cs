@@ -41,7 +41,7 @@ public class AsusRouterHelper
             var url = $"{baseUrl}/update_clients.asp?_={timestamp}";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            
+
             // 设置请求头
             request.Headers.TryAddWithoutValidation("Accept", "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01");
             request.Headers.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
@@ -49,7 +49,7 @@ public class AsusRouterHelper
             request.Headers.TryAddWithoutValidation("Referer", $"{baseUrl}/device-map/clients.asp");
             request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0");
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
-            
+
             // 设置Cookie
             var token = _tokenService.GetAsusRouterTokenAsync();
             var cookie = $"hwaddr=7C:10:C9:E8:6D:C8; apps_last=; bw_rtab=WIRED; maxBandwidth=100; asus_token={token}; clickedItem_tab=0";
@@ -57,10 +57,10 @@ public class AsusRouterHelper
 
             var response = await _httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
-            
+
             var content = await response.Content.ReadAsStringAsync();
             _logger.LogInformation($"成功获取路由器设备信息，内容长度: {content.Length}");
-            
+
             return ParseResponse(content);
         }
         catch (Exception ex)
@@ -76,7 +76,7 @@ public class AsusRouterHelper
     public async Task<int> SaveDevicesToDatabaseAsync(AsusRouterResponse response)
     {
         using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
-        
+
         try
         {
             var now = DateTime.Now;
@@ -110,7 +110,7 @@ public class AsusRouterHelper
                             ameshbindmac = @AmeshBindMac, ameshbindband = @AmeshBindBand,
                             datasource = @DataSource, updatedat = @UpdatedAt
                         WHERE mac = @Mac";
-                    
+
                     device.UpdatedAt = now;
                     await dbConnection.ExecuteAsync(updateSql, device);
                 }
@@ -135,13 +135,13 @@ public class AsusRouterHelper
                             @OsType, @AmeshIsRe, @AmeshBindMac, @AmeshBindBand, @DataSource,
                             @CreatedAt, @UpdatedAt
                         )";
-                    
+
                     device.Id = Guid.NewGuid().ToString();
                     device.CreatedAt = now;
                     device.UpdatedAt = now;
                     await dbConnection.ExecuteAsync(insertSql, device);
                 }
-                
+
                 savedCount++;
             }
 
@@ -184,19 +184,19 @@ public class AsusRouterHelper
             }
 
             response.Devices = allDevices;
-            
+
             _logger.LogInformation($"解析完成: 总设备数={allDevices.Count}, networkmapd={response.FromNetworkmapCount}, nmpClient={response.FromNmpClientCount}");
             return response;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, $"解析响应数据失败: {ex.Message}");
-            
+
             // 记录原始响应内容的前几行以便调试
             var lines = responseContent.Split('\n');
             var previewLines = string.Join("\n", lines.Take(10));
             _logger.LogError($"响应内容前10行:\n{previewLines}");
-            
+
             throw new Exception($"解析响应数据失败: {ex.Message}", ex);
         }
     }
@@ -211,7 +211,7 @@ public class AsusRouterHelper
             // 查找属性名开始位置: propertyName : [
             var searchPattern = $"{propertyName} : [";
             var startIndex = responseContent.IndexOf(searchPattern);
-            
+
             if (startIndex == -1)
             {
                 _logger.LogWarning($"未找到属性 {propertyName}");
@@ -225,7 +225,7 @@ public class AsusRouterHelper
             // 查找匹配的 ]
             int bracketCount = 0;
             int endIndex = startIndex;
-            
+
             for (int i = startIndex; i < responseContent.Length; i++)
             {
                 if (responseContent[i] == '[')
@@ -245,7 +245,7 @@ public class AsusRouterHelper
 
             var arrayContent = responseContent.Substring(startIndex, endIndex - startIndex + 1);
             _logger.LogDebug($"提取的 {propertyName} 数组长度: {arrayContent.Length}");
-            
+
             return arrayContent;
         }
         catch (Exception ex)
@@ -261,18 +261,18 @@ public class AsusRouterHelper
     private List<AsusRouterDevice> ParseDeviceArray(string arrayJson, string dataSource)
     {
         var devices = new List<AsusRouterDevice>();
-        
+
         try
         {
             var arrayElement = JsonDocument.Parse(arrayJson).RootElement;
-            
+
             if (arrayElement.ValueKind != JsonValueKind.Array || arrayElement.GetArrayLength() == 0)
             {
                 return devices;
             }
 
             var element = arrayElement[0];
-            
+
             // 获取MAC地址列表
             if (element.TryGetProperty("maclist", out var macList) && macList.ValueKind == JsonValueKind.Array)
             {
@@ -286,7 +286,7 @@ public class AsusRouterHelper
                     }
                 }
             }
-            
+
             // 获取ClientAPILevel（如果有）
             if (element.TryGetProperty("ClientAPILevel", out var apiLevel))
             {
@@ -362,6 +362,7 @@ public class AsusRouterHelper
         {
             return prop.ValueKind == JsonValueKind.String ? prop.GetString() : prop.ToString();
         }
+
         return null;
     }
 
@@ -377,6 +378,7 @@ public class AsusRouterHelper
                 return value;
             }
         }
+
         return null;
     }
 
@@ -398,7 +400,7 @@ public class AsusRouterHelper
             var url = $"{baseUrl}/getWanTraffic.asp?client={encodedMac}&mode={mode}&dura={dura}&date={date}&_={timestamp}";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            
+
             // 设置请求头
             request.Headers.TryAddWithoutValidation("Accept", "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01");
             request.Headers.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
@@ -406,7 +408,7 @@ public class AsusRouterHelper
             request.Headers.TryAddWithoutValidation("Referer", $"{baseUrl}/TrafficAnalyzer_Statistic.asp");
             request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0");
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
-            
+
             // 设置Cookie
             var token = _tokenService.GetAsusRouterTokenAsync();
             var cookie = $"hwaddr=7C:10:C9:E8:6D:C8; apps_last=; bw_rtab=WIRED; maxBandwidth=100; ASUS_TrafficMonitor_unit=1; ASUS_Traffic_unit=2; asus_token={token}; clickedItem_tab=7";
@@ -414,10 +416,10 @@ public class AsusRouterHelper
 
             var response = await _httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
-            
+
             var content = await response.Content.ReadAsStringAsync();
             _logger.LogInformation($"成功获取设备 {mac} 的流量数据，内容长度: {content.Length}");
-            
+
             return ParseTrafficResponse(content);
         }
         catch (Exception ex)
@@ -434,13 +436,13 @@ public class AsusRouterHelper
     private List<(long Upload, long Download)> ParseTrafficResponse(string responseContent)
     {
         var result = new List<(long Upload, long Download)>();
-        
+
         try
         {
             // 查找 array_statistics = 开始位置
             var startPattern = "array_statistics = [";
             var startIndex = responseContent.IndexOf(startPattern);
-            
+
             if (startIndex == -1)
             {
                 _logger.LogWarning("未找到 array_statistics 数据");
@@ -454,7 +456,7 @@ public class AsusRouterHelper
             // 查找匹配的 ]
             int bracketCount = 0;
             int endIndex = startIndex;
-            
+
             for (int i = startIndex; i < responseContent.Length; i++)
             {
                 if (responseContent[i] == '[')
@@ -474,10 +476,10 @@ public class AsusRouterHelper
 
             var arrayContent = responseContent.Substring(startIndex, endIndex - startIndex + 1);
             _logger.LogDebug($"提取的流量数组: {arrayContent}");
-            
+
             // 使用 JSON 解析数组
             var arrayElement = JsonDocument.Parse(arrayContent).RootElement;
-            
+
             if (arrayElement.ValueKind == JsonValueKind.Array)
             {
                 foreach (var item in arrayElement.EnumerateArray())
@@ -490,7 +492,7 @@ public class AsusRouterHelper
                     }
                 }
             }
-            
+
             _logger.LogInformation($"解析流量数据完成，共 {result.Count} 条记录");
             return result;
         }
@@ -502,7 +504,7 @@ public class AsusRouterHelper
     }
 
     /// <summary>
-    /// 保存设备流量统计数据到数据库
+    /// 保存设备流量统计数据到数据库（批量插入）
     /// </summary>
     /// <param name="mac">设备MAC地址</param>
     /// <param name="statDate">统计日期</param>
@@ -514,74 +516,45 @@ public class AsusRouterHelper
         try
         {
             var now = DateTime.Now;
-            var savedCount = 0;
-
+            
             // 确保只处理24小时数据
             var maxHours = Math.Min(trafficData.Count, 24);
             
+            // 构建批量插入的参数列表
+            var batchInsertParams = new List<object>();
             for (int hour = 0; hour < maxHours; hour++)
             {
                 var traffic = trafficData[hour];
-                
-                // 检查该记录是否已存在
-                var exists = await dbConnection.QueryFirstOrDefaultAsync<int>(
-                    "SELECT COUNT(1) FROM asusrouterdevicetraffic WHERE mac = @Mac AND statdate = @StatDate AND hour = @Hour",
-                    new { Mac = mac, StatDate = statDate.Date, Hour = hour }
-                );
-
-                if (exists > 0)
+                batchInsertParams.Add(new
                 {
-                    // 更新现有记录
-                    var updateSql = @"
-                        UPDATE asusrouterdevicetraffic SET
-                            uploadbytes = @UploadBytes,
-                            downloadbytes = @DownloadBytes,
-                            updatedat = @UpdatedAt
-                        WHERE mac = @Mac AND statdate = @StatDate AND hour = @Hour";
-                    
-                    await dbConnection.ExecuteAsync(updateSql, new
-                    {
-                        Mac = mac,
-                        StatDate = statDate.Date,
-                        Hour = hour,
-                        UploadBytes = traffic.Upload,
-                        DownloadBytes = traffic.Download,
-                        UpdatedAt = now
-                    });
-                }
-                else
-                {
-                    // 插入新记录
-                    var insertSql = @"
-                        INSERT INTO asusrouterdevicetraffic (
-                            id, mac, statdate, hour, uploadbytes, downloadbytes, createdat, updatedat
-                        ) VALUES (
-                            @Id, @Mac, @StatDate, @Hour, @UploadBytes, @DownloadBytes, @CreatedAt, @UpdatedAt
-                        )";
-                    
-                    await dbConnection.ExecuteAsync(insertSql, new
-                    {
-                        Id = Guid.NewGuid().ToString(),
-                        Mac = mac,
-                        StatDate = statDate.Date,
-                        Hour = hour,
-                        UploadBytes = traffic.Upload,
-                        DownloadBytes = traffic.Download,
-                        CreatedAt = now,
-                        UpdatedAt = now
-                    });
-                }
-                
-                savedCount++;
+                    Id = Guid.NewGuid().ToString(),
+                    Mac = mac,
+                    StatDate = statDate.Date,
+                    Hour = hour,
+                    UploadBytes = traffic.Upload,
+                    DownloadBytes = traffic.Download,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
             }
 
-            _logger.LogInformation($"成功保存设备 {mac} 在 {statDate:yyyy-MM-dd} 的 {savedCount} 小时流量数据到数据库");
+            // 批量插入
+            var insertSql = @"
+                INSERT INTO asusrouterdevicetraffic (
+                    id, mac, statdate, hour, uploadbytes, downloadbytes, createdat, updatedat
+                ) VALUES (
+                    @Id, @Mac, @StatDate, @Hour, @UploadBytes, @DownloadBytes, @CreatedAt, @UpdatedAt
+                )";
+            
+            var savedCount = await dbConnection.ExecuteAsync(insertSql, batchInsertParams);
+
+            _logger.LogInformation($"成功批量保存设备 {mac} 在 {statDate:yyyy-MM-dd} 的 {savedCount} 小时流量数据到数据库");
             return savedCount;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"保存设备 {mac} 流量数据到数据库失败");
-            throw new Exception($"保存流量数据到数据库失败: {ex.Message}", ex);
+            _logger.LogError(ex, $"批量保存设备 {mac} 流量数据到数据库失败");
+            throw new Exception($"批量保存流量数据到数据库失败: {ex.Message}", ex);
         }
     }
 
@@ -603,7 +576,7 @@ public class AsusRouterHelper
             var url = $"{baseUrl}/getWanTraffic.asp?client={encodedMac}&mode={mode}&dura={dura}&date={date}&_={timestamp}";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            
+
             // 设置请求头
             request.Headers.TryAddWithoutValidation("Accept", "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01");
             request.Headers.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
@@ -611,7 +584,7 @@ public class AsusRouterHelper
             request.Headers.TryAddWithoutValidation("Referer", $"{baseUrl}/TrafficAnalyzer_Statistic.asp");
             request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0");
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
-            
+
             // 设置Cookie
             var token = _tokenService.GetAsusRouterTokenAsync();
             var cookie = $"hwaddr=7C:10:C9:E8:6D:C8; apps_last=; bw_rtab=WIRED; maxBandwidth=100; ASUS_TrafficMonitor_unit=1; ASUS_Traffic_unit=2; asus_token={token}; clickedItem_tab=7";
@@ -619,10 +592,10 @@ public class AsusRouterHelper
 
             var response = await _httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
-            
+
             var content = await response.Content.ReadAsStringAsync();
             _logger.LogInformation($"成功获取设备 {mac} 的详细流量数据，内容长度: {content.Length}");
-            
+
             return ParseTrafficDetailResponse(content);
         }
         catch (Exception ex)
@@ -639,13 +612,13 @@ public class AsusRouterHelper
     private List<(string AppName, long Upload, long Download)> ParseTrafficDetailResponse(string responseContent)
     {
         var result = new List<(string AppName, long Upload, long Download)>();
-        
+
         try
         {
             // 查找 array_statistics = 开始位置
             var startPattern = "array_statistics = [";
             var startIndex = responseContent.IndexOf(startPattern);
-            
+
             if (startIndex == -1)
             {
                 _logger.LogWarning("未找到 array_statistics 数据");
@@ -659,7 +632,7 @@ public class AsusRouterHelper
             // 查找匹配的 ]
             int bracketCount = 0;
             int endIndex = startIndex;
-            
+
             for (int i = startIndex; i < responseContent.Length; i++)
             {
                 if (responseContent[i] == '[')
@@ -679,10 +652,10 @@ public class AsusRouterHelper
 
             var arrayContent = responseContent.Substring(startIndex, endIndex - startIndex + 1);
             _logger.LogDebug($"提取的详细流量数组: {arrayContent}");
-            
+
             // 使用 JSON 解析数组
             var arrayElement = JsonDocument.Parse(arrayContent).RootElement;
-            
+
             if (arrayElement.ValueKind == JsonValueKind.Array)
             {
                 foreach (var item in arrayElement.EnumerateArray())
@@ -696,7 +669,7 @@ public class AsusRouterHelper
                     }
                 }
             }
-            
+
             _logger.LogInformation($"解析详细流量数据完成，共 {result.Count} 条记录");
             return result;
         }
@@ -716,7 +689,7 @@ public class AsusRouterHelper
     public async Task<int> SaveDeviceTrafficDetailToDatabaseAsync(string mac, DateTime statDate, List<(string AppName, long Upload, long Download)> trafficDetailData)
     {
         using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
-        
+
         try
         {
             var now = DateTime.Now;
@@ -739,7 +712,7 @@ public class AsusRouterHelper
                             downloadbytes = @DownloadBytes,
                             updatedat = @UpdatedAt
                         WHERE mac = @Mac AND statdate = @StatDate AND appname = @AppName";
-                    
+
                     await dbConnection.ExecuteAsync(updateSql, new
                     {
                         Mac = mac,
@@ -759,7 +732,7 @@ public class AsusRouterHelper
                         ) VALUES (
                             @Id, @Mac, @StatDate, @AppName, @UploadBytes, @DownloadBytes, @CreatedAt, @UpdatedAt
                         )";
-                    
+
                     await dbConnection.ExecuteAsync(insertSql, new
                     {
                         Id = Guid.NewGuid().ToString(),
@@ -772,7 +745,7 @@ public class AsusRouterHelper
                         UpdatedAt = now
                     });
                 }
-                
+
                 savedCount++;
             }
 

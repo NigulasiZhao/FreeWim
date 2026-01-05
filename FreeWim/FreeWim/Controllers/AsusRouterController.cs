@@ -1,14 +1,8 @@
-using System;
-using System.Collections.Generic;
 using System.Data;
-using System.Diagnostics;
-using System.Linq;
-using System.Threading.Tasks;
 using Dapper;
 using FreeWim.Common;
 using FreeWim.Models.AsusRouter;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using Npgsql;
 
 namespace FreeWim.Controllers;
@@ -50,14 +44,7 @@ public class AsusRouterController : Controller
     {
         try
         {
-            _logger.LogInformation("开始获取网络设备列表...");
             var devices = await _asusRouterHelper.GetNetworkDevicesAsync();
-
-            _logger.LogInformation($"总设备数: {devices.Devices.Count}");
-            _logger.LogInformation($"在线设备: {devices.GetOnlineDevices().Count}");
-            _logger.LogInformation($"无线设备: {devices.GetWirelessDevices().Count}");
-            _logger.LogInformation($"networkmapd设备: {devices.FromNetworkmapCount}");
-            _logger.LogInformation($"nmpClient设备: {devices.FromNmpClientCount}");
 
             return Json(new
             {
@@ -79,7 +66,6 @@ public class AsusRouterController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "获取网络设备列表失败");
             return Json(new
             {
                 success = false,
@@ -95,17 +81,11 @@ public class AsusRouterController : Controller
     {
         try
         {
-            _logger.LogInformation("开始同步网络设备列表到数据库...");
-            
             // 1. 获取设备信息
             var devices = await _asusRouterHelper.GetNetworkDevicesAsync();
-            
-            _logger.LogInformation($"获取到 {devices.Devices.Count} 个设备");
 
             // 2. 保存到数据库
             var savedCount = await _asusRouterHelper.SaveDevicesToDatabaseAsync(devices);
-
-            _logger.LogInformation($"成功同步 {savedCount} 个设备到数据库");
 
             return Json(new
             {
@@ -114,7 +94,7 @@ public class AsusRouterController : Controller
                 data = new
                 {
                     totalCount = devices.Devices.Count,
-                    savedCount = savedCount,
+                    savedCount,
                     onlineCount = devices.GetOnlineDevices().Count,
                     wirelessCount = devices.GetWirelessDevices().Count,
                     fromNetworkmapCount = devices.FromNetworkmapCount,
@@ -124,7 +104,6 @@ public class AsusRouterController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "同步网络设备列表失败");
             return Json(new
             {
                 success = false,
@@ -141,7 +120,7 @@ public class AsusRouterController : Controller
         try
         {
             using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
-            
+
             var devices = await dbConnection.QueryAsync<AsusRouterDevice>(
                 "SELECT * FROM asusrouterdevice ORDER BY updatedat DESC"
             );
@@ -160,14 +139,13 @@ public class AsusRouterController : Controller
                     onlineCount = onlineDevices.Count,
                     offlineCount = offlineDevices.Count,
                     devices = deviceList,
-                    onlineDevices = onlineDevices,
-                    offlineDevices = offlineDevices
+                    onlineDevices,
+                    offlineDevices
                 }
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "查询数据库设备信息失败");
             return Json(new
             {
                 success = false,
@@ -193,7 +171,7 @@ public class AsusRouterController : Controller
             }
 
             using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
-            
+
             var device = await dbConnection.QueryFirstOrDefaultAsync<AsusRouterDevice>(
                 "SELECT * FROM asusrouterdevice WHERE mac = @Mac",
                 new { Mac = mac }
@@ -217,7 +195,6 @@ public class AsusRouterController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"查询设备信息失败，MAC: {mac}");
             return Json(new
             {
                 success = false,
@@ -263,12 +240,10 @@ public class AsusRouterController : Controller
             // 转换为Unix时间戳（秒级）
             var dateTimestamp = new DateTimeOffset(queryDate.Date).ToUnixTimeSeconds();
 
-            _logger.LogInformation($"开始获取设备 {mac} 在 {date} 的小时级流量数据...");
-
             // 调用路由器接口获取小时级流量数据
-            var trafficData = await _asusRouterHelper.GetDeviceTrafficAsync(mac, dateTimestamp, "hour", 24);
+            var trafficData = await _asusRouterHelper.GetDeviceTrafficAsync(mac, dateTimestamp);
 
-            if (trafficData == null || trafficData.Count == 0)
+            if (trafficData.Count == 0)
             {
                 return Json(new
                 {
@@ -281,49 +256,32 @@ public class AsusRouterController : Controller
             var totalUpload = trafficData.Sum(t => t.Upload);
             var totalDownload = trafficData.Sum(t => t.Download);
 
-            // 格式化字节数
-            var formatBytes = (long bytes) =>
-            {
-                string[] sizes = { "B", "KB", "MB", "GB", "TB" };
-                double len = bytes;
-                int order = 0;
-                while (len >= 1024 && order < sizes.Length - 1)
-                {
-                    order++;
-                    len = len / 1024;
-                }
-                return $"{len:0.##} {sizes[order]}";
-            };
-
-            _logger.LogInformation($"成功获取设备 {mac} 的流量数据，共 {trafficData.Count} 小时");
-
             return Json(new
             {
                 success = true,
                 message = "获取成功",
                 data = new
                 {
-                    mac = mac,
-                    date = date,
-                    totalUpload = totalUpload,
-                    totalDownload = totalDownload,
-                    totalUploadFormatted = formatBytes(totalUpload),
-                    totalDownloadFormatted = formatBytes(totalDownload),
+                    mac,
+                    date,
+                    totalUpload,
+                    totalDownload,
+                    totalUploadFormatted = totalUpload / 1073741824,
+                    totalDownloadFormatted = totalDownload / 1073741824,
                     hourlyData = trafficData.Select((t, index) => new
                     {
                         hour = index,
                         timeRange = $"{index:D2}:00 - {(index + 1):D2}:00",
                         uploadBytes = t.Upload,
                         downloadBytes = t.Download,
-                        uploadFormatted = formatBytes(t.Upload),
-                        downloadFormatted = formatBytes(t.Download)
+                        uploadFormatted = t.Upload / 1073741824,
+                        downloadFormatted = t.Download / 1073741824
                     }).ToList()
                 }
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"获取设备小时级流量数据失败，MAC: {mac}, Date: {date}");
             return Json(new
             {
                 success = false,
@@ -369,12 +327,10 @@ public class AsusRouterController : Controller
             // 转换为Unix时间戳（秒级）
             var dateTimestamp = new DateTimeOffset(queryDate.Date).ToUnixTimeSeconds();
 
-            _logger.LogInformation($"开始获取设备 {mac} 在 {date} 的详细流量数据...");
-
             // 调用路由器接口获取详细流量数据
             var trafficDetailData = await _asusRouterHelper.GetDeviceTrafficDetailAsync(mac, dateTimestamp, "detail", 24);
 
-            if (trafficDetailData == null || trafficDetailData.Count == 0)
+            if (trafficDetailData.Count == 0)
             {
                 return Json(new
                 {
@@ -387,31 +343,15 @@ public class AsusRouterController : Controller
             var totalUpload = trafficDetailData.Sum(t => t.Upload);
             var totalDownload = trafficDetailData.Sum(t => t.Download);
 
-            // 格式化字节数
-            var formatBytes = (long bytes) =>
-            {
-                string[] sizes = { "B", "KB", "MB", "GB", "TB" };
-                double len = bytes;
-                int order = 0;
-                while (len >= 1024 && order < sizes.Length - 1)
-                {
-                    order++;
-                    len = len / 1024;
-                }
-                return $"{len:0.##} {sizes[order]}";
-            };
-
             // 计算流量占比
-            var calculatePercentage = (long bytes, long total) =>
+            double CalculatePercentage(long bytes, long total)
             {
                 if (total == 0) return 0.0;
                 return Math.Round((double)bytes / total * 100, 2);
-            };
+            }
 
             // 按下载量降序排列
             var sortedData = trafficDetailData.OrderByDescending(t => t.Download).ToList();
-
-            _logger.LogInformation($"成功获取设备 {mac} 的详细流量数据，共 {trafficDetailData.Count} 个应用/协议");
 
             return Json(new
             {
@@ -419,39 +359,38 @@ public class AsusRouterController : Controller
                 message = "获取成功",
                 data = new
                 {
-                    mac = mac,
-                    date = date,
-                    totalUpload = totalUpload,
-                    totalDownload = totalDownload,
-                    totalUploadFormatted = formatBytes(totalUpload),
-                    totalDownloadFormatted = formatBytes(totalDownload),
+                    mac,
+                    date,
+                    totalUpload,
+                    totalDownload,
+                    totalUploadFormatted = totalUpload / 1073741824,
+                    totalDownloadFormatted = totalDownload / 1073741824,
                     appCount = sortedData.Count,
                     topApps = sortedData.Take(10).Select(t => new
                     {
                         appName = t.AppName,
                         uploadBytes = t.Upload,
                         downloadBytes = t.Download,
-                        uploadFormatted = formatBytes(t.Upload),
-                        downloadFormatted = formatBytes(t.Download),
-                        uploadPercentage = calculatePercentage(t.Upload, totalUpload),
-                        downloadPercentage = calculatePercentage(t.Download, totalDownload)
+                        uploadFormatted = t.Upload / 1073741824,
+                        downloadFormatted = t.Download / 1073741824,
+                        uploadPercentage = CalculatePercentage(t.Upload, totalUpload),
+                        downloadPercentage = CalculatePercentage(t.Download, totalDownload)
                     }).ToList(),
                     allApps = sortedData.Select(t => new
                     {
                         appName = t.AppName,
                         uploadBytes = t.Upload,
                         downloadBytes = t.Download,
-                        uploadFormatted = formatBytes(t.Upload),
-                        downloadFormatted = formatBytes(t.Download),
-                        uploadPercentage = calculatePercentage(t.Upload, totalUpload),
-                        downloadPercentage = calculatePercentage(t.Download, totalDownload)
+                        uploadFormatted = t.Upload / 1073741824,
+                        downloadFormatted = t.Download / 1073741824,
+                        uploadPercentage = CalculatePercentage(t.Upload, totalUpload),
+                        downloadPercentage = CalculatePercentage(t.Download, totalDownload)
                     }).ToList()
                 }
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"获取设备详细流量数据失败，MAC: {mac}, Date: {date}");
             return Json(new
             {
                 success = false,
