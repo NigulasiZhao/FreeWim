@@ -66,8 +66,9 @@ FreeWim 通过一系列自动化任务，覆盖了开发者日常最耗费精力
 | **DeepSeek 余额预警** | 每 2 小时 | 查询 DeepSeek 接口，若余额低于 **¥1.00**，立即推送提醒。 |
 | **网络测速** | 每日 1:00 | 执行网络速度测试，记录上传/下载速度、延迟、抖动等关键指标。 |
 | **网络异常提醒** | 每日 10:00 | 分析网络测速历史数据，检测异常并推送提醒。 |
-| **路由器设备同步** | 每日 1:00 | 同步华硕路由器连接设备列表（需配置路由器 IP）。 |
-| **设备流量统计** | 每日 2:00 | 统计各设备的网络流量使用情况（需配置路由器 IP）。 |
+| **路由器设备同步** | 每日 1:00 | 同步华硕路由器连接设备列表，自动获取和更新设备信息（需配置路由器 IP 和凭据）。 |
+| **设备流量统计** | 每日 2:00 | 统计各设备的实时和历史网络流量，包括上传/下载速率、累计流量等（需配置路由器 IP）。 |
+| **设备流量详情统计** | 每日 2:00 | 记录设备详细流量数据，支持历史趋势分析和流量监控。 |
 | **一诺自动聊天** | 每 10 分钟 | 自动化消息发送功能。 |
 
 -----
@@ -99,13 +100,16 @@ FreeWim 基于现代、高效的技术栈构建，确保稳定、可靠的自动
   * **核心语言：** C# 
   * **任务调度：** Hangfire 1.8.17（确保定时任务的可靠执行）
   * **数据存储：** PostgreSQL（使用 Npgsql 9.0.2）
-  * **人工智能：** DeepSeek AI / OpenAI 兼容接口（使用 Microsoft.Extensions.AI）
-  * **接口集成：** 禅道 API 接口、PMIS 接口、考勤机服务集成、华硕路由器 API
+  * **人工智能：** DeepSeek AI / OpenAI 兼容接口（使用 Microsoft.Extensions.AI.OpenAI）
+  * **身份认证：** JWT (JSON Web Token) 认证机制
+  * **接口集成：** 禅道 API 接口、PMIS 接口、考勤机服务集成、华硕路由器 API、Keep 运动平台 API
   * **消息推送：** Bark, Ntfy, Gotify, Email 等（提供多渠道的实时通知）
+  * **实时通信：** WebSocket（支持实时双向通信）
   * **日志系统：** Serilog（支持控制台和文件滚动日志）
   * **Office 处理：** NPOI 2.7.5（Excel 报表生成）
   * **版本控制：** LibGit2Sharp（Git 仓库操作）
   * **API 文档：** Scalar.AspNetCore（现代化 OpenAPI 文档）
+  * **加密工具：** AES 加密（数据安全保护）
   * **前端技术：** ECharts、Tailwind CSS、Grid.js、Phosphor Icons
 
 -----
@@ -196,9 +200,14 @@ FreeWim 基于现代、高效的技术栈构建，确保稳定、可靠的自动
   
   // 华硕路由器配置（可选）
   "AsusRouter": {
-    "RouterIp": "路由器IP地址",
-    "Username": "路由器管理账号",
+    "RouterIp": "路由器IP地址,示例：192.168.50.1",
+    "Username": "路由器管理账号,示例：admin",
     "Password": "路由器管理密码"
+  },
+  
+  // Keep 运动平台配置（可选）
+  "Keep": {
+    "Token": "Keep 平台访问 Token"
   }
 }
 ```
@@ -242,19 +251,52 @@ dotnet run
 
 ```
 FreeWim/
-├── Common/              # 核心服务类
-│   ├── AttendanceHelper.cs      # 考勤处理
-│   ├── ZentaoHelper.cs          # 禅道集成
-│   ├── PmisHelper.cs            # PMIS 集成
-│   ├── SpeedTestService.cs      # 网络测速
-│   ├── AsusRouterHelper.cs      # 路由器管理
-│   └── ...
+├── Services/            # 核心服务类（重构后的业务逻辑层）
+│   ├── AttendanceService.cs        # 考勤处理服务
+│   ├── ZentaoService.cs            # 禅道集成服务
+│   ├── PmisService.cs              # PMIS 集成服务
+│   ├── SpeedTestService.cs         # 网络测速服务
+│   ├── AsusRouterService.cs        # 华硕路由器管理服务
+│   ├── MessageService.cs           # 消息服务
+│   ├── PushMessageService.cs       # 推送消息服务
+│   ├── TokenService.cs             # Token 管理服务
+│   ├── JwtService.cs               # JWT 认证服务
+│   ├── KeepDataSyncService.cs      # Keep 数据同步服务
+│   ├── DeepSeekMonitorService.cs   # DeepSeek 余额监控服务
+│   ├── WorkFlowExecutorService.cs  # 工作流执行服务
+│   └── YhloWebSocketService.cs     # WebSocket 服务
+├── Utils/               # 工具类
+│   ├── AesHelper.cs                # AES 加密工具
+│   ├── ExcelHelper.cs              # Excel 处理工具
+│   └── HttpRequestHelper.cs        # HTTP 请求工具
 ├── Controllers/         # API 控制器
+│   ├── AttendanceRecordController.cs
+│   ├── PmisAndZentaoController.cs
+│   ├── AsusRouterController.cs
+│   ├── SpeedTestController.cs
+│   ├── GogsController.cs
+│   ├── EventInfoController.cs
+│   └── MiFanController.cs
 ├── Models/             # 数据模型
+│   ├── Attendance/             # 考勤相关模型
+│   ├── PmisAndZentao/          # PMIS 和禅道模型
+│   ├── AsusRouter/             # 路由器相关模型
+│   ├── Gogs/                   # Git 相关模型
+│   ├── Email/                  # 邮件模型
+│   ├── EventInfo/              # 事件模型
+│   └── SpeedRecord.cs          # 测速记录模型
 ├── wwwroot/            # 静态资源和看板页面
-├── HangFireHelper.cs   # 定时任务配置
-├── Program.cs          # 应用入口
-└── appsettings.json    # 配置文件
+│   ├── AttendanceDashBoard.html
+│   ├── DayReportDashBoard.html
+│   ├── NetworkDashboard.html
+│   ├── TrafficMonitoring.html
+│   ├── WorkHours.html
+│   ├── WeekOverTime.html
+│   └── Yinuo.html
+├── DatabaseInitializer.cs      # 数据库初始化
+├── HangFireService.cs          # Hangfire 定时任务配置（重构后）
+├── Program.cs                  # 应用入口
+└── appsettings.json           # 配置文件
 ```
 
 -----
@@ -265,13 +307,19 @@ FreeWim/
 A: 请检查 Hangfire 管理面板（/hangfire），查看任务状态和错误日志。
 
 **Q: 如何修改任务执行频率？**
-A: 编辑 `HangFireHelper.cs` 文件中的 Cron 表达式，重新部署即可。
+A: 编辑 `HangFireService.cs` 文件中的 Cron 表达式，重新部署即可。
 
 **Q: DeepSeek API 调用失败怎么办？**
 A: 检查 `appsettings.json` 中的 LLM 配置，确保 API Key 和 EndPoint 正确。
 
 **Q: 数据库初始化失败？**
 A: 确保 PostgreSQL 服务正常运行，Connection 字符串配置正确。
+
+**Q: 如何配置华硕路由器流量监控？**
+A: 在 `appsettings.json` 中配置 AsusRouter 节点，填写路由器 IP、管理账号和密码即可。确保路由器启用了 Web 访问功能。
+
+**Q: 服务层重构后有什么变化？**
+A: 原来的 Helper 类已全部重构为 Service 类，采用依赖注入方式统一管理。所有 Service 类会在启动时自动注册，无需手动配置。
 
 -----
 
