@@ -68,8 +68,10 @@ FreeWim 通过一系列自动化任务，覆盖了开发者日常最耗费精力
 | **网络异常提醒** | 每日 10:00 | 分析网络测速历史数据，检测异常并推送提醒。 |
 | **路由器设备同步** | 每日 1:00 | 同步华硕路由器连接设备列表，自动获取和更新设备信息（需配置路由器 IP 和凭据）。 |
 | **设备流量统计** | 每日 2:00 | 统计各设备的实时和历史网络流量，包括上传/下载速率、累计流量等（需配置路由器 IP）。 |
-| **设备流量详情统计** | 每日 2:00 | 记录设备详细流量数据，支持历史趋势分析和流量监控。 |
+| **设备流量详情统计** | 每日 2:00 | 记录设备详细流量数据,支持历史趋势分析和流量监控。 |
 | **一诺自动聊天** | 每 10 分钟 | 自动化消息发送功能。 |
+| **YHLO WebSocket连接** | 每小时初始化一次 | 维护与YHLO系统的WebSocket长连接,支持实时通信和数据同步。 |
+| **YHLO WebSocket心跳** | 每 30 秒 | 保持WebSocket连接活跃,防止连接断开。 |
 
 -----
 
@@ -264,7 +266,9 @@ FreeWim/
 │   ├── KeepDataSyncService.cs      # Keep 数据同步服务
 │   ├── DeepSeekMonitorService.cs   # DeepSeek 余额监控服务
 │   ├── WorkFlowExecutorService.cs  # 工作流执行服务
-│   └── YhloWebSocketService.cs     # WebSocket 服务
+│   ├── YhloWebSocketService.cs     # YHLO WebSocket 实时通信服务
+│   ├── DatabaseInitializerService.cs # 数据库初始化服务
+│   └── HangFireService.cs          # Hangfire 定时任务配置服务
 ├── Utils/               # 工具类
 │   ├── AesHelper.cs                # AES 加密工具
 │   ├── ExcelHelper.cs              # Excel 处理工具
@@ -286,17 +290,18 @@ FreeWim/
 │   ├── EventInfo/              # 事件模型
 │   └── SpeedRecord.cs          # 测速记录模型
 ├── wwwroot/            # 静态资源和看板页面
-│   ├── AttendanceDashBoard.html
-│   ├── DayReportDashBoard.html
-│   ├── NetworkDashboard.html
-│   ├── TrafficMonitoring.html
-│   ├── WorkHours.html
-│   ├── WeekOverTime.html
-│   └── Yinuo.html
-├── DatabaseInitializer.cs      # 数据库初始化
-├── HangFireService.cs          # Hangfire 定时任务配置（重构后）
-├── Program.cs                  # 应用入口
-└── appsettings.json           # 配置文件
+│   ├── AttendanceDashBoard.html    # 考勤看板
+│   ├── DayReportDashBoard.html     # 日报周报看板
+│   ├── NetworkDashboard.html       # 网络监控看板
+│   ├── TrafficMonitoring.html      # 流量监控看板
+│   ├── WorkHours.html              # 工时统计看板
+│   ├── WeekOverTime.html           # 加班统计看板
+│   ├── AttendanceApplication.html  # 打卡设置页面
+│   └── Yinuo.html                  # 一诺消息页面
+├── AllowAllDashboardAuthorizationFilter.cs  # Hangfire 授权过滤器
+├── Program.cs                  # 应用入口及服务配置
+├── Dockerfile                  # Docker 镜像构建文件
+└── appsettings.json           # 应用配置文件
 ```
 
 -----
@@ -320,6 +325,12 @@ A: 在 `appsettings.json` 中配置 AsusRouter 节点，填写路由器 IP、管
 
 **Q: 服务层重构后有什么变化？**
 A: 原来的 Helper 类已全部重构为 Service 类，采用依赖注入方式统一管理。所有 Service 类会在启动时自动注册，无需手动配置。
+
+**Q: YHLO WebSocket 服务是做什么的？**
+A: YHLO WebSocket 服务用于维护与YHLO系统的实时连接，支持自动认证、心跳保活、消息推送等功能。系统会每小时检查并初始化连接，每30秒发送一次心跳，确保连接稳定。
+
+**Q: 数据库初始化包含哪些表？**
+A: 系统启动时会自动创建所需的数据库表，包括：考勤记录、禅道任务、加班记录、测速记录、事件信息、Git提交记录、华硕路由器设备及流量统计等共11张核心表。
 
 -----
 

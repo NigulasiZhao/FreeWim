@@ -1,20 +1,19 @@
-﻿using System.Data;
+using System.Data;
 using Dapper;
-using FreeWim.Services;
 using FreeWim.Models.Attendance;
 using FreeWim.Models.PmisAndZentao;
 using LibGit2Sharp;
 using Newtonsoft.Json;
 using Npgsql;
 
-namespace FreeWim;
+namespace FreeWim.Services;
 
-public class DatabaseInitializer
+public class DatabaseInitializerService
 {
     private readonly IConfiguration _Configuration;
     private readonly TokenService _tokenService;
 
-    public DatabaseInitializer(IConfiguration configuration, TokenService tokenService)
+    public DatabaseInitializerService(IConfiguration configuration, TokenService tokenService)
     {
         _Configuration = configuration;
         _tokenService = tokenService;

@@ -77,8 +77,6 @@ foreach (var serviceType in serviceTypes)
     builder.Services.AddSingleton(serviceType);
 }
 
-// 注册特殊类（不以 Service 结尾的）
-builder.Services.AddSingleton<DatabaseInitializer>();
 var app = builder.Build();
 var zh = new CultureInfo("zh-CN");
 zh.DateTimeFormat.FullDateTimePattern = "yyyy-MM-dd HH:mm:ss";
@@ -98,7 +96,7 @@ app.UseRequestLocalization(new RequestLocalizationOptions
 });
 using (var scope = app.Services.CreateScope())
 {
-    var initializer = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
+    var initializer = scope.ServiceProvider.GetRequiredService<DatabaseInitializerService>();
     initializer.Initialize();
 }
 

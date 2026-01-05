@@ -1,8 +1,7 @@
-﻿using Hangfire;
+using Hangfire;
 using Hangfire.Storage;
-using FreeWim.Services;
 
-namespace FreeWim;
+namespace FreeWim.Services;
 
 public class HangFireService(
     IConfiguration configuration,
