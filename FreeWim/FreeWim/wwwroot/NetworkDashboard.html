@@ -308,8 +308,8 @@
             const tbody = document.getElementById('table-body');
             tbody.innerHTML = '';
             
-            // 倒序取前10条
-            const displayList = [...data].reverse();
+            // 接口已经倒序排列，直接使用
+            const displayList = data;
             
             displayList.forEach(row => {
                 const tr = document.createElement('tr');
