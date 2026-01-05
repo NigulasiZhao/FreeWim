@@ -7,9 +7,9 @@ using Newtonsoft.Json;
 using FreeWim.Models.Email;
 using SmtpClient = MailKit.Net.Smtp.SmtpClient;
 
-namespace FreeWim.Common;
+namespace FreeWim.Services;
 
-public class PushMessageHelper(IConfiguration configuration)
+public class PushMessageService(IConfiguration configuration)
 {
     /// <summary>
     /// 消息推送

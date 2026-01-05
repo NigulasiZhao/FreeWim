@@ -3,8 +3,9 @@ using System.Globalization;
 using Dapper;
 using Npgsql;
 using FreeWim.Models.PmisAndZentao;
+using FreeWim.Utils;
 
-namespace FreeWim.Common;
+namespace FreeWim.Services;
 
 /// <summary>
 /// 自动消息发送服务
@@ -40,7 +41,7 @@ public class MessageService(IConfiguration configuration, TokenService tokenServ
         if (DateTime.Now.Hour < 8 || DateTime.Now.Hour >= 21) return;
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var httpHelper = new HttpRequestHelper();
-        var message = AesHelp.EncryptAes(DateTime.Now.ToString(CultureInfo.InvariantCulture));
+        var message = AesHelper.EncryptAes(DateTime.Now.ToString(CultureInfo.InvariantCulture));
         _ = await httpHelper.PostAsync(pmisInfo.Url + $"/uniwim/message/chat/send", new
         {
             content = message,

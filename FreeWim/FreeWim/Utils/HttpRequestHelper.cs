@@ -2,7 +2,7 @@
 using System.Text.Json;
 using System.Web;
 
-namespace FreeWim.Common;
+namespace FreeWim.Utils;
 
 public class HttpRequestHelper
 {

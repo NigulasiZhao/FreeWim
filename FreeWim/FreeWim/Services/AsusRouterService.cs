@@ -8,20 +8,20 @@ using Dapper;
 using FreeWim.Models.AsusRouter;
 using Npgsql;
 
-namespace FreeWim.Common;
+namespace FreeWim.Services;
 
 /// <summary>
-/// 华硕路由器助手类
+/// 华硕路由器服务类
 /// 用于获取路由器连接设备信息并存储到数据库
 /// </summary>
-public class AsusRouterHelper
+public class AsusRouterService
 {
     private readonly IConfiguration _configuration;
     private readonly TokenService _tokenService;
-    private readonly ILogger<AsusRouterHelper> _logger;
+    private readonly ILogger<AsusRouterService> _logger;
     private readonly HttpClient _httpClient;
 
-    public AsusRouterHelper(IConfiguration configuration, TokenService tokenService, ILogger<AsusRouterHelper> logger)
+    public AsusRouterService(IConfiguration configuration, TokenService tokenService, ILogger<AsusRouterService> logger)
     {
         _configuration = configuration;
         _tokenService = tokenService;

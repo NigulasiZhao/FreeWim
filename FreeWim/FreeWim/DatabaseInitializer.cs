@@ -1,6 +1,6 @@
 ﻿using System.Data;
 using Dapper;
-using FreeWim.Common;
+using FreeWim.Services;
 using FreeWim.Models.Attendance;
 using FreeWim.Models.PmisAndZentao;
 using LibGit2Sharp;

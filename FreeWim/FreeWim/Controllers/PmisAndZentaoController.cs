@@ -4,7 +4,8 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Dapper;
-using FreeWim.Common;
+using FreeWim.Services;
+using FreeWim.Utils;
 using FreeWim.Models.PmisAndZentao;
 using FreeWim.Models.PmisAndZentao.Dto;
 using Microsoft.AspNetCore.Mvc;
@@ -19,10 +20,10 @@ namespace FreeWim.Controllers;
 [Route("api/[controller]/[action]")]
 public class PmisAndZentaoController(
     IConfiguration configuration,
-    ZentaoHelper zentaoHelper,
-    AttendanceHelper attendanceHelper,
-    PmisHelper pmisHelper,
-    PushMessageHelper pushMessageHelper,
+    ZentaoService zentaoService,
+    AttendanceService attendanceService,
+    PmisService pmisService,
+    PushMessageService pushMessageService,
     TokenService tokenService,
     IChatClient chatClient,
     IWebHostEnvironment webHostEnvironment)
@@ -33,7 +34,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public string GetZentaoToken()
     {
-        return zentaoHelper.GetZentaoToken();
+        return zentaoService.GetZentaoToken();
     }
 
     [Tags("禅道")]
@@ -41,7 +42,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public string GetMyWorkTask()
     {
-        return zentaoHelper.GetZentaoTask().ToString();
+        return zentaoService.GetZentaoTask().ToString();
     }
 
     [Tags("禅道")]
@@ -49,7 +50,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public bool GetZentaoTask()
     {
-        return zentaoHelper.SynchronizationZentaoTask();
+        return zentaoService.SynchronizationZentaoTask();
     }
 
     [Tags("禅道")]
@@ -57,7 +58,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public string FinishTask(DateTime finishedDate, double totalHours)
     {
-        zentaoHelper.FinishZentaoTask(finishedDate, totalHours);
+        zentaoService.FinishZentaoTask(finishedDate, totalHours);
         return "成功";
     }
 
@@ -66,7 +67,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public List<TaskItem> AllocateWork(DateTime startDate, double totalHours)
     {
-        var result = zentaoHelper.AllocateWork(startDate, totalHours);
+        var result = zentaoService.AllocateWork(startDate, totalHours);
         return result;
     }
 
@@ -75,7 +76,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public string GetProjectCodeForProjectId(string projectId)
     {
-        var result = zentaoHelper.GetProjectCodeForProjectId(projectId);
+        var result = zentaoService.GetProjectCodeForProjectId(projectId);
         return result;
     }
 
@@ -94,7 +95,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public double GetWorkHoursByDate(DateTime date)
     {
-        var result = attendanceHelper.GetWorkHoursByDate(date);
+        var result = attendanceService.GetWorkHoursByDate(date);
         return result;
     }
 
@@ -103,7 +104,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public string QueryMyByDate()
     {
-        var json = pmisHelper.QueryMyByDate();
+        var json = pmisService.QueryMyByDate();
         return json.ToString(Newtonsoft.Json.Formatting.None);
     }
 
@@ -114,18 +115,18 @@ public class PmisAndZentaoController(
     {
         var attempt = 0;
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
-        var result = pmisHelper.QueryWorkDetailByDate(fillDate, pmisInfo.UserId);
+        var result = pmisService.QueryWorkDetailByDate(fillDate, pmisInfo.UserId);
         while (int.Parse(result["Code"]?.ToString() ?? "0") != 0 || !bool.Parse(result["Success"]?.ToString() ?? "false"))
             try
             {
                 if (attempt >= 20)
                 {
-                    pushMessageHelper.Push("提交日报异常", "多次尝试获取今日工作内容失败", PushMessageHelper.PushIcon.Alert);
+                    pushMessageService.Push("提交日报异常", "多次尝试获取今日工作内容失败", PushMessageService.PushIcon.Alert);
                     break;
                 }
 
                 attempt++;
-                result = pmisHelper.QueryWorkDetailByDate(fillDate, pmisInfo.UserId);
+                result = pmisService.QueryWorkDetailByDate(fillDate, pmisInfo.UserId);
             }
             catch (Exception)
             {
@@ -141,7 +142,7 @@ public class PmisAndZentaoController(
     public PMISInsertResponse CommitWorkLogByDate(string fillDate = "2025-06-27")
     {
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
-        var result = pmisHelper.CommitWorkLogByDate(fillDate, pmisInfo.UserId);
+        var result = pmisService.CommitWorkLogByDate(fillDate, pmisInfo.UserId);
         return result;
     }
 
@@ -150,7 +151,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public string PushMessage(string Title = "禅道", string message = "测试消息")
     {
-        pushMessageHelper.Push(Title, message + DateTime.Now.ToString(), PushMessageHelper.PushIcon.Zentao);
+        pushMessageService.Push(Title, message + DateTime.Now.ToString(), PushMessageService.PushIcon.Zentao);
         return "";
     }
 
@@ -159,7 +160,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public ProjectInfo GetProjectInfo(string projectCode)
     {
-        var result = pmisHelper.GetProjectInfo(projectCode);
+        var result = pmisService.GetProjectInfo(projectCode);
         return result;
     }
 
@@ -244,7 +245,7 @@ public class PmisAndZentaoController(
                     project_name = "GIS外业管理系统"
                 };
             else
-                projectInfo = pmisHelper.GetProjectInfo(zentaoInfo?.projectcode);
+                projectInfo = pmisService.GetProjectInfo(zentaoInfo?.projectcode);
 
             if (string.IsNullOrEmpty(projectInfo.project_name)) return "";
             // var chatOptions = new ChatOptions { Tools = [] };
@@ -295,7 +296,7 @@ public class PmisAndZentaoController(
         }
         catch (Exception e)
         {
-            pushMessageHelper.Push("加班申请异常", e.Message, PushMessageHelper.PushIcon.Alert);
+            pushMessageService.Push("加班申请异常", e.Message, PushMessageService.PushIcon.Alert);
         }
 
         return "";
@@ -306,7 +307,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public string GetWeekDayInfo()
     {
-        var weekInfo = pmisHelper.GetWeekDayInfo();
+        var weekInfo = pmisService.GetWeekDayInfo();
         return $"当前日期是本年的第 {weekInfo.WeekNumber.ToString().PadLeft(2,'0')} 周;周一：" + weekInfo.StartOfWeek + ";周日:" + weekInfo.EndOfWeek;
     }
 
@@ -315,7 +316,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public PMISInsertResponse GetWeekWork()
     {
-        var result = pmisHelper.CommitWorkLogByWeek(pmisHelper.GetWeekDayInfo());
+        var result = pmisService.CommitWorkLogByWeek(pmisService.GetWeekDayInfo());
         return result;
     }
 
@@ -342,7 +343,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public string RealOverTimeList()
     {
-        return pmisHelper.RealOverTimeList().ToString(Newtonsoft.Json.Formatting.Indented);
+        return pmisService.RealOverTimeList().ToString(Newtonsoft.Json.Formatting.Indented);
     }
 
     [Tags("PMIS")]
@@ -350,7 +351,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public int GetTodayClockInDetail(string clockInDate)
     {
-        return pmisHelper.GetTodayClockInDetail(clockInDate);
+        return pmisService.GetTodayClockInDetail(clockInDate);
     }
 
     /// <summary>
@@ -364,7 +365,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public List<OaWorkoverTimeOutput> GetOaWorkoverTime([Description("查询开始日期，一般默认为每月26日如：2025-01-26")] string startTime = "", [Description("查询结束日期，一般默认为每月25日如：2025-02-25")] string endTime = "")
     {
-        var result = pmisHelper.GetOaWorkoverTime(startTime, endTime);
+        var result = pmisService.GetOaWorkoverTime(startTime, endTime);
         return result;
     }
 
@@ -384,15 +385,15 @@ public class PmisAndZentaoController(
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
 
         // 取加班数据
-        var result = pmisHelper.GetOaWorkoverTime(startTime, endTime);
+        var result = pmisService.GetOaWorkoverTime(startTime, endTime);
 
         // 构建 DataTable 和列配置
         var dataTable = new DataTable();
-        var columnList = new List<NpoiExcelUtility.ExportDataColumn>();
+        var columnList = new List<ExcelHelper.ExportDataColumn>();
 
         // 姓名列
         dataTable.Columns.Add("Name", typeof(string));
-        columnList.Add(new NpoiExcelUtility.ExportDataColumn
+        columnList.Add(new ExcelHelper.ExportDataColumn
         {
             Prop = "Name",
             Label = "姓名",
@@ -414,7 +415,7 @@ public class PmisAndZentaoController(
 
             dataTable.Columns.Add(colName, typeof(double));
 
-            columnList.Add(new NpoiExcelUtility.ExportDataColumn
+            columnList.Add(new ExcelHelper.ExportDataColumn
             {
                 Prop = colName,
                 Label = colName,
@@ -445,7 +446,7 @@ public class PmisAndZentaoController(
         var path = Path.Combine(webHostEnvironment.ContentRootPath, "Export", Guid.NewGuid().ToString());
 
         // 生成 Excel 文件
-        var fileName = NpoiExcelUtility.ExportForCommonNoTitle(dataTable, columnList, path);
+        var fileName = ExcelHelper.ExportForCommonNoTitle(dataTable, columnList, path);
         var filePath = Path.Combine(path, fileName);
 
         // 返回文件

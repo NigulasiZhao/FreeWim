@@ -7,10 +7,11 @@ using FreeWim.Models.Attendance.Dto;
 using FreeWim.Models.PmisAndZentao;
 using Hangfire.Server;
 using Newtonsoft.Json;
+using FreeWim.Utils;
 
-namespace FreeWim.Common;
+namespace FreeWim.Services;
 
-public class AttendanceHelper(IConfiguration configuration, PushMessageHelper pushMessageHelper, TokenService tokenService, WorkFlowExecutor workFlowExecutor, PmisHelper pmisHelper)
+public class AttendanceService(IConfiguration configuration, PushMessageService pushMessageService, TokenService tokenService, WorkFlowExecutorService workFlowExecutorService, PmisService pmisService)
 {
     /// <summary>
     /// 根据日期获取当日工时
@@ -124,18 +125,18 @@ public class AttendanceHelper(IConfiguration configuration, PushMessageHelper pu
                     if (result.Contains("OK:1"))
                     {
                         dbConnection.Execute($@"UPDATE public.autocheckinrecord SET clockinstate = 1,updateat = now() WHERE jobid = '{jobId}'");
-                        pushMessageHelper.Push("任务调度", $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务已执行，请关注后续考勤同步信息。", PushMessageHelper.PushIcon.Zktime);
+                        pushMessageService.Push("任务调度", $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务已执行，请关注后续考勤同步信息。", PushMessageService.PushIcon.Zktime);
                     }
                     else
                     {
                         dbConnection.Execute($@"UPDATE public.autocheckinrecord SET clockinstate = 2,updateat = now() WHERE jobid = '{jobId}'");
-                        pushMessageHelper.Push("任务调度", $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务未能成功完成。\n失败原因：" + result, PushMessageHelper.PushIcon.Alert);
+                        pushMessageService.Push("任务调度", $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务未能成功完成。\n失败原因：" + result, PushMessageService.PushIcon.Alert);
                     }
                 }
                 else
                 {
                     dbConnection.Execute($@"UPDATE public.autocheckinrecord SET clockinstate = 2 ,updateat = now() WHERE jobid = '{jobId}'");
-                    pushMessageHelper.Push("任务调度", $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务未能成功完成。\n接口调用失败：" + result, PushMessageHelper.PushIcon.Alert);
+                    pushMessageService.Push("任务调度", $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务未能成功完成。\n接口调用失败：" + result, PushMessageService.PushIcon.Alert);
                 }
             }
         }
@@ -196,7 +197,7 @@ public class AttendanceHelper(IConfiguration configuration, PushMessageHelper pu
         }
 
         if (string.IsNullOrEmpty(pushMessage)) return;
-        pushMessageHelper.Push("高危人员打卡提醒", pushMessage, PushMessageHelper.PushIcon.Camera);
+        pushMessageService.Push("高危人员打卡提醒", pushMessage, PushMessageService.PushIcon.Camera);
     }
 
     /// <summary>
@@ -278,11 +279,11 @@ public class AttendanceHelper(IConfiguration configuration, PushMessageHelper pu
                         }
                 }
 
-                if (!string.IsNullOrEmpty(pushMessage)) pushMessageHelper.Push("考勤", pushMessage, PushMessageHelper.PushIcon.Attendance);
+                if (!string.IsNullOrEmpty(pushMessage)) pushMessageService.Push("考勤", pushMessage, PushMessageService.PushIcon.Attendance);
                 if (signout)
                 {
-                    workFlowExecutor.ExecuteAll();
-                    pmisHelper.RealOverTimeList();
+                    workFlowExecutorService.ExecuteAll();
+                    pmisService.RealOverTimeList();
                 }
             }
         }

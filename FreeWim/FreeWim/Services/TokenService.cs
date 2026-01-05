@@ -6,7 +6,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace FreeWim.Common;
+namespace FreeWim.Services;
 
 public class TokenService(IConfiguration configuration)
 {

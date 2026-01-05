@@ -1,6 +1,6 @@
 using System.Data;
 using Dapper;
-using FreeWim.Common;
+using FreeWim.Services;
 using FreeWim.Models.AsusRouter;
 using FreeWim.Models.AsusRouter.Dto;
 using Microsoft.AspNetCore.Mvc;
@@ -13,18 +13,18 @@ namespace FreeWim.Controllers;
 public class AsusRouterController : Controller
 {
     private readonly IConfiguration _configuration;
-    private readonly AsusRouterHelper _asusRouterHelper;
+    private readonly AsusRouterService _asusRouterService;
     private readonly TokenService _tokenService;
     private readonly ILogger<AsusRouterController> _logger;
 
     public AsusRouterController(
         IConfiguration configuration,
-        AsusRouterHelper asusRouterHelper,
+        AsusRouterService asusRouterService,
         TokenService tokenService,
         ILogger<AsusRouterController> logger)
     {
         _configuration = configuration;
-        _asusRouterHelper = asusRouterHelper;
+        _asusRouterService = asusRouterService;
         _tokenService = tokenService;
         _logger = logger;
     }
@@ -45,7 +45,7 @@ public class AsusRouterController : Controller
     {
         try
         {
-            var devices = await _asusRouterHelper.GetNetworkDevicesAsync();
+            var devices = await _asusRouterService.GetNetworkDevicesAsync();
 
             return Json(new
             {
@@ -83,10 +83,10 @@ public class AsusRouterController : Controller
         try
         {
             // 1. 获取设备信息
-            var devices = await _asusRouterHelper.GetNetworkDevicesAsync();
+            var devices = await _asusRouterService.GetNetworkDevicesAsync();
 
             // 2. 保存到数据库
-            var savedCount = await _asusRouterHelper.SaveDevicesToDatabaseAsync(devices);
+            var savedCount = await _asusRouterService.SaveDevicesToDatabaseAsync(devices);
 
             return Json(new
             {
@@ -242,7 +242,7 @@ public class AsusRouterController : Controller
             var dateTimestamp = new DateTimeOffset(queryDate.Date).ToUnixTimeSeconds();
 
             // 调用路由器接口获取小时级流量数据
-            var trafficData = await _asusRouterHelper.GetDeviceTrafficAsync(mac, dateTimestamp);
+            var trafficData = await _asusRouterService.GetDeviceTrafficAsync(mac, dateTimestamp);
 
             if (trafficData.Count == 0)
             {
@@ -329,7 +329,7 @@ public class AsusRouterController : Controller
             var dateTimestamp = new DateTimeOffset(queryDate.Date).ToUnixTimeSeconds();
 
             // 调用路由器接口获取详细流量数据
-            var trafficDetailData = await _asusRouterHelper.GetDeviceTrafficDetailAsync(mac, dateTimestamp, "detail", 24);
+            var trafficDetailData = await _asusRouterService.GetDeviceTrafficDetailAsync(mac, dateTimestamp, "detail", 24);
 
             if (trafficDetailData.Count == 0)
             {

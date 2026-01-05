@@ -7,9 +7,9 @@ using NPOI.SS.Util;
 using NPOI.Util;
 using NPOI.XSSF.UserModel;
 
-namespace FreeWim.Common;
+namespace FreeWim.Utils;
 
-public class NpoiExcelUtility
+public class ExcelHelper
 {
     /// <summary>
     /// 导出Excel

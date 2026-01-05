@@ -9,10 +9,11 @@ using FreeWim.Models.PmisAndZentao;
 using Microsoft.Extensions.AI;
 using Newtonsoft.Json;
 using JsonSerializer = System.Text.Json.JsonSerializer;
+using FreeWim.Utils;
 
-namespace FreeWim.Common;
+namespace FreeWim.Services;
 
-public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> logger, PushMessageHelper pushMessageHelper, IChatClient chatClient)
+public class ZentaoService(IConfiguration configuration, ILogger<ZentaoService> logger, PushMessageService pushMessageService, IChatClient chatClient)
 {
     /// <summary>
     /// 获取禅道token
@@ -131,7 +132,7 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
             transaction.Commit();
             if (updateRows > 0)
             {
-                pushMessageHelper.Push("禅道", $"任务数据同步成功\n本次同步 {updateRows} 条任务", PushMessageHelper.PushIcon.Zentao);
+                pushMessageService.Push("禅道", $"任务数据同步成功\n本次同步 {updateRows} 条任务", PushMessageService.PushIcon.Zentao);
                 TaskDescriptionComplete();
             }
 
@@ -176,13 +177,13 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
                 }
 
                 pushMessage = "已处理 " + tasklist.Count + " 条任务\n共登记 " + tasklist.Sum(e => e.TimeConsuming) + " 工时";
-                pushMessageHelper.Push("禅道", pushMessage, PushMessageHelper.PushIcon.Zentao);
+                pushMessageService.Push("禅道", pushMessage, PushMessageService.PushIcon.Zentao);
             }
         }
         catch (Exception e)
         {
             pushMessage = "禅道完成任务异常:" + e.Message;
-            pushMessageHelper.Push("禅道", pushMessage, PushMessageHelper.PushIcon.Alert);
+            pushMessageService.Push("禅道", pushMessage, PushMessageService.PushIcon.Alert);
             logger.LogError("禅道完成任务异常:" + e.Message);
         }
     }
@@ -306,12 +307,12 @@ public class ZentaoHelper(IConfiguration configuration, ILogger<ZentaoHelper> lo
                 var shortTarget = target.Length > 10 ? target.Substring(0, 10) + "..." : target;
                 var shortPlan = planFinishAct.Length > 10 ? planFinishAct.Substring(0, 10) + "..." : planFinishAct;
                 var shortReal = realJob.Length > 10 ? realJob.Substring(0, 10) + "..." : realJob;
-                pushMessageHelper.Push("禅道", $"任务信息已完善\n衡量目标:{shortTarget}\n计划完成成果:{shortPlan}\n实际从事工作与成果:{shortReal}", PushMessageHelper.PushIcon.Zentao);
+                pushMessageService.Push("禅道", $"任务信息已完善\n衡量目标:{shortTarget}\n计划完成成果:{shortPlan}\n实际从事工作与成果:{shortReal}", PushMessageService.PushIcon.Zentao);
             }
         }
         catch (Exception e)
         {
-            pushMessageHelper.Push("禅道任务异常", e.Message, PushMessageHelper.PushIcon.Alert);
+            pushMessageService.Push("禅道任务异常", e.Message, PushMessageService.PushIcon.Alert);
         }
     }
 }

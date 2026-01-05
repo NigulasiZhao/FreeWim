@@ -6,14 +6,14 @@ using Newtonsoft.Json.Linq;
 using Npgsql;
 using FreeWim.Models.PmisAndZentao;
 
-namespace FreeWim.Common;
+namespace FreeWim.Services;
 
-public class WorkFlowExecutor(
+public class WorkFlowExecutorService(
     IConfiguration configuration,
-    PushMessageHelper pushMessageHelper,
-    AttendanceHelper attendanceHelper,
-    PmisHelper pmisHelper,
-    ZentaoHelper zentaoHelper)
+    PushMessageService pushMessageService,
+    IServiceProvider serviceProvider,
+    PmisService pmisService,
+    ZentaoService zentaoService)
 {
     public void ExecuteAll()
     {
@@ -25,10 +25,11 @@ public class WorkFlowExecutor(
             if (existautocheckin > 0) return;
 
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
-            var workHours = attendanceHelper.GetWorkHoursByDate(DateTime.Today);
+            var attendanceService = serviceProvider.GetRequiredService<AttendanceService>();
+            var workHours = attendanceService.GetWorkHoursByDate(DateTime.Today);
             if (workHours > 0)
             {
-                var reportList = pmisHelper.QueryMyByDate();
+                var reportList = pmisService.QueryMyByDate();
                 if (bool.Parse((string)reportList["Success"]!))
                     if (reportList["Response"]!["rows"] is JArray dataArray)
                     {
@@ -36,7 +37,7 @@ public class WorkFlowExecutor(
                         if (workHours > 0 && record == null)
                         {
                             //关闭禅道任务
-                            zentaoHelper.FinishZentaoTask(DateTime.Today, workHours);
+                            zentaoService.FinishZentaoTask(DateTime.Today, workHours);
                             //生成日志
                             var taskFinishInfo = dbConnection.Query<TaskFinishInfo>($@"SELECT
                                         COUNT(CASE WHEN taskstatus = 'done' THEN 1 END) AS donecount,
@@ -45,7 +46,7 @@ public class WorkFlowExecutor(
                                     FROM public.zentaotask
                                     WHERE to_char(eststarted, 'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}'").First();
                             if (taskFinishInfo.AllCount > 0 && taskFinishInfo is { NotDoneCount: 0, DoneCount: > 0 })
-                                pmisHelper.CommitWorkLogByDate(DateTime.Now.ToString("yyyy-MM-dd"), pmisInfo.UserId);
+                                pmisService.CommitWorkLogByDate(DateTime.Now.ToString("yyyy-MM-dd"), pmisInfo.UserId);
                         }
                     }
             }
@@ -53,7 +54,7 @@ public class WorkFlowExecutor(
             var workStart = new TimeSpan(17, 30, 0); // 16:30
             if (DateTime.Now.TimeOfDay < workStart) return;
             //验证是否发周报
-            var weekInfo = pmisHelper.GetWeekDayInfo();
+            var weekInfo = pmisService.GetWeekDayInfo();
             var weekSummary = dbConnection.Query<WeekSummaryDto>($@"select
 	                                                        to_char(MAX(attendancedate),'yyyy-MM-dd') AS lastday,
                                                             sum(workhours) AS weekhours
@@ -67,11 +68,11 @@ public class WorkFlowExecutor(
             if (weekSummary.LastDay != DateTime.Now.ToString("yyyy-MM-dd")) return;
 
             if (weekSummary.WeekHours > 0)
-                pmisHelper.CommitWorkLogByWeek(weekInfo);
+                pmisService.CommitWorkLogByWeek(weekInfo);
         }
         catch (Exception e)
         {
-            pushMessageHelper.Push("提交日报异常", e.Message, PushMessageHelper.PushIcon.Alert);
+            pushMessageService.Push("提交日报异常", e.Message, PushMessageService.PushIcon.Alert);
         }
     }
 }

@@ -4,7 +4,7 @@ using Npgsql;
 using FreeWim.Models.EventInfo;
 using Newtonsoft.Json;
 
-namespace FreeWim.Common;
+namespace FreeWim.Services;
 
 /// <summary>
 /// Keep运动数据同步服务

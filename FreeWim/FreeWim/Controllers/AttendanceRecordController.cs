@@ -6,7 +6,8 @@ using FreeWim.Models.Attendance;
 using System.Data;
 using System.Globalization;
 using Dapper;
-using FreeWim.Common;
+using FreeWim.Services;
+using FreeWim.Utils;
 using FreeWim.Models.Attendance.Dto;
 using FreeWim.Models.PmisAndZentao;
 using Hangfire;
@@ -18,7 +19,7 @@ namespace FreeWim.Controllers;
 
 [ApiController]
 [Route("api/[controller]/[action]")]
-public class AttendanceRecordController(IConfiguration configuration, AttendanceHelper attendanceHelper) : Controller
+public class AttendanceRecordController(IConfiguration configuration, AttendanceService attendanceService) : Controller
 {
     [Tags("考勤")]
     [EndpointSummary("考勤组件数据查询接口")]
@@ -458,7 +459,7 @@ limit 10;";
             IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             var currentQuantity = dbConnection.Query<int>($@"SELECT count(0) FROM public.autocheckinrecord where to_char(clockintime,'yyyy-mm-dd') = '{input.SelectTime.Value:yyyy-MM-dd}'").First();
             if (currentQuantity >= 2) return Json(new { jobId = "", SelectTime = input.SelectTime, message = "登记失败,今日操作过于频繁" });
-            var jobId = BackgroundJob.Schedule(() => attendanceHelper.AutoCheckIniclock(null), input.SelectTime.Value);
+            var jobId = BackgroundJob.Schedule(() => attendanceService.AutoCheckIniclock(null), input.SelectTime.Value);
             dbConnection.Execute(
                 $@"insert
                 	into

@@ -1,9 +1,9 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
 
-namespace FreeWim.Common;
+namespace FreeWim.Utils;
 
-public class AesHelp
+public class AesHelper
 {
     /// <summary>
     /// 默认密钥-密钥的长度必须是32

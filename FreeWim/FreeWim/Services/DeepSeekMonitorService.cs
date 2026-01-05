@@ -1,11 +1,12 @@
 using Newtonsoft.Json.Linq;
+using FreeWim.Utils;
 
-namespace FreeWim.Common;
+namespace FreeWim.Services;
 
 /// <summary>
 /// DeepSeek余额监控服务
 /// </summary>
-public class DeepSeekMonitorService(IConfiguration configuration, PushMessageHelper pushMessageHelper)
+public class DeepSeekMonitorService(IConfiguration configuration, PushMessageService pushMessageService)
 {
     /// <summary>
     /// DeepSeek余额预警
@@ -35,7 +36,7 @@ public class DeepSeekMonitorService(IConfiguration configuration, PushMessageHel
                     }
 
             if (!bool.Parse(json["is_available"]?.ToString() ?? string.Empty) || total_balance <= 1) 
-                pushMessageHelper.Push("余额提醒", pushMessage, PushMessageHelper.PushIcon.DeepSeek);
+                pushMessageService.Push("余额提醒", pushMessage, PushMessageService.PushIcon.DeepSeek);
         }
     }
 }

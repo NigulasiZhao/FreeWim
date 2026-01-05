@@ -7,10 +7,11 @@ using Newtonsoft.Json.Linq;
 using Npgsql;
 using FreeWim.Models.PmisAndZentao;
 using JsonSerializer = System.Text.Json.JsonSerializer;
+using FreeWim.Utils;
 
-namespace FreeWim.Common;
+namespace FreeWim.Services;
 
-public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logger, PushMessageHelper pushMessageHelper, TokenService tokenService, IChatClient chatClient)
+public class PmisService(IConfiguration configuration, ILogger<ZentaoService> logger, PushMessageService pushMessageService, TokenService tokenService, IChatClient chatClient)
 {
     /// <summary>
     /// 查询日报列表
@@ -82,7 +83,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                 {
                     if (attempt >= 20)
                     {
-                        pushMessageHelper.Push("提交日报异常", "多次尝试获取今日工作内容失败", PushMessageHelper.PushIcon.Alert);
+                        pushMessageService.Push("提交日报异常", "多次尝试获取今日工作内容失败", PushMessageService.PushIcon.Alert);
                         break;
                     }
 
@@ -129,13 +130,13 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                     new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } })
                 .Result;
             var result = JsonSerializer.Deserialize<PMISInsertResponse>(postRespone.Content.ReadAsStringAsync().Result);
-            if (result is { Success: true }) pushMessageHelper.Push("日报", $"{DateTime.Now:yyyy-MM-dd}已发送\n今日完成" + finishCount + " 条任务", PushMessageHelper.PushIcon.Note);
-            else pushMessageHelper.Push("日报错误", postRespone.Content.ReadAsStringAsync().Result, PushMessageHelper.PushIcon.Alert);
+            if (result is { Success: true }) pushMessageService.Push("日报", $"{DateTime.Now:yyyy-MM-dd}已发送\n今日完成" + finishCount + " 条任务", PushMessageService.PushIcon.Note);
+            else pushMessageService.Push("日报错误", postRespone.Content.ReadAsStringAsync().Result, PushMessageService.PushIcon.Alert);
             return result ?? new PMISInsertResponse();
         }
         catch (Exception e)
         {
-            pushMessageHelper.Push("提交日报异常", e.Message, PushMessageHelper.PushIcon.Alert);
+            pushMessageService.Push("提交日报异常", e.Message, PushMessageService.PushIcon.Alert);
             logger.LogError("提交日报异常:" + e.Message);
             return new PMISInsertResponse();
         }
@@ -584,8 +585,8 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                                         new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } })
                                     .Result;
                                 result = JsonSerializer.Deserialize<PMISInsertResponse>(postRespone.Content.ReadAsStringAsync().Result);
-                                if (result is { Success: true }) pushMessageHelper.Push("周报", $"第{weekDayInfo.WeekNumber}周周报已发送\n本周完成" + finishCount + " 条任务", PushMessageHelper.PushIcon.Note);
-                                else pushMessageHelper.Push("周报错误:", postRespone.Content.ReadAsStringAsync().Result, PushMessageHelper.PushIcon.Alert);
+                                if (result is { Success: true }) pushMessageService.Push("周报", $"第{weekDayInfo.WeekNumber}周周报已发送\n本周完成" + finishCount + " 条任务", PushMessageService.PushIcon.Note);
+                                else pushMessageService.Push("周报错误:", postRespone.Content.ReadAsStringAsync().Result, PushMessageService.PushIcon.Alert);
                             }
 
                             return result ?? new PMISInsertResponse();
@@ -598,7 +599,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
         }
         catch (Exception e)
         {
-            pushMessageHelper.Push("周报异常:", e.Message, PushMessageHelper.PushIcon.Alert);
+            pushMessageService.Push("周报异常:", e.Message, PushMessageService.PushIcon.Alert);
             logger.LogError("周报异常:" + e.Message);
             return result ?? new PMISInsertResponse();
         }
@@ -748,7 +749,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                                         	real_work_overtime_hour = {overTimeHours}
                                         where
                                         	work_date = '{result["work_date"]?.ToString()}';");
-                        pushMessageHelper.Push("实际加班", result["work_date"]?.ToString() + " 加班时长不足1小时已作废\n", PushMessageHelper.PushIcon.OverTime);
+                        pushMessageService.Push("实际加班", result["work_date"]?.ToString() + " 加班时长不足1小时已作废\n", PushMessageService.PushIcon.OverTime);
                     }
                 }
             }
@@ -866,7 +867,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                                         	real_work_overtime_hour = {overTimeHours}
                                         where
                                         	work_date = '{result["work_date"]?.ToString()}';");
-                pushMessageHelper.Push("实际加班", result["work_date"]?.ToString() + " 实际加班申请已提交\n加班时长：" + overTimeHours + " 小时", PushMessageHelper.PushIcon.OverTime);
+                pushMessageService.Push("实际加班", result["work_date"]?.ToString() + " 实际加班申请已提交\n加班时长：" + overTimeHours + " 小时", PushMessageService.PushIcon.OverTime);
                 results.Add(result);
             }
         }
@@ -1039,7 +1040,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
 
             if (string.IsNullOrEmpty(projectInfo.project_name))
             {
-                pushMessageHelper.Push("加班申请失败", "未在PMIS系统中查询到项目信息", PushMessageHelper.PushIcon.Alert);
+                pushMessageService.Push("加班申请失败", "未在PMIS系统中查询到项目信息", PushMessageService.PushIcon.Alert);
                 return;
             }
 
@@ -1061,7 +1062,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
                 JObject updateResult = OvertimeWork_Update(projectInfo, insertId, zentaoInfo?.id.ToString(), processId, workContent);
                 if (updateResult["Response"] != null)
                 {
-                    pushMessageHelper.Push("加班申请", DateTime.Now.ToString("yyyy-MM-dd") + " 加班申请已提交\n加班事由：" + workContent, PushMessageHelper.PushIcon.OverTime);
+                    pushMessageService.Push("加班申请", DateTime.Now.ToString("yyyy-MM-dd") + " 加班申请已提交\n加班事由：" + workContent, PushMessageService.PushIcon.OverTime);
                     dbConnection.Execute($@"
                                       insert
                                       	into
@@ -1091,7 +1092,7 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
         }
         catch (Exception e)
         {
-            pushMessageHelper.Push("加班申请异常", e.Message, PushMessageHelper.PushIcon.Alert);
+            pushMessageService.Push("加班申请异常", e.Message, PushMessageService.PushIcon.Alert);
         }
     }
 
@@ -1105,9 +1106,9 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
         var endTime = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).ToString("yyyy-MM-dd");
         var result = GetOaWorkoverTime(startTime, endTime);
         if (result.Any(e => e.Realtime >= 2))
-            pushMessageHelper.Push("餐补提醒",
+            pushMessageService.Push("餐补提醒",
                 DateTime.Parse(endTime).ToString("yyyy年MM月") + ",你居然有" + result.Count(e => e.Realtime >= 2) + "天加班超过2小时,最后只换来" + result.Where(e => e.Realtime >= 2).Sum(e => e.Amount) +
                 "元餐补。请尽快填写餐补,不然这点钱也没了。",
-                PushMessageHelper.PushIcon.Amount);
+                PushMessageService.PushIcon.Amount);
     }
 }

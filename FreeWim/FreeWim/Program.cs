@@ -8,7 +8,7 @@ using Microsoft.Extensions.AI;
 using OpenAI;
 using Scalar.AspNetCore;
 using Serilog;
-using FreeWim.Common;
+using FreeWim.Services;
 using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -62,19 +62,23 @@ builder.Services.AddHangfire(config =>
             DeleteExpiredBatchSize = 1000
         }));
 builder.Services.AddHangfireServer();
-builder.Services.AddSingleton<TokenService>();
-builder.Services.AddSingleton<SpeedTestService>();
-builder.Services.AddSingleton<HangFireHelper>();
+// 自动注册所有 Service 类（包括 Services 目录下的和根目录下的）
+var assembly = typeof(Program).Assembly;
+var serviceTypes = assembly.GetTypes()
+    .Where(t => t.Namespace != null && 
+                (t.Namespace == "FreeWim.Services" || t.Namespace == "FreeWim") &&
+                t.Name.EndsWith("Service") && 
+                t.IsClass && 
+                !t.IsAbstract)
+    .ToList();
+
+foreach (var serviceType in serviceTypes)
+{
+    builder.Services.AddSingleton(serviceType);
+}
+
+// 注册特殊类（不以 Service 结尾的）
 builder.Services.AddSingleton<DatabaseInitializer>();
-builder.Services.AddSingleton<ZentaoHelper>();
-builder.Services.AddSingleton<AttendanceHelper>();
-builder.Services.AddSingleton<PmisHelper>();
-builder.Services.AddSingleton<PushMessageHelper>();
-builder.Services.AddSingleton<WorkFlowExecutor>();
-builder.Services.AddSingleton<AsusRouterHelper>();
-builder.Services.AddSingleton<KeepDataSyncService>();
-builder.Services.AddSingleton<DeepSeekMonitorService>();
-builder.Services.AddSingleton<MessageService>();
 var app = builder.Build();
 var zh = new CultureInfo("zh-CN");
 zh.DateTimeFormat.FullDateTimePattern = "yyyy-MM-dd HH:mm:ss";
@@ -110,7 +114,7 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
     Authorization = new[] { new AllowAllDashboardAuthorizationFilter() }
 });
-app.Services.GetRequiredService<HangFireHelper>().StartHangFireTask();
+app.Services.GetRequiredService<HangFireService>().StartHangFireTask();
 app.UseHttpsRedirection();
 
 app.UseAuthorization();

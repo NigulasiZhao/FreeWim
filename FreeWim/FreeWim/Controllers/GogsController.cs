@@ -10,13 +10,13 @@ using System.Data.Common;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using FreeWim.Common;
+using FreeWim.Services;
 
 namespace FreeWim.Controllers;
 
 [ApiController]
 [Route("api/[controller]/[action]")]
-public class GogsController(PushMessageHelper pushMessageHelper, IConfiguration configuration) : Controller
+public class GogsController(PushMessageService pushMessageService, IConfiguration configuration) : Controller
 {
     [Tags("代码记录")]
     [EndpointSummary("代码记录组件数据查询接口")]
@@ -300,7 +300,7 @@ public class GogsController(PushMessageHelper pushMessageHelper, IConfiguration 
 
             #region 提醒推送
 
-            pushMessageHelper.Push("测试站点更新", "分支：" + branchName + "测试站点已更新", PushMessageHelper.PushIcon.Jenkins);
+            pushMessageService.Push("测试站点更新", "分支：" + branchName + "测试站点已更新", PushMessageService.PushIcon.Jenkins);
 
             #endregion
         }

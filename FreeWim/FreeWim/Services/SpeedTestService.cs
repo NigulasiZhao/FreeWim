@@ -6,7 +6,7 @@ using Dapper;
 using FreeWim.Models;
 using Npgsql;
 
-namespace FreeWim.Common;
+namespace FreeWim.Services;
 
 /// <summary>
 /// 网络测速服务
@@ -15,15 +15,15 @@ public class SpeedTestService
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<SpeedTestService> _logger;
-    private readonly PushMessageHelper _pushMessageHelper;
+    private readonly PushMessageService _pushMessageService;
     private readonly int _maxRetryAttempts;
     private readonly int _retryDelayMilliseconds;
 
-    public SpeedTestService(IConfiguration configuration, ILogger<SpeedTestService> logger, PushMessageHelper pushMessageHelper)
+    public SpeedTestService(IConfiguration configuration, ILogger<SpeedTestService> logger, PushMessageService pushMessageService)
     {
         _configuration = configuration;
         _logger = logger;
-        _pushMessageHelper = pushMessageHelper;
+        _pushMessageService = pushMessageService;
 
         // 从配置读取重试参数，提供默认值
         _maxRetryAttempts = _configuration.GetValue<int>("SpeedTest:MaxRetryAttempts", 10);
@@ -368,12 +368,12 @@ public class SpeedTestService
                               $"测试时间: {latestRecord.TestTime:yyyy-MM-dd HH:mm:ss}\n" +
                               $"上传速度: {latestRecord.Upload}Mbit/s\n" +
                               $"下载速度: {latestRecord.Download}Mbit/s";
-                _pushMessageHelper.Push("网速异常提醒", message, PushMessageHelper.PushIcon.SpeedTest);
+                _pushMessageService.Push("网速异常提醒", message, PushMessageService.PushIcon.SpeedTest);
             }
         }
         catch (Exception ex)
         {
-            _pushMessageHelper.Push("网速异常提醒任务异常", ex.Message, PushMessageHelper.PushIcon.Alert);
+            _pushMessageService.Push("网速异常提醒任务异常", ex.Message, PushMessageService.PushIcon.Alert);
         }
     }
 }

@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using FreeWim.Models;
-using FreeWim.Common;
+using FreeWim.Services;
 
 namespace FreeWim.Controllers;
 
