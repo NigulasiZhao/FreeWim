@@ -223,11 +223,10 @@ public class AsusRouterHelper
             if (startIndex == -1) return string.Empty;
 
             // 查找匹配的 ]
-            int bracketCount = 0;
-            int endIndex = startIndex;
+            var bracketCount = 0;
+            var endIndex = startIndex;
 
-            for (int i = startIndex; i < responseContent.Length; i++)
-            {
+            for (var i = startIndex; i < responseContent.Length; i++)
                 if (responseContent[i] == '[')
                 {
                     bracketCount++;
@@ -241,7 +240,6 @@ public class AsusRouterHelper
                         break;
                     }
                 }
-            }
 
             var arrayContent = responseContent.Substring(startIndex, endIndex - startIndex + 1);
             _logger.LogDebug($"提取的 {propertyName} 数组长度: {arrayContent.Length}");
@@ -266,16 +264,12 @@ public class AsusRouterHelper
         {
             var arrayElement = JsonDocument.Parse(arrayJson).RootElement;
 
-            if (arrayElement.ValueKind != JsonValueKind.Array || arrayElement.GetArrayLength() == 0)
-            {
-                return devices;
-            }
+            if (arrayElement.ValueKind != JsonValueKind.Array || arrayElement.GetArrayLength() == 0) return devices;
 
             var element = arrayElement[0];
 
             // 获取MAC地址列表
             if (element.TryGetProperty("maclist", out var macList) && macList.ValueKind == JsonValueKind.Array)
-            {
                 foreach (var mac in macList.EnumerateArray())
                 {
                     var macString = mac.GetString();
@@ -285,13 +279,9 @@ public class AsusRouterHelper
                         devices.Add(device);
                     }
                 }
-            }
 
             // 获取ClientAPILevel（如果有）
-            if (element.TryGetProperty("ClientAPILevel", out var apiLevel))
-            {
-                _logger.LogDebug($"{dataSource} ClientAPILevel: {apiLevel.GetString()}");
-            }
+            if (element.TryGetProperty("ClientAPILevel", out var apiLevel)) _logger.LogDebug($"{dataSource} ClientAPILevel: {apiLevel.GetString()}");
 
             return devices;
         }
@@ -358,10 +348,7 @@ public class AsusRouterHelper
     /// </summary>
     private static string? GetStringProperty(JsonElement element, string propertyName)
     {
-        if (element.TryGetProperty(propertyName, out var prop))
-        {
-            return prop.ValueKind == JsonValueKind.String ? prop.GetString() : prop.ToString();
-        }
+        if (element.TryGetProperty(propertyName, out var prop)) return prop.ValueKind == JsonValueKind.String ? prop.GetString() : prop.ToString();
 
         return null;
     }
@@ -372,12 +359,8 @@ public class AsusRouterHelper
     private static int? GetIntProperty(JsonElement element, string propertyName)
     {
         if (element.TryGetProperty(propertyName, out var prop))
-        {
             if (prop.ValueKind == JsonValueKind.Number && prop.TryGetInt32(out var value))
-            {
                 return value;
-            }
-        }
 
         return null;
     }
@@ -454,11 +437,10 @@ public class AsusRouterHelper
             if (startIndex == -1) return result;
 
             // 查找匹配的 ]
-            int bracketCount = 0;
-            int endIndex = startIndex;
+            var bracketCount = 0;
+            var endIndex = startIndex;
 
-            for (int i = startIndex; i < responseContent.Length; i++)
-            {
+            for (var i = startIndex; i < responseContent.Length; i++)
                 if (responseContent[i] == '[')
                 {
                     bracketCount++;
@@ -472,7 +454,6 @@ public class AsusRouterHelper
                         break;
                     }
                 }
-            }
 
             var arrayContent = responseContent.Substring(startIndex, endIndex - startIndex + 1);
             _logger.LogDebug($"提取的流量数组: {arrayContent}");
@@ -481,17 +462,13 @@ public class AsusRouterHelper
             var arrayElement = JsonDocument.Parse(arrayContent).RootElement;
 
             if (arrayElement.ValueKind == JsonValueKind.Array)
-            {
                 foreach (var item in arrayElement.EnumerateArray())
-                {
                     if (item.ValueKind == JsonValueKind.Array && item.GetArrayLength() == 2)
                     {
                         var upload = item[0].GetInt64();
                         var download = item[1].GetInt64();
                         result.Add((upload, download));
                     }
-                }
-            }
 
             _logger.LogInformation($"解析流量数据完成，共 {result.Count} 条记录");
             return result;
@@ -522,7 +499,7 @@ public class AsusRouterHelper
 
             // 构建批量插入的参数列表
             var batchInsertParams = new List<object>();
-            for (int hour = 0; hour < maxHours; hour++)
+            for (var hour = 0; hour < maxHours; hour++)
             {
                 var traffic = trafficData[hour];
                 batchInsertParams.Add(new
@@ -630,11 +607,10 @@ public class AsusRouterHelper
             if (startIndex == -1) return result;
 
             // 查找匹配的 ]
-            int bracketCount = 0;
-            int endIndex = startIndex;
+            var bracketCount = 0;
+            var endIndex = startIndex;
 
-            for (int i = startIndex; i < responseContent.Length; i++)
-            {
+            for (var i = startIndex; i < responseContent.Length; i++)
                 if (responseContent[i] == '[')
                 {
                     bracketCount++;
@@ -648,7 +624,6 @@ public class AsusRouterHelper
                         break;
                     }
                 }
-            }
 
             var arrayContent = responseContent.Substring(startIndex, endIndex - startIndex + 1);
             _logger.LogDebug($"提取的详细流量数组: {arrayContent}");
@@ -657,9 +632,7 @@ public class AsusRouterHelper
             var arrayElement = JsonDocument.Parse(arrayContent).RootElement;
 
             if (arrayElement.ValueKind == JsonValueKind.Array)
-            {
                 foreach (var item in arrayElement.EnumerateArray())
-                {
                     if (item.ValueKind == JsonValueKind.Array && item.GetArrayLength() == 3)
                     {
                         var appName = item[0].GetString() ?? "Unknown";
@@ -667,8 +640,6 @@ public class AsusRouterHelper
                         var download = item[2].GetInt64();
                         result.Add((appName, upload, download));
                     }
-                }
-            }
 
             _logger.LogInformation($"解析详细流量数据完成，共 {result.Count} 条记录");
             return result;
@@ -697,7 +668,6 @@ public class AsusRouterHelper
 
             foreach (var traffic in trafficDetailData)
             {
-
                 // 插入新记录
                 var insertSql = @"
                         INSERT INTO asusrouterdevicetrafficdetail (
@@ -727,6 +697,84 @@ public class AsusRouterHelper
         {
             _logger.LogError(ex, $"保存设备 {mac} 详细流量数据到数据库失败");
             throw new Exception($"保存详细流量数据到数据库失败: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// 路由器设备同步
+    /// 每天凌晨1点执行，获取路由器连接设备并保存到数据库
+    /// </summary>
+    public async Task SyncRouterDevices()
+    {
+        var devices = await GetNetworkDevicesAsync();
+        var savedCount = await SaveDevicesToDatabaseAsync(devices);
+    }
+
+    /// <summary>
+    /// 设备流量统计
+    /// 每天凌晨2点执行，查询前一天每个设备的流量并存入数据库
+    /// 同时采集小时级流量和按应用/协议分类的详细流量
+    /// </summary>
+    public async Task SyncDeviceTraffic()
+    {
+        try
+        {
+            // 获取前一天的日期
+            var yesterday = DateTime.Now.Date;
+            var dateTimestamp = new DateTimeOffset(yesterday).ToUnixTimeSeconds();
+
+            using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+
+            // 查询所有在线设备的MAC地址
+            var devices = await dbConnection.QueryAsync<string>(
+                "SELECT DISTINCT mac FROM asusrouterdevice WHERE mac IS NOT NULL AND mac != ''"
+            );
+
+            var enumerable = devices.ToList();
+            if (enumerable.Count == 0) return;
+
+            foreach (var mac in enumerable)
+                try
+                {
+                    //1. 获取小时级流量数据 (mode=hour)
+                    var trafficData = await GetDeviceTrafficAsync(mac, dateTimestamp, "hour", 24);
+
+                    if (trafficData.Count > 0)
+                    {
+                        // 检查是否有有效流量数据（上传+下载总和大于0）
+                        var hasValidData = trafficData.Any(t => t.Upload > 0 || t.Download > 0);
+                        if (hasValidData)
+                        {
+                            var savedCount = await SaveDeviceTrafficToDatabaseAsync(mac, yesterday, trafficData);
+                        }
+                    }
+
+                    // 稍微延迟，避免请求过于频繁
+                    await Task.Delay(500);
+
+                    // 2. 获取详细流量数据 (mode=detail)
+                    var trafficDetailData = await GetDeviceTrafficDetailAsync(mac, dateTimestamp, "detail", 24);
+
+                    if (trafficDetailData.Count > 0)
+                    {
+                        // 检查是否有有效流量数据（上传+下载总和大于0）
+                        var hastrafficDetailData = trafficDetailData.Any(t => t.Upload > 0 || t.Download > 0);
+                        if (hastrafficDetailData)
+                        {
+                            var savedDetailCount = await SaveDeviceTrafficDetailToDatabaseAsync(mac, yesterday, trafficDetailData);
+                        }
+                    }
+
+                    // 防止请求过于频繁，稍微延迟
+                    await Task.Delay(1000);
+                }
+                catch (Exception)
+                {
+                }
+        }
+        catch (Exception)
+        {
+            // ignored
         }
     }
 }

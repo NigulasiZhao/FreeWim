@@ -982,4 +982,132 @@ public class PmisHelper(IConfiguration configuration, ILogger<ZentaoHelper> logg
         }).ToList();
         return result;
     }
+
+    /// <summary>
+    /// 自动提交加班申请
+    /// 每30分钟一次，每日10：00至20：30内执行，如果当时不为休息日，且加班记录表内没有当时加班信息，则通过查询禅道任务表，并按照剩余工时倒序排列第一次条，按照该条任务内容，通过deepseek生成加班事由提交加班申请；申请成功后会进行推送通知
+    /// </summary>
+    public void CommitOvertimeWork()
+    {
+        try
+        {
+            var projectInfo = new ProjectInfo();
+            var workStart = new TimeSpan(10, 0, 0);
+            var workEnd = new TimeSpan(20, 30, 0);
+            if (DateTime.Now.TimeOfDay < workStart || DateTime.Now.TimeOfDay > workEnd) return;
+            var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
+            IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            //判断休息日不提交加班
+            var checkinrule = dbConnection.Query<string>($@"select checkinrule from public.attendancerecordday where to_char(attendancedate,'yyyy-MM-dd')  = to_char(now(),'yyyy-MM-dd')")
+                .FirstOrDefault();
+            if (checkinrule == "休息") return;
+            //查询是否打卡上班
+            var clockinCount = dbConnection
+                .Query<int>($@"SELECT COUNT(0) FROM public.attendancerecorddaydetail WHERE clockintype= '0' AND TO_CHAR(clockintime,'yyyy-MM-dd') = to_char(now(),'yyyy-MM-dd')")
+                .FirstOrDefault();
+            if (clockinCount == 0) return;
+            //查询是否已提交加班申请
+            var hasOvertime = dbConnection.Query<int>($@"select count(0) from  public.overtimerecord where work_date = '{DateTime.Now:yyyy-MM-dd}'").FirstOrDefault();
+            if (hasOvertime != 0) return;
+            var zentaoInfo = dbConnection.Query<dynamic>($@"select
+                                                                            id,
+                                                                        	project,
+	                                                                        taskname ,
+	                                                                        taskdesc,
+	                                                                        projectcode
+                                                                        from
+                                                                        	zentaotask z
+                                                                        where
+                                                                        	to_char(eststarted,
+                                                                        	'yyyy-MM-dd') = to_char(now(),
+                                                                        	'yyyy-MM-dd')
+                                                                        	and taskstatus = 'wait'
+                                                                        order by
+                                                                        	timeleft desc").FirstOrDefault();
+
+            if (zentaoInfo?.project == null || zentaoInfo?.id == null || string.IsNullOrEmpty(zentaoInfo?.projectcode)) return;
+            if (string.IsNullOrEmpty(zentaoInfo?.projectcode)) return;
+            if (zentaoInfo?.projectcode == "GIS-Product")
+                projectInfo = new ProjectInfo
+                {
+                    contract_id = "",
+                    contract_unit = "",
+                    project_name = "GIS外业管理系统"
+                };
+            else
+                projectInfo = GetProjectInfo(zentaoInfo?.projectcode);
+
+            if (string.IsNullOrEmpty(projectInfo.project_name))
+            {
+                pushMessageHelper.Push("加班申请失败", "未在PMIS系统中查询到项目信息", PushMessageHelper.PushIcon.Alert);
+                return;
+            }
+
+            var chatOptions = new ChatOptions { Tools = [] };
+            var chatHistory = new List<ChatMessage>
+            {
+                new(ChatRole.System, pmisInfo!.DailyPrompt),
+                new(ChatRole.User, "加班内容：" + zentaoInfo!.taskname + ":" + zentaoInfo.taskdesc)
+            };
+            var res = chatClient.GetResponseAsync(chatHistory, chatOptions).Result;
+            if (string.IsNullOrWhiteSpace(res?.Text)) return;
+            var workContent = res.Text;
+            if (string.IsNullOrEmpty(workContent)) return;
+            var insertId = OvertimeWork_Insert(projectInfo, zentaoInfo?.id.ToString(), workContent);
+            if (string.IsNullOrEmpty(insertId)) return;
+            var processId = OvertimeWork_CreateOrder(projectInfo, insertId, zentaoInfo?.id.ToString(), workContent);
+            if (!string.IsNullOrEmpty(processId))
+            {
+                JObject updateResult = OvertimeWork_Update(projectInfo, insertId, zentaoInfo?.id.ToString(), processId, workContent);
+                if (updateResult["Response"] != null)
+                {
+                    pushMessageHelper.Push("加班申请", DateTime.Now.ToString("yyyy-MM-dd") + " 加班申请已提交\n加班事由：" + workContent, PushMessageHelper.PushIcon.OverTime);
+                    dbConnection.Execute($@"
+                                      insert
+                                      	into
+                                      	public.overtimerecord
+                                      (id,
+                                      	plan_start_time,
+                                      	plan_end_time,
+                                      	plan_work_overtime_hour,
+                                      	contract_id,
+                                      	contract_unit,
+                                      	project_name,
+                                      	work_date,
+                                      	subject_matter,
+                                      	orderid)
+                                      values('{Guid.NewGuid().ToString()}',
+                                      '{updateResult["Response"]?["plan_start_time"]}',
+                                      '{updateResult["Response"]?["plan_end_time"]}',
+                                      {updateResult["Response"]?["plan_work_overtime_hour"]},
+                                      '{updateResult["Response"]?["contract_id"]}',
+                                      '{updateResult["Response"]?["contract_unit"]}',
+                                      '{updateResult["Response"]?["project_name"]}',
+                                      '{updateResult["Response"]?["work_date"]}',
+                                      '{updateResult["Response"]?["subject_matter"]}',
+                                      '{updateResult["Response"]?["id"]}');");
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            pushMessageHelper.Push("加班申请异常", e.Message, PushMessageHelper.PushIcon.Alert);
+        }
+    }
+
+    /// <summary>
+    /// 餐补提醒
+    /// 每月24，25，26号14点执行
+    /// </summary>
+    public void MealAllowanceReminder()
+    {
+        var startTime = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 26).AddMonths(-1).ToString("yyyy-MM-dd");
+        var endTime = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 25).ToString("yyyy-MM-dd");
+        var result = GetOaWorkoverTime(startTime, endTime);
+        if (result.Any(e => e.Realtime >= 2))
+            pushMessageHelper.Push("餐补提醒",
+                DateTime.Parse(endTime).ToString("yyyy年MM月") + ",你居然有" + result.Count(e => e.Realtime >= 2) + "天加班超过2小时,最后只换来" + result.Where(e => e.Realtime >= 2).Sum(e => e.Amount) +
+                "元餐补。请尽快填写餐补,不然这点钱也没了。",
+                PushMessageHelper.PushIcon.Amount);
+    }
 }
