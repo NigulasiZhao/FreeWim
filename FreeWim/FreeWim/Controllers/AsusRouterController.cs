@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using FreeWim.Common;
 using FreeWim.Models.AsusRouter;
+using FreeWim.Models.AsusRouter.Dto;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
 
@@ -397,5 +398,324 @@ public class AsusRouterController : Controller
                 message = $"获取失败: {ex.Message}"
             });
         }
+    }
+
+    [Tags("华硕")]
+    [EndpointSummary("获取流量监控页面数据")]
+    [HttpGet]
+    public async Task<ActionResult> GetTrafficMonitoringData(string? startDate = null, string? endDate = null)
+    {
+        try
+        {
+            using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+
+            // 解析日期参数，默认为最近30天
+            DateTime start, end;
+            if (string.IsNullOrEmpty(startDate) || string.IsNullOrEmpty(endDate))
+            {
+                end = DateTime.Now.Date;
+                start = end.AddDays(-29);
+            }
+            else
+            {
+                if (!DateTime.TryParse(startDate, out start) || !DateTime.TryParse(endDate, out end))
+                {
+                    return Json(new
+                    {
+                        success = false,
+                        message = "日期格式错误，请使用 yyyy-MM-dd 格式"
+                    });
+                }
+                start = start.Date;
+                end = end.Date;
+            }
+
+            var result = new TrafficMonitoringDto();
+
+            // 1. 获取设备列表（带名称）
+            var devices = await dbConnection.QueryAsync<AsusRouterDevice>(@"
+                SELECT DISTINCT ON (mac) mac, name, nickname, type, updatedat 
+                FROM asusrouterdevice 
+                ORDER BY mac, updatedat DESC
+            ");
+            var deviceList = devices.ToList();
+
+            // 2. 查询指定日期范围内的流量数据（按设备汇总）
+            var deviceTrafficData = await dbConnection.QueryAsync<dynamic>(@"
+                SELECT 
+                    mac,
+                    SUM(uploadbytes) as total_upload,
+                    SUM(downloadbytes) as total_download
+                FROM asusrouterdevicetraffic
+                WHERE statdate BETWEEN @StartDate AND @EndDate
+                GROUP BY mac
+                ORDER BY SUM(downloadbytes) DESC
+            ", new { StartDate = start, EndDate = end });
+
+            var deviceTrafficList = deviceTrafficData.ToList();
+
+            // 3. 计算总流量和KPI
+            long totalUpload = 0;
+            long totalDownload = 0;
+            foreach (var dt in deviceTrafficList)
+            {
+                totalUpload += (long)dt.total_upload;
+                totalDownload += (long)dt.total_download;
+            }
+
+            int dayCount = (end - start).Days + 1;
+            result.Kpi = new KpiStatistics
+            {
+                TotalUploadBytes = totalUpload,
+                TotalDownloadBytes = totalDownload,
+                TotalUploadFormatted = FormatBytes(totalUpload),
+                TotalDownloadFormatted = FormatBytes(totalDownload),
+                AvgDailyUpload = FormatBytes(dayCount > 0 ? totalUpload / dayCount : 0),
+                AvgDailyDownload = FormatBytes(dayCount > 0 ? totalDownload / dayCount : 0),
+                DayCount = dayCount
+            };
+
+            // 4. 构建设备列表（添加"所有设备"选项）
+            result.Devices.Add(new DeviceTrafficSummary
+            {
+                Id = "all",
+                Name = "所有设备",
+                Icon = "🌐",
+                UploadBytes = totalUpload,
+                DownloadBytes = totalDownload,
+                UpFormatted = FormatBytes(totalUpload),
+                DownFormatted = FormatBytes(totalDownload)
+            });
+
+            foreach (var dt in deviceTrafficList)
+            {
+                var device = deviceList.FirstOrDefault(d => d.Mac == dt.mac);
+                var deviceName = device?.NickName ?? device?.Name ?? dt.mac;
+                var icon = GetDeviceIcon(device?.Type);
+
+                result.Devices.Add(new DeviceTrafficSummary
+                {
+                    Id = dt.mac,
+                    Name = deviceName,
+                    Icon = icon,
+                    UploadBytes = (long)dt.total_upload,
+                    DownloadBytes = (long)dt.total_download,
+                    UpFormatted = FormatBytes((long)dt.total_upload),
+                    DownFormatted = FormatBytes((long)dt.total_download)
+                });
+            }
+
+            // 5. 查询每日流量趋势（所有设备汇总）
+            var dailyTrafficData = await dbConnection.QueryAsync<dynamic>(@"
+                SELECT 
+                    statdate,
+                    SUM(uploadbytes) as daily_upload,
+                    SUM(downloadbytes) as daily_download
+                FROM asusrouterdevicetraffic
+                WHERE statdate BETWEEN @StartDate AND @EndDate
+                GROUP BY statdate
+                ORDER BY statdate
+            ", new { StartDate = start, EndDate = end });
+
+            foreach (var daily in dailyTrafficData)
+            {
+                DateTime date = daily.statdate;
+                result.DailyTrends.Add(new DailyTrafficTrend
+                {
+                    Date = date.ToString("MM-dd"),
+                    UploadGB = Math.Round((long)daily.daily_upload / 1073741824.0, 2),
+                    DownloadGB = Math.Round((long)daily.daily_download / 1073741824.0, 2)
+                });
+            }
+
+            // 6. 查询应用流量分布（选定周期内，Top 10，排除General项）
+            var appTrafficData = await dbConnection.QueryAsync<dynamic>(@"
+                SELECT 
+                    appname,
+                    SUM(uploadbytes) as app_upload,
+                    SUM(downloadbytes) as app_download
+                FROM asusrouterdevicetrafficdetail
+                WHERE statdate BETWEEN @StartDate AND @EndDate
+                    AND appname NOT IN ('General', 'UNKNOWN', 'Unknown', 'Other')
+                GROUP BY appname
+                HAVING SUM(uploadbytes) + SUM(downloadbytes) > 0
+                ORDER BY SUM(downloadbytes) + SUM(uploadbytes) DESC
+                LIMIT 10
+            ", new { StartDate = start, EndDate = end });
+
+            foreach (var app in appTrafficData)
+            {
+                long upload = (long)app.app_upload;
+                long download = (long)app.app_download;
+                result.AppDistributions.Add(new AppTrafficDistribution
+                {
+                    AppName = app.appname,
+                    UploadBytes = upload,
+                    DownloadBytes = download,
+                    TotalGB = Math.Round((upload + download) / 1073741824.0, 2)
+                });
+            }
+
+            return Json(new
+            {
+                success = true,
+                message = "获取成功",
+                data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取流量监控数据失败");
+            return Json(new
+            {
+                success = false,
+                message = $"获取失败: {ex.Message}"
+            });
+        }
+    }
+
+    [Tags("华硕")]
+    [EndpointSummary("获取单个设备的每日流量趋势")]
+    [HttpGet]
+    public async Task<ActionResult> GetDeviceDailyTraffic(string mac, string? startDate = null, string? endDate = null)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(mac))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "MAC地址不能为空"
+                });
+            }
+
+            using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+
+            // 解析日期参数
+            DateTime start, end;
+            if (string.IsNullOrEmpty(startDate) || string.IsNullOrEmpty(endDate))
+            {
+                end = DateTime.Now.Date;
+                start = end.AddDays(-29);
+            }
+            else
+            {
+                if (!DateTime.TryParse(startDate, out start) || !DateTime.TryParse(endDate, out end))
+                {
+                    return Json(new
+                    {
+                        success = false,
+                        message = "日期格式错误，请使用 yyyy-MM-dd 格式"
+                    });
+                }
+                start = start.Date;
+                end = end.Date;
+            }
+
+            // 获取设备信息
+            var device = await dbConnection.QueryFirstOrDefaultAsync<AsusRouterDevice>(
+                "SELECT * FROM asusrouterdevice WHERE mac = @Mac LIMIT 1",
+                new { Mac = mac }
+            );
+
+            var deviceName = device?.NickName ?? device?.Name ?? mac;
+
+            // 查询该设备的每日流量趋势
+            var dailyTrafficData = await dbConnection.QueryAsync<dynamic>(@"
+                SELECT 
+                    statdate,
+                    SUM(uploadbytes) as daily_upload,
+                    SUM(downloadbytes) as daily_download
+                FROM asusrouterdevicetraffic
+                WHERE mac = @Mac AND statdate BETWEEN @StartDate AND @EndDate
+                GROUP BY statdate
+                ORDER BY statdate
+            ", new { Mac = mac, StartDate = start, EndDate = end });
+
+            var result = new DeviceDailyTrafficDto
+            {
+                Mac = mac,
+                DeviceName = deviceName
+            };
+
+            foreach (var daily in dailyTrafficData)
+            {
+                DateTime date = daily.statdate;
+                result.DailyTrends.Add(new DailyTrafficTrend
+                {
+                    Date = date.ToString("MM-dd"),
+                    UploadGB = Math.Round((long)daily.daily_upload / 1073741824.0, 2),
+                    DownloadGB = Math.Round((long)daily.daily_download / 1073741824.0, 2)
+                });
+            }
+
+            return Json(new
+            {
+                success = true,
+                message = "获取成功",
+                data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取设备流量趋势失败");
+            return Json(new
+            {
+                success = false,
+                message = $"获取失败: {ex.Message}"
+            });
+        }
+    }
+
+    /// <summary>
+    /// 格式化字节数为友好显示
+    /// </summary>
+    private string FormatBytes(long bytes)
+    {
+        const long GB = 1073741824;
+        const long TB = 1099511627776;
+
+        if (bytes >= TB)
+        {
+            return $"{Math.Round(bytes / (double)TB, 2)}TB";
+        }
+        else if (bytes >= GB)
+        {
+            return $"{Math.Round(bytes / (double)GB, 2)}GB";
+        }
+        else if (bytes >= 1048576)
+        {
+            return $"{Math.Round(bytes / 1048576.0, 2)}MB";
+        }
+        else
+        {
+            return $"{Math.Round(bytes / 1024.0, 2)}KB";
+        }
+    }
+
+    /// <summary>
+    /// 根据设备类型获取图标
+    /// </summary>
+    private string GetDeviceIcon(string? deviceType)
+    {
+        if (string.IsNullOrEmpty(deviceType))
+            return "📱";
+
+        return deviceType.ToLower() switch
+        {
+            var t when t.Contains("phone") || t.Contains("mobile") => "📱",
+            var t when t.Contains("laptop") || t.Contains("notebook") || t.Contains("macbook") => "💻",
+            var t when t.Contains("desktop") || t.Contains("pc") => "🖥️",
+            var t when t.Contains("tv") || t.Contains("television") => "📺",
+            var t when t.Contains("nas") || t.Contains("storage") => "💾",
+            var t when t.Contains("game") || t.Contains("console") || t.Contains("ps") || t.Contains("xbox") => "🎮",
+            var t when t.Contains("tablet") || t.Contains("ipad") => "📱",
+            var t when t.Contains("watch") => "⌚",
+            var t when t.Contains("router") || t.Contains("gateway") => "🌐",
+            var t when t.Contains("camera") => "📷",
+            var t when t.Contains("printer") => "🖨️",
+            _ => "📱"
+        };
     }
 }

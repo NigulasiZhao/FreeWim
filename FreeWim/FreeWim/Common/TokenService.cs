@@ -220,7 +220,7 @@ public class TokenService(IConfiguration configuration)
                 return null;
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return null;
         }

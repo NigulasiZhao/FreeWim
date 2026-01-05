@@ -467,8 +467,7 @@ $$;
                     downloadbytes bigint NOT NULL DEFAULT 0,
                     createdat timestamp DEFAULT LOCALTIMESTAMP(0) NULL,
                     updatedat timestamp DEFAULT LOCALTIMESTAMP(0) NULL,
-                    CONSTRAINT asusrouterdevicetraffic_pk PRIMARY KEY (id),
-                    CONSTRAINT asusrouterdevicetraffic_unique UNIQUE (mac, statdate, hour)
+                    CONSTRAINT asusrouterdevicetraffic_pk PRIMARY KEY (id)
                 );
 
                 CREATE INDEX idx_asusrouterdevicetraffic_mac ON public.asusrouterdevicetraffic(mac);
@@ -501,8 +500,7 @@ $$;
                     downloadbytes bigint NOT NULL DEFAULT 0,
                     createdat timestamp DEFAULT LOCALTIMESTAMP(0) NULL,
                     updatedat timestamp DEFAULT LOCALTIMESTAMP(0) NULL,
-                    CONSTRAINT asusrouterdevicetrafficdetail_pk PRIMARY KEY (id),
-                    CONSTRAINT asusrouterdevicetrafficdetail_unique UNIQUE (mac, statdate, appname)
+                    CONSTRAINT asusrouterdevicetrafficdetail_pk PRIMARY KEY (id)
                 );
 
                 CREATE INDEX idx_asusrouterdevicetrafficdetail_mac ON public.asusrouterdevicetrafficdetail(mac);

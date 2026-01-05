@@ -709,7 +709,6 @@ public class HangFireHelper(
             }
             
             var totalDevices = devices.Count();
-            var successCount = 0;
             var failedCount = 0;
             var hourlySuccessCount = 0;
             var detailSuccessCount = 0;
@@ -749,26 +748,16 @@ public class HangFireHelper(
                         }
                     }
                     
-                    // 如果两种数据都成功采集，计为成功
-                    // if (trafficData.Count > 0 || trafficDetailData.Count > 0)
-                    // {
-                    //     successCount++;
-                    // }
-                    // else
-                    // {
-                    //     failedCount++;
-                    // }
-                    
                     // 防止请求过于频繁，稍微延迟
                     await Task.Delay(1000);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     failedCount++;
                 }
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
         }
     }

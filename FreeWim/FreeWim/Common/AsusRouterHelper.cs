@@ -512,14 +512,14 @@ public class AsusRouterHelper
     public async Task<int> SaveDeviceTrafficToDatabaseAsync(string mac, DateTime statDate, List<(long Upload, long Download)> trafficData)
     {
         using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
-        
+
         try
         {
             var now = DateTime.Now;
-            
+
             // 确保只处理24小时数据
             var maxHours = Math.Min(trafficData.Count, 24);
-            
+
             // 构建批量插入的参数列表
             var batchInsertParams = new List<object>();
             for (int hour = 0; hour < maxHours; hour++)
@@ -529,7 +529,7 @@ public class AsusRouterHelper
                 {
                     Id = Guid.NewGuid().ToString(),
                     Mac = mac,
-                    StatDate = statDate.Date,
+                    StatDate = statDate.AddDays(-1).Date,
                     Hour = hour,
                     UploadBytes = traffic.Upload,
                     DownloadBytes = traffic.Download,
@@ -545,7 +545,7 @@ public class AsusRouterHelper
                 ) VALUES (
                     @Id, @Mac, @StatDate, @Hour, @UploadBytes, @DownloadBytes, @CreatedAt, @UpdatedAt
                 )";
-            
+
             var savedCount = await dbConnection.ExecuteAsync(insertSql, batchInsertParams);
 
             _logger.LogInformation($"成功批量保存设备 {mac} 在 {statDate:yyyy-MM-dd} 的 {savedCount} 小时流量数据到数据库");
@@ -697,55 +697,26 @@ public class AsusRouterHelper
 
             foreach (var traffic in trafficDetailData)
             {
-                // 检查该记录是否已存在
-                var exists = await dbConnection.QueryFirstOrDefaultAsync<int>(
-                    "SELECT COUNT(1) FROM asusrouterdevicetrafficdetail WHERE mac = @Mac AND statdate = @StatDate AND appname = @AppName",
-                    new { Mac = mac, StatDate = statDate.Date, AppName = traffic.AppName }
-                );
 
-                if (exists > 0)
-                {
-                    // 更新现有记录
-                    var updateSql = @"
-                        UPDATE asusrouterdevicetrafficdetail SET
-                            uploadbytes = @UploadBytes,
-                            downloadbytes = @DownloadBytes,
-                            updatedat = @UpdatedAt
-                        WHERE mac = @Mac AND statdate = @StatDate AND appname = @AppName";
-
-                    await dbConnection.ExecuteAsync(updateSql, new
-                    {
-                        Mac = mac,
-                        StatDate = statDate.Date,
-                        AppName = traffic.AppName,
-                        UploadBytes = traffic.Upload,
-                        DownloadBytes = traffic.Download,
-                        UpdatedAt = now
-                    });
-                }
-                else
-                {
-                    // 插入新记录
-                    var insertSql = @"
+                // 插入新记录
+                var insertSql = @"
                         INSERT INTO asusrouterdevicetrafficdetail (
                             id, mac, statdate, appname, uploadbytes, downloadbytes, createdat, updatedat
                         ) VALUES (
                             @Id, @Mac, @StatDate, @AppName, @UploadBytes, @DownloadBytes, @CreatedAt, @UpdatedAt
                         )";
 
-                    await dbConnection.ExecuteAsync(insertSql, new
-                    {
-                        Id = Guid.NewGuid().ToString(),
-                        Mac = mac,
-                        StatDate = statDate.Date,
-                        AppName = traffic.AppName,
-                        UploadBytes = traffic.Upload,
-                        DownloadBytes = traffic.Download,
-                        CreatedAt = now,
-                        UpdatedAt = now
-                    });
-                }
-
+                await dbConnection.ExecuteAsync(insertSql, new
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Mac = mac,
+                    StatDate = statDate.AddDays(-1).Date,
+                    AppName = traffic.AppName,
+                    UploadBytes = traffic.Upload,
+                    DownloadBytes = traffic.Download,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
                 savedCount++;
             }
 
