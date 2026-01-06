@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Data;
-using System.Linq;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Dapper;
 using FreeWim.Models.AsusRouter;
 using Npgsql;
@@ -14,20 +10,9 @@ namespace FreeWim.Services;
 /// 华硕路由器服务类
 /// 用于获取路由器连接设备信息并存储到数据库
 /// </summary>
-public class AsusRouterService
+public class AsusRouterService(IConfiguration configuration, TokenService tokenService, ILogger<AsusRouterService> logger)
 {
-    private readonly IConfiguration _configuration;
-    private readonly TokenService _tokenService;
-    private readonly ILogger<AsusRouterService> _logger;
-    private readonly HttpClient _httpClient;
-
-    public AsusRouterService(IConfiguration configuration, TokenService tokenService, ILogger<AsusRouterService> logger)
-    {
-        _configuration = configuration;
-        _tokenService = tokenService;
-        _logger = logger;
-        _httpClient = new HttpClient();
-    }
+    private readonly HttpClient _httpClient = new();
 
     /// <summary>
     /// 获取路由器连接的所有设备信息
@@ -36,7 +21,7 @@ public class AsusRouterService
     {
         try
         {
-            var baseUrl = _configuration.GetValue<string>("AsusRouter:RouterIp", "http://192.168.50.1");
+            var baseUrl = configuration.GetValue<string>("AsusRouter:RouterIp", "http://192.168.50.1");
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var url = $"{baseUrl}/update_clients.asp?_={timestamp}";
 
@@ -51,7 +36,7 @@ public class AsusRouterService
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
             // 设置Cookie
-            var token = _tokenService.GetAsusRouterTokenAsync();
+            var token = tokenService.GetAsusRouterTokenAsync();
             var cookie = $"hwaddr=7C:10:C9:E8:6D:C8; apps_last=; bw_rtab=WIRED; maxBandwidth=100; asus_token={token}; clickedItem_tab=0";
             request.Headers.TryAddWithoutValidation("Cookie", cookie);
 
@@ -59,13 +44,11 @@ public class AsusRouterService
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync();
-            _logger.LogInformation($"成功获取路由器设备信息，内容长度: {content.Length}");
 
             return ParseResponse(content);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "获取网络设备列表失败");
             throw new Exception($"获取网络设备列表失败: {ex.Message}", ex);
         }
     }
@@ -75,7 +58,7 @@ public class AsusRouterService
     /// </summary>
     public async Task<int> SaveDevicesToDatabaseAsync(AsusRouterResponse response)
     {
-        using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
 
         try
         {
@@ -145,12 +128,10 @@ public class AsusRouterService
                 savedCount++;
             }
 
-            _logger.LogInformation($"成功保存 {savedCount} 个设备信息到数据库");
             return savedCount;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "保存设备信息到数据库失败");
             throw new Exception($"保存设备信息到数据库失败: {ex.Message}", ex);
         }
     }
@@ -185,18 +166,10 @@ public class AsusRouterService
 
             response.Devices = allDevices;
 
-            _logger.LogInformation($"解析完成: 总设备数={allDevices.Count}, networkmapd={response.FromNetworkmapCount}, nmpClient={response.FromNmpClientCount}");
             return response;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"解析响应数据失败: {ex.Message}");
-
-            // 记录原始响应内容的前几行以便调试
-            var lines = responseContent.Split('\n');
-            var previewLines = string.Join("\n", lines.Take(10));
-            _logger.LogError($"响应内容前10行:\n{previewLines}");
-
             throw new Exception($"解析响应数据失败: {ex.Message}", ex);
         }
     }
@@ -214,7 +187,6 @@ public class AsusRouterService
 
             if (startIndex == -1)
             {
-                _logger.LogWarning($"未找到属性 {propertyName}");
                 return string.Empty;
             }
 
@@ -242,13 +214,11 @@ public class AsusRouterService
                 }
 
             var arrayContent = responseContent.Substring(startIndex, endIndex - startIndex + 1);
-            _logger.LogDebug($"提取的 {propertyName} 数组长度: {arrayContent.Length}");
 
             return arrayContent;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"提取数组 {propertyName} 失败");
             return string.Empty;
         }
     }
@@ -280,14 +250,10 @@ public class AsusRouterService
                     }
                 }
 
-            // 获取ClientAPILevel（如果有）
-            if (element.TryGetProperty("ClientAPILevel", out var apiLevel)) _logger.LogDebug($"{dataSource} ClientAPILevel: {apiLevel.GetString()}");
-
             return devices;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogError(ex, $"解析 {dataSource} 设备数组失败");
             return devices;
         }
     }
@@ -377,7 +343,7 @@ public class AsusRouterService
     {
         try
         {
-            var baseUrl = _configuration.GetValue<string>("AsusRouter:RouterIp", "http://192.168.50.1");
+            var baseUrl = configuration.GetValue<string>("AsusRouter:RouterIp", "http://192.168.50.1");
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var encodedMac = Uri.EscapeDataString(mac);
             var url = $"{baseUrl}/getWanTraffic.asp?client={encodedMac}&mode={mode}&dura={dura}&date={date}&_={timestamp}";
@@ -393,7 +359,7 @@ public class AsusRouterService
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
             // 设置Cookie
-            var token = _tokenService.GetAsusRouterTokenAsync();
+            var token = tokenService.GetAsusRouterTokenAsync();
             var cookie = $"hwaddr=7C:10:C9:E8:6D:C8; apps_last=; bw_rtab=WIRED; maxBandwidth=100; ASUS_TrafficMonitor_unit=1; ASUS_Traffic_unit=2; asus_token={token}; clickedItem_tab=7";
             request.Headers.TryAddWithoutValidation("Cookie", cookie);
 
@@ -401,13 +367,13 @@ public class AsusRouterService
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync();
-            _logger.LogInformation($"成功获取设备 {mac} 的流量数据，内容长度: {content.Length}");
+            logger.LogInformation($"成功获取设备 {mac} 的流量数据，内容长度: {content.Length}");
 
             return ParseTrafficResponse(content);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"获取设备 {mac} 流量数据失败");
+            logger.LogError(ex, $"获取设备 {mac} 流量数据失败");
             throw new Exception($"获取设备流量数据失败: {ex.Message}", ex);
         }
     }
@@ -428,7 +394,7 @@ public class AsusRouterService
 
             if (startIndex == -1)
             {
-                _logger.LogWarning("未找到 array_statistics 数据");
+                logger.LogWarning("未找到 array_statistics 数据");
                 return result;
             }
 
@@ -456,7 +422,6 @@ public class AsusRouterService
                 }
 
             var arrayContent = responseContent.Substring(startIndex, endIndex - startIndex + 1);
-            _logger.LogDebug($"提取的流量数组: {arrayContent}");
 
             // 使用 JSON 解析数组
             var arrayElement = JsonDocument.Parse(arrayContent).RootElement;
@@ -470,12 +435,10 @@ public class AsusRouterService
                         result.Add((upload, download));
                     }
 
-            _logger.LogInformation($"解析流量数据完成，共 {result.Count} 条记录");
             return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "解析流量响应数据失败");
             throw new Exception($"解析流量数据失败: {ex.Message}", ex);
         }
     }
@@ -488,7 +451,7 @@ public class AsusRouterService
     /// <param name="trafficData">24小时流量数据</param>
     public async Task<int> SaveDeviceTrafficToDatabaseAsync(string mac, DateTime statDate, List<(long Upload, long Download)> trafficData)
     {
-        using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
 
         try
         {
@@ -525,12 +488,10 @@ public class AsusRouterService
 
             var savedCount = await dbConnection.ExecuteAsync(insertSql, batchInsertParams);
 
-            _logger.LogInformation($"成功批量保存设备 {mac} 在 {statDate:yyyy-MM-dd} 的 {savedCount} 小时流量数据到数据库");
             return savedCount;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"批量保存设备 {mac} 流量数据到数据库失败");
             throw new Exception($"批量保存流量数据到数据库失败: {ex.Message}", ex);
         }
     }
@@ -547,7 +508,7 @@ public class AsusRouterService
     {
         try
         {
-            var baseUrl = _configuration.GetValue<string>("AsusRouter:RouterIp", "http://192.168.50.1");
+            var baseUrl = configuration.GetValue<string>("AsusRouter:RouterIp", "http://192.168.50.1");
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var encodedMac = Uri.EscapeDataString(mac);
             var url = $"{baseUrl}/getWanTraffic.asp?client={encodedMac}&mode={mode}&dura={dura}&date={date}&_={timestamp}";
@@ -563,7 +524,7 @@ public class AsusRouterService
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
             // 设置Cookie
-            var token = _tokenService.GetAsusRouterTokenAsync();
+            var token = tokenService.GetAsusRouterTokenAsync();
             var cookie = $"hwaddr=7C:10:C9:E8:6D:C8; apps_last=; bw_rtab=WIRED; maxBandwidth=100; ASUS_TrafficMonitor_unit=1; ASUS_Traffic_unit=2; asus_token={token}; clickedItem_tab=7";
             request.Headers.TryAddWithoutValidation("Cookie", cookie);
 
@@ -571,13 +532,11 @@ public class AsusRouterService
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync();
-            _logger.LogInformation($"成功获取设备 {mac} 的详细流量数据，内容长度: {content.Length}");
 
             return ParseTrafficDetailResponse(content);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"获取设备 {mac} 详细流量数据失败");
             throw new Exception($"获取设备详细流量数据失败: {ex.Message}", ex);
         }
     }
@@ -598,7 +557,6 @@ public class AsusRouterService
 
             if (startIndex == -1)
             {
-                _logger.LogWarning("未找到 array_statistics 数据");
                 return result;
             }
 
@@ -626,7 +584,6 @@ public class AsusRouterService
                 }
 
             var arrayContent = responseContent.Substring(startIndex, endIndex - startIndex + 1);
-            _logger.LogDebug($"提取的详细流量数组: {arrayContent}");
 
             // 使用 JSON 解析数组
             var arrayElement = JsonDocument.Parse(arrayContent).RootElement;
@@ -641,12 +598,10 @@ public class AsusRouterService
                         result.Add((appName, upload, download));
                     }
 
-            _logger.LogInformation($"解析详细流量数据完成，共 {result.Count} 条记录");
             return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "解析详细流量响应数据失败");
             throw new Exception($"解析详细流量数据失败: {ex.Message}", ex);
         }
     }
@@ -659,7 +614,7 @@ public class AsusRouterService
     /// <param name="trafficDetailData">按应用/协议分类的流量数据</param>
     public async Task<int> SaveDeviceTrafficDetailToDatabaseAsync(string mac, DateTime statDate, List<(string AppName, long Upload, long Download)> trafficDetailData)
     {
-        using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
 
         try
         {
@@ -690,12 +645,10 @@ public class AsusRouterService
                 savedCount++;
             }
 
-            _logger.LogInformation($"成功保存设备 {mac} 在 {statDate:yyyy-MM-dd} 的 {savedCount} 条详细流量数据到数据库");
             return savedCount;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"保存设备 {mac} 详细流量数据到数据库失败");
             throw new Exception($"保存详细流量数据到数据库失败: {ex.Message}", ex);
         }
     }
@@ -707,7 +660,7 @@ public class AsusRouterService
     public async Task SyncRouterDevices()
     {
         var devices = await GetNetworkDevicesAsync();
-        var savedCount = await SaveDevicesToDatabaseAsync(devices);
+        await SaveDevicesToDatabaseAsync(devices);
     }
 
     /// <summary>
@@ -723,7 +676,7 @@ public class AsusRouterService
             var yesterday = DateTime.Now.Date;
             var dateTimestamp = new DateTimeOffset(yesterday).ToUnixTimeSeconds();
 
-            using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
 
             // 查询所有在线设备的MAC地址
             var devices = await dbConnection.QueryAsync<string>(
@@ -745,7 +698,7 @@ public class AsusRouterService
                         var hasValidData = trafficData.Any(t => t.Upload > 0 || t.Download > 0);
                         if (hasValidData)
                         {
-                            var savedCount = await SaveDeviceTrafficToDatabaseAsync(mac, yesterday, trafficData);
+                            await SaveDeviceTrafficToDatabaseAsync(mac, yesterday, trafficData);
                         }
                     }
 
@@ -761,7 +714,7 @@ public class AsusRouterService
                         var hastrafficDetailData = trafficDetailData.Any(t => t.Upload > 0 || t.Download > 0);
                         if (hastrafficDetailData)
                         {
-                            var savedDetailCount = await SaveDeviceTrafficDetailToDatabaseAsync(mac, yesterday, trafficDetailData);
+                            await SaveDeviceTrafficDetailToDatabaseAsync(mac, yesterday, trafficDetailData);
                         }
                     }
 
@@ -770,6 +723,7 @@ public class AsusRouterService
                 }
                 catch (Exception)
                 {
+                    // ignored
                 }
         }
         catch (Exception)

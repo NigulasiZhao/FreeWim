@@ -668,6 +668,141 @@ public class AsusRouterController : Controller
         }
     }
 
+    [Tags("华硕")]
+    [EndpointSummary("获取流量占比数据 - 所有设备返回每日占比，单个设备返回时段占比")]
+    [HttpGet]
+    public async Task<ActionResult> GetTrafficDistribution(string? deviceId = "all", string? startDate = null, string? endDate = null)
+    {
+        try
+        {
+            using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+
+            // 解析日期参数
+            DateTime start, end;
+            if (string.IsNullOrEmpty(startDate) || string.IsNullOrEmpty(endDate))
+            {
+                end = DateTime.Now.Date;
+                start = end.AddDays(-14);
+            }
+            else
+            {
+                if (!DateTime.TryParse(startDate, out start) || !DateTime.TryParse(endDate, out end))
+                {
+                    return Json(new
+                    {
+                        success = false,
+                        message = "日期格式错误，请使用 yyyy-MM-dd 格式"
+                    });
+                }
+                start = start.Date;
+                end = end.Date;
+            }
+
+            // 所有设备：返回24小时时段流量占比（汇总所有设备）
+            if (deviceId == "all")
+            {
+                var hourlyTrafficData = await dbConnection.QueryAsync<dynamic>(@"
+                    SELECT 
+                        hour,
+                        SUM(uploadbytes) as hour_upload,
+                        SUM(downloadbytes) as hour_download
+                    FROM asusrouterdevicetraffic
+                    WHERE statdate BETWEEN @StartDate AND @EndDate
+                    GROUP BY hour
+                    ORDER BY hour
+                ", new { StartDate = start, EndDate = end });
+
+                var hourlyList = hourlyTrafficData.ToList();
+                long totalBytes = hourlyList.Sum(h => (long)h.hour_upload + (long)h.hour_download);
+
+                var hourlyDistributions = hourlyList.Select(h =>
+                {
+                    long hourTotal = (long)h.hour_upload + (long)h.hour_download;
+                    int hour = (int)h.hour;
+                    return new
+                    {
+                        name = $"{hour:D2}:00",
+                        hour = hour,
+                        value = Math.Round(hourTotal / 1073741824.0, 2), // GB
+                        percentage = totalBytes > 0 ? Math.Round((double)hourTotal / totalBytes * 100, 2) : 0
+                    };
+                }).ToList();
+
+                return Json(new
+                {
+                    success = true,
+                    message = "获取成功",
+                    data = new
+                    {
+                        type = "hourly",
+                        title = "所有设备：时段流量占比",
+                        distributions = hourlyDistributions,
+                        totalGB = Math.Round(totalBytes / 1073741824.0, 2)
+                    }
+                });
+            }
+            // 单个设备：返回时段流量占比（24小时）
+            else
+            {
+                var hourlyTrafficData = await dbConnection.QueryAsync<dynamic>(@"
+                    SELECT 
+                        hour,
+                        SUM(uploadbytes) as hour_upload,
+                        SUM(downloadbytes) as hour_download
+                    FROM asusrouterdevicetraffic
+                    WHERE mac = @Mac AND statdate BETWEEN @StartDate AND @EndDate
+                    GROUP BY hour
+                    ORDER BY hour
+                ", new { Mac = deviceId, StartDate = start, EndDate = end });
+
+                var hourlyList = hourlyTrafficData.ToList();
+                long totalBytes = hourlyList.Sum(h => (long)h.hour_upload + (long)h.hour_download);
+
+                // 获取设备名称
+                var device = await dbConnection.QueryFirstOrDefaultAsync<AsusRouterDevice>(
+                    "SELECT * FROM asusrouterdevice WHERE mac = @Mac LIMIT 1",
+                    new { Mac = deviceId }
+                );
+                var deviceName = device?.NickName ?? device?.Name ?? deviceId;
+
+                var hourlyDistributions = hourlyList.Select(h =>
+                {
+                    long hourTotal = (long)h.hour_upload + (long)h.hour_download;
+                    int hour = (int)h.hour;
+                    return new
+                    {
+                        name = $"{hour:D2}:00",
+                        hour = hour,
+                        value = Math.Round(hourTotal / 1073741824.0, 2), // GB
+                        percentage = totalBytes > 0 ? Math.Round((double)hourTotal / totalBytes * 100, 2) : 0
+                    };
+                }).ToList();
+
+                return Json(new
+                {
+                    success = true,
+                    message = "获取成功",
+                    data = new
+                    {
+                        type = "hourly",
+                        title = $"{deviceName}：时段流量占比",
+                        distributions = hourlyDistributions,
+                        totalGB = Math.Round(totalBytes / 1073741824.0, 2)
+                    }
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取流量占比数据失败");
+            return Json(new
+            {
+                success = false,
+                message = $"获取失败: {ex.Message}"
+            });
+        }
+    }
+
     /// <summary>
     /// 格式化字节数为友好显示
     /// </summary>

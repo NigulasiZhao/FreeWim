@@ -91,14 +91,10 @@
 
                 <div class="glass-card p-8">
                     <div class="flex items-center justify-between mb-6">
-                        <h2 class="text-lg font-bold">设备流量排行榜</h2>
-                        <div class="flex gap-2">
-                            <button onclick="switchRankType('download')" id="btn-rank-download" class="px-3 py-1 text-xs rounded-lg bg-blue-500 text-white">下行排名</button>
-                            <button onclick="switchRankType('upload')" id="btn-rank-upload" class="px-3 py-1 text-xs rounded-lg bg-gray-200 text-gray-600">上行排名</button>
-                            <button onclick="switchRankType('total')" id="btn-rank-total" class="px-3 py-1 text-xs rounded-lg bg-gray-200 text-gray-600">总流量排名</button>
-                        </div>
+                        <h2 class="text-lg font-bold" id="distribution-title">每日流量占比</h2>
+                        <div class="text-xs text-gray-500">总流量: <span id="distribution-total" class="font-bold text-blue-600">-- GB</span></div>
                     </div>
-                    <div id="device-rank-chart" class="w-full h-[320px]"></div>
+                    <div id="traffic-distribution-chart" class="w-full h-[320px]"></div>
                 </div>
             </div>
         </div>
@@ -110,7 +106,6 @@
         let currentDeviceId = 'all';
         let currentDeviceName = '所有设备';
         let dateRange = { start: null, end: null };
-        let currentRankType = 'download'; // 当前排行榜类型
 
         // 初始化日期选择（中文、默认15天）
         const datePicker = flatpickr("#date-picker", {
@@ -162,26 +157,26 @@
         // 渲染整个页面
         function renderPage() {
             if (!fullData) return;
-
-            // 1. 渲染KPI统计
+        
+            // 1. 渲某KPI统计
             document.getElementById('kpi-total-up').innerHTML = 
                 `${fullData.kpi.totalUploadFormatted.replace(/([0-9.]+)([A-Z]+)/, '$1 <span class="text-sm font-normal text-gray-400 uppercase">$2</span>')}`;
             document.getElementById('kpi-total-down').innerHTML = 
                 `${fullData.kpi.totalDownloadFormatted.replace(/([0-9.]+)([A-Z]+)/, '$1 <span class="text-sm font-normal text-gray-400 uppercase">$2</span>')}`;
-            
+                    
             document.getElementById('kpi-avg-up').innerHTML = 
                 `${fullData.kpi.avgDailyUpload.replace(/([0-9.]+)([A-Z]+)/, '$1 <span class="text-sm font-normal text-gray-400">$2/Day</span>')}`;
             document.getElementById('kpi-avg-down').innerHTML = 
                 `${fullData.kpi.avgDailyDownload.replace(/([0-9.]+)([A-Z]+)/, '$1 <span class="text-sm font-normal text-gray-400">$2/Day</span>')}`;
-
+        
             // 2. 渲染设备列表
             renderDeviceList();
-
+        
             // 3. 渲染趋势图表
             updateTrendChart(fullData.dailyTrends);
-
-            // 4. 渲染设备排行榜
-            updateDeviceRankChart(fullData.devices, currentRankType);
+        
+            // 4. 渲染流量占比图表
+            updateTrafficDistributionChart();
         }
 
         // 渲染设备列表
@@ -210,7 +205,7 @@
 
         // 初始化 ECharts
         let trendChart = echarts.init(document.getElementById('main-trend-chart'));
-        let deviceRankChart = echarts.init(document.getElementById('device-rank-chart'));
+        let trafficDistributionChart = echarts.init(document.getElementById('traffic-distribution-chart'));
 
         // 切换设备逻辑
         window.switchDevice = async (id, name) => {
@@ -225,27 +220,31 @@
             }
             document.getElementById('chart-title').innerText = `${name}：每日流量趋势`;
 
-            // 如果选择"所有设备"，使用已有的fullData
+            // 如果选择“所有设备”，使用已有的fullData
             if (id === 'all') {
                 if (fullData && fullData.dailyTrends) {
                     updateTrendChart(fullData.dailyTrends);
+                    updateTrafficDistributionChart();
                 }
             } else {
                 // 获取单个设备的流量趋势
                 try {
                     const response = await fetch(`/api/AsusRouter/GetDeviceDailyTraffic?mac=${id}&startDate=${dateRange.start}&endDate=${dateRange.end}`);
                     const result = await response.json();
-                    
+                                
                     if (result.success && result.data.dailyTrends) {
                         updateTrendChart(result.data.dailyTrends);
+                        updateTrafficDistributionChart();
                     } else {
                         console.error('获取设备流量失败:', result.message);
                         // 如果失败，显示空数据
                         updateTrendChart([]);
+                        updateTrafficDistributionChart();
                     }
                 } catch (error) {
                     console.error('请求设备流量失败:', error);
                     updateTrendChart([]);
+                    updateTrafficDistributionChart();
                 }
             }
         };
@@ -322,129 +321,95 @@
             });
         };
 
-        // 更新设备排行榜
-        const updateDeviceRankChart = (devices, rankType) => {
-            if (!devices || devices.length <= 1) { // 至少需要2个设备（包括“所有设备”）
-                deviceRankChart.setOption({
-                    title: { text: '暂无设备数据', left: 'center', top: 'center', textStyle: { color: '#999' } }
-                });
-                return;
-            }
-
-            // 过滤掉“所有设备”，只显示具体设备
-            const realDevices = devices.filter(d => d.id !== 'all');
-            
-            // 根据排行类型排序
-            let sortedDevices = [...realDevices];
-            if (rankType === 'download') {
-                sortedDevices.sort((a, b) => b.downloadBytes - a.downloadBytes);
-            } else if (rankType === 'upload') {
-                sortedDevices.sort((a, b) => b.uploadBytes - a.uploadBytes);
-            } else { // total
-                sortedDevices.sort((a, b) => (b.downloadBytes + b.uploadBytes) - (a.downloadBytes + a.uploadBytes));
-            }
-
-            // 只取前10个设备
-            const topDevices = sortedDevices.slice(0, 10);
-            
-            const deviceNames = topDevices.map(d => d.name);
-            const deviceData = topDevices.map(d => {
-                if (rankType === 'download') {
-                    return (d.downloadBytes / 1073741824).toFixed(2);
-                } else if (rankType === 'upload') {
-                    return (d.uploadBytes / 1073741824).toFixed(2);
-                } else {
-                    return ((d.downloadBytes + d.uploadBytes) / 1073741824).toFixed(2);
+        // 更新流量占比图表
+        const updateTrafficDistributionChart = async () => {
+            try {
+                const response = await fetch(`/api/AsusRouter/GetTrafficDistribution?deviceId=${currentDeviceId}&startDate=${dateRange.start}&endDate=${dateRange.end}`);
+                const result = await response.json();
+                
+                if (!result.success || !result.data || !result.data.distributions) {
+                    trafficDistributionChart.setOption({
+                        title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#999' } }
+                    });
+                    return;
                 }
-            });
 
-            // 颜色渐变：第一名最深，依次变浅
-            const colors = topDevices.map((_, index) => {
-                const ratio = 1 - (index / topDevices.length) * 0.6; // 0.4-1.0
-                if (rankType === 'download') {
-                    return `rgba(37, 99, 235, ${ratio})`; // 蓝色
-                } else if (rankType === 'upload') {
-                    return `rgba(34, 197, 94, ${ratio})`; // 绿色
-                } else {
-                    return `rgba(168, 85, 247, ${ratio})`; // 紫色
-                }
-            });
+                const data = result.data;
+                document.getElementById('distribution-title').innerText = data.title;
+                document.getElementById('distribution-total').innerText = data.totalGB + ' GB';
 
-            deviceRankChart.setOption({
-                tooltip: {
-                    trigger: 'axis',
-                    axisPointer: { type: 'shadow' },
-                    formatter: function(params) {
-                        return `${params[0].name}<br/>${params[0].marker}流量: ${params[0].value} GB`;
-                    }
-                },
-                grid: { 
-                    left: '3%', 
-                    right: '4%', 
-                    bottom: '3%', 
-                    top: '5%', 
-                    containLabel: true 
-                },
-                xAxis: {
-                    type: 'value',
-                    name: 'GB',
-                    splitLine: { show: true, lineStyle: { color: '#f0f0f0' } }
-                },
-                yAxis: {
-                    type: 'category',
-                    data: deviceNames.reverse(), // 反转使第一名在最上方
-                    axisTick: { show: false },
-                    axisLine: { show: false },
-                    axisLabel: {
-                        fontSize: 11,
-                        width: 120,
-                        overflow: 'truncate'
-                    }
-                },
-                series: [
-                    {
-                        type: 'bar',
-                        data: deviceData.reverse().map((value, index) => ({
-                            value,
-                            itemStyle: { 
-                                color: colors.reverse()[index],
-                                borderRadius: [0, 6, 6, 0]
+                // 根据类型选择不同的图表（现在都是时段柱状图）
+                if (data.type === 'hourly') {
+                    // 显示时段柱状图（24小时）
+                    const hours = data.distributions.map(d => d.name);
+                    const values = data.distributions.map(d => d.value);
+                    const percentages = data.distributions.map(d => d.percentage);
+
+                    // 根据是否为单个设备选择不同颜色
+                    const colorScheme = currentDeviceId === 'all' 
+                        ? { start: '#3b82f6', end: '#1d4ed8' }  // 所有设备用蓝色
+                        : { start: '#667eea', end: '#764ba2' }; // 单个设备用紫色
+
+                    trafficDistributionChart.setOption({
+                        tooltip: {
+                            trigger: 'axis',
+                            axisPointer: { type: 'shadow' },
+                            formatter: function(params) {
+                                const index = params[0].dataIndex;
+                                return `${params[0].name}<br/>${params[0].marker}流量: ${params[0].value} GB<br/>占比: ${percentages[index]}%`;
                             }
-                        })),
-                        barWidth: '60%',
-                        label: {
-                            show: true,
-                            position: 'right',
-                            formatter: '{c} GB',
-                            fontSize: 11,
-                            color: '#666'
                         },
-                        emphasis: {
-                            itemStyle: {
-                                shadowBlur: 10,
-                                shadowColor: 'rgba(0,0,0,0.3)'
+                        grid: { 
+                            left: '3%', 
+                            right: '4%', 
+                            bottom: '10%', 
+                            top: '5%', 
+                            containLabel: true 
+                        },
+                        xAxis: {
+                            type: 'category',
+                            data: hours,
+                            axisTick: { show: false },
+                            axisLine: { lineStyle: { color: '#ddd' } },
+                            axisLabel: {
+                                rotate: 45,
+                                fontSize: 10
                             }
-                        }
-                    }
-                ]
-            });
-        };
-
-        // 切换排行榜类型
-        window.switchRankType = (type) => {
-            currentRankType = type;
-            
-            // 更新按钮样式
-            document.getElementById('btn-rank-download').className = 
-                type === 'download' ? 'px-3 py-1 text-xs rounded-lg bg-blue-500 text-white' : 'px-3 py-1 text-xs rounded-lg bg-gray-200 text-gray-600';
-            document.getElementById('btn-rank-upload').className = 
-                type === 'upload' ? 'px-3 py-1 text-xs rounded-lg bg-green-500 text-white' : 'px-3 py-1 text-xs rounded-lg bg-gray-200 text-gray-600';
-            document.getElementById('btn-rank-total').className = 
-                type === 'total' ? 'px-3 py-1 text-xs rounded-lg bg-purple-500 text-white' : 'px-3 py-1 text-xs rounded-lg bg-gray-200 text-gray-600';
-            
-            // 重新渲染图表
-            if (fullData && fullData.devices) {
-                updateDeviceRankChart(fullData.devices, type);
+                        },
+                        yAxis: {
+                            type: 'value',
+                            name: 'GB',
+                            splitLine: { show: true, lineStyle: { color: '#f0f0f0' } }
+                        },
+                        series: [
+                            {
+                                type: 'bar',
+                                data: values.map((value, index) => ({
+                                    value,
+                                    itemStyle: { 
+                                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                            { offset: 0, color: colorScheme.start },
+                                            { offset: 1, color: colorScheme.end }
+                                        ]),
+                                        borderRadius: [6, 6, 0, 0]
+                                    }
+                                })),
+                                barWidth: '60%',
+                                emphasis: {
+                                    itemStyle: {
+                                        shadowBlur: 10,
+                                        shadowColor: 'rgba(0,0,0,0.3)'
+                                    }
+                                }
+                            }
+                        ]
+                    });
+                }
+            } catch (error) {
+                console.error('获取流量占比数据失败:', error);
+                trafficDistributionChart.setOption({
+                    title: { text: '加载失败', left: 'center', top: 'center', textStyle: { color: '#999' } }
+                });
             }
         };
 
@@ -456,7 +421,7 @@
         // 窗口大小改变时重绘图表
         window.addEventListener('resize', () => {
             trendChart.resize();
-            deviceRankChart.resize();
+            trafficDistributionChart.resize();
         });
     </script>
 </body>
