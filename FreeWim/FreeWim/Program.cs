@@ -155,7 +155,7 @@ app.MapGet("/network", async context =>
     context.Response.ContentType = "text/html";
     await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot"), "NetworkDashboard.html"));
 });
-app.MapGet("/liuliang", async context =>
+app.MapGet("/trafficstatistics", async context =>
 {
     context.Response.ContentType = "text/html";
     await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot"), "TrafficMonitoring.html"));
