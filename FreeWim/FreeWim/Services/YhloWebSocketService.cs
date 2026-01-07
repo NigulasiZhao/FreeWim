@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using System.Text;
 using FreeWim.Models.PmisAndZentao;
+using FreeWim.Utils;
 using Newtonsoft.Json;
 
 namespace FreeWim.Services;
@@ -168,6 +169,32 @@ public class YhloWebSocketService(IConfiguration configuration, TokenService tok
         }
         catch (Exception)
         {
+        }
+    }
+
+    /// <summary>
+    /// 刷新在线状态
+    /// 每日执行一次，更新用户在线状态
+    /// </summary>
+    public async Task RefreshOnlineStatus()
+    {
+        try
+        {
+            var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
+            var token = tokenService.GetTokenAsync();
+            var url = pmisInfo.Url?.TrimEnd('/') + "/uniwim/message/userOnLineOrOffLine/updateUserState?type=2&state=onLine";
+            
+            var httpHelper = new HttpRequestHelper();
+            var headers = new Dictionary<string, string>
+            {
+                { "uniwater_utoken", token }
+            };
+
+            await httpHelper.GetAsync(url, headers);
+        }
+        catch (Exception ex)
+        {
+            // 记录异常但不影响其他流程
         }
     }
 }
