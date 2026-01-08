@@ -295,35 +295,47 @@ from
 ) as last_avg;";
         var avgworkhoursResult = _DbConnection.Query<(double thisavghours, double lastavghours, double improvepercent)>(sqlforavgworkhours);
 
+        // 重构后的加班率计算逻辑：加班天数 / 工作日天数 × 100%
+        // 注意：排除今天的数据，因为当天工时可能还未完成
         var sqlforavgovertime = @"select
-	round(this_avg.overtimeday::numeric / nullif(this_avg.days, 0) * 100, 2) as thisavghours,
-	round(last_avg.overtimeday::numeric / nullif(last_avg.days, 0) * 100, 2) as lastavghours,
+	-- 本月加班率：加班天数/工作日天数*100
+	round(this_avg.overtimeday::numeric / nullif(this_avg.workdays, 0) * 100, 2) as thisavghours,
+	-- 上月加班率：加班天数/工作日天数*100
+	round(last_avg.overtimeday::numeric / nullif(last_avg.workdays, 0) * 100, 2) as lastavghours,
+	-- 加班率变化百分比
 	ROUND(
         case 
-            when last_avg.overtimeday is null or last_avg.days = 0 then null
+            when last_avg.overtimeday is null or last_avg.workdays = 0 then null
             else 
-                ((this_avg.overtimeday::numeric / nullif(this_avg.days, 0)) - (last_avg.overtimeday::numeric / nullif(last_avg.days, 0))) 
-                / nullif((last_avg.overtimeday::numeric / last_avg.days), 0) * 100
+                ((this_avg.overtimeday::numeric / nullif(this_avg.workdays, 0)) - (last_avg.overtimeday::numeric / nullif(last_avg.workdays, 0))) 
+                / nullif((last_avg.overtimeday::numeric / last_avg.workdays), 0) * 100
         end, 
     2) as improve_percent
 from
 	(
 	select
+		-- 本月加班天数（工时>=8.5小时的天数）
 		sum(case when workhours >= 8.5 then 1 else 0 end) as overtimeday,
-		COUNT(distinct attendancedate::date) as days
+		-- 本月工作日天数（非休息日，排除今天）
+		COUNT(distinct attendancedate::date) as workdays
 	from
 		attendancerecordday
 	where
-		yearmonth = to_char(current_date, 'YYYY-MM') and  to_char(attendancedate,'yyyy-MM-dd') <= to_char(now(),'yyyy-MM-dd') and checkinrule <> '休息'
+		yearmonth = to_char(current_date, 'YYYY-MM') 
+		and to_char(attendancedate,'yyyy-MM-dd') < to_char(now(),'yyyy-MM-dd')
+		and checkinrule <> '休息'
 ) as this_avg,
 	(
 	select
+		-- 上月加班天数（工时>=8.5小时的天数）
 		sum(case when workhours >= 8.5 then 1 else 0 end) as overtimeday,
-		COUNT(distinct attendancedate::date) as days
+		-- 上月工作日天数（非休息日）
+		COUNT(distinct attendancedate::date) as workdays
 	from
 		attendancerecordday
 	where
-		yearmonth = to_char(current_date - interval '1 month', 'YYYY-MM') and checkinrule <> '休息'
+		yearmonth = to_char(current_date - interval '1 month', 'YYYY-MM') 
+		and checkinrule <> '休息'
 ) as last_avg;";
         var avgovertimeResult = _DbConnection.Query<(double thisavghours, double lastavghours, double improvepercent)>(sqlforavgovertime);
 
