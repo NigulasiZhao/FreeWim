@@ -23,19 +23,13 @@ public class YhloWebSocketService(IConfiguration configuration, TokenService tok
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
             var wsUrl = pmisInfo.Url?.Replace("https://", "ws://").Replace("http://", "ws://") + "/yhlo";
             var token = tokenService.GetTokenAsync();
-            
+
             // 使用JwtHelper解析token获取mainId
             var mainId = jwtService.GetMainId(token) ?? "";
-            if (!string.IsNullOrEmpty(mainId))
-            {
-                _cachedMainId = mainId;
-            }
-            
+            if (!string.IsNullOrEmpty(mainId)) _cachedMainId = mainId;
+
             // 如果已经连接，先断开
-            if (_isConnected && _webSocket?.State == WebSocketState.Open)
-            {
-                return;
-            }
+            if (_isConnected && _webSocket?.State == WebSocketState.Open) return;
 
             // 清理旧连接
             await DisconnectAsync();
@@ -60,7 +54,7 @@ public class YhloWebSocketService(IConfiguration configuration, TokenService tok
             // 启动接收消息的后台任务
             _ = Task.Run(async () => await ReceiveMessagesAsync());
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             _isConnected = false;
             throw;
@@ -75,7 +69,7 @@ public class YhloWebSocketService(IConfiguration configuration, TokenService tok
         try
         {
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
-            
+
             // 检查连接状态
             if (!_isConnected || _webSocket?.State != WebSocketState.Open)
             {
@@ -95,7 +89,7 @@ public class YhloWebSocketService(IConfiguration configuration, TokenService tok
 
             await SendMessageAsync(heartbeatMessage);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             _isConnected = false;
         }
@@ -106,10 +100,7 @@ public class YhloWebSocketService(IConfiguration configuration, TokenService tok
     /// </summary>
     private async Task SendMessageAsync(object message)
     {
-        if (_webSocket?.State != WebSocketState.Open)
-        {
-            throw new InvalidOperationException("WebSocket未连接");
-        }
+        if (_webSocket?.State != WebSocketState.Open) throw new InvalidOperationException("WebSocket未连接");
 
         var json = JsonConvert.SerializeObject(message);
         var bytes = Encoding.UTF8.GetBytes(json);
@@ -137,10 +128,10 @@ public class YhloWebSocketService(IConfiguration configuration, TokenService tok
                     break;
                 }
 
-                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                Encoding.UTF8.GetString(buffer, 0, result.Count);
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             _isConnected = false;
         }
@@ -155,10 +146,7 @@ public class YhloWebSocketService(IConfiguration configuration, TokenService tok
         {
             _cancellationTokenSource?.Cancel();
 
-            if (_webSocket?.State == WebSocketState.Open)
-            {
-                await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "关闭连接", CancellationToken.None);
-            }
+            if (_webSocket?.State == WebSocketState.Open) await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "关闭连接", CancellationToken.None);
 
             _webSocket?.Dispose();
             _cancellationTokenSource?.Dispose();
@@ -169,6 +157,7 @@ public class YhloWebSocketService(IConfiguration configuration, TokenService tok
         }
         catch (Exception)
         {
+            // ignored
         }
     }
 
@@ -182,17 +171,20 @@ public class YhloWebSocketService(IConfiguration configuration, TokenService tok
         {
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
             var token = tokenService.GetTokenAsync();
-            var url = pmisInfo.Url?.TrimEnd('/') + "/uniwim/message/userOnLineOrOffLine/updateUserState?type=2&state=onLine";
-            
-            var httpHelper = new HttpRequestHelper();
-            var headers = new Dictionary<string, string>
-            {
-                { "uniwater_utoken", token }
-            };
+            var url = pmisInfo.Url.TrimEnd('/') + "/uniwim/message/userOnLineOrOffLine/updateUserState?type=2&state=onLine";
 
-            await httpHelper.GetAsync(url, headers);
+            var httpHelper = new HttpRequestHelper();
+            if (token != null)
+            {
+                var headers = new Dictionary<string, string>
+                {
+                    { "uniwater_utoken", token }
+                };
+
+                await httpHelper.GetAsync(url, headers);
+            }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             // 记录异常但不影响其他流程
         }

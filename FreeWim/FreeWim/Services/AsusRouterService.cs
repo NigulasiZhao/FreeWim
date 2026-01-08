@@ -217,7 +217,7 @@ public class AsusRouterService(IConfiguration configuration, TokenService tokenS
 
             return arrayContent;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return string.Empty;
         }
@@ -367,13 +367,11 @@ public class AsusRouterService(IConfiguration configuration, TokenService tokenS
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync();
-            logger.LogInformation($"成功获取设备 {mac} 的流量数据，内容长度: {content.Length}");
 
             return ParseTrafficResponse(content);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, $"获取设备 {mac} 流量数据失败");
             throw new Exception($"获取设备流量数据失败: {ex.Message}", ex);
         }
     }
@@ -464,15 +462,15 @@ public class AsusRouterService(IConfiguration configuration, TokenService tokenS
             var batchInsertParams = new List<object>();
             for (var hour = 0; hour < maxHours; hour++)
             {
-                var traffic = trafficData[hour];
+                var (upload, download) = trafficData[hour];
                 batchInsertParams.Add(new
                 {
                     Id = Guid.NewGuid().ToString(),
                     Mac = mac,
                     StatDate = statDate.AddDays(-1).Date,
                     Hour = hour,
-                    UploadBytes = traffic.Upload,
-                    DownloadBytes = traffic.Download,
+                    UploadBytes = upload,
+                    DownloadBytes = download,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
@@ -621,7 +619,7 @@ public class AsusRouterService(IConfiguration configuration, TokenService tokenS
             var now = DateTime.Now;
             var savedCount = 0;
 
-            foreach (var traffic in trafficDetailData)
+            foreach (var (AppName, Upload, Download) in trafficDetailData)
             {
                 // 插入新记录
                 var insertSql = @"
@@ -636,9 +634,9 @@ public class AsusRouterService(IConfiguration configuration, TokenService tokenS
                     Id = Guid.NewGuid().ToString(),
                     Mac = mac,
                     StatDate = statDate.AddDays(-1).Date,
-                    AppName = traffic.AppName,
-                    UploadBytes = traffic.Upload,
-                    DownloadBytes = traffic.Download,
+                    AppName,
+                    UploadBytes = Upload,
+                    DownloadBytes = Download,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
