@@ -581,4 +581,108 @@ limit 10;";
                 username = $"%{input.UserName}%"
             }).ToList());
     }
+
+    [Tags("考勤")]
+    [EndpointSummary("考勤异常汇总")]
+    [HttpPost]
+    public ActionResult AttendanceAbnormalSummary(AttendanceAbnormalSummaryInput input)
+    {
+        IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
+        var offset = (input.Page - 1) * input.Rows;
+            
+        // 验证排序字段和排序方式
+        var validOrderFields = new[] { "UserId", "UserName", "OrgName", "MissingCardDays", "EarlyLeaveDays", 
+            "LateAndEarlyLeaveDays", "FieldLateDays", "FieldEarlyLeaveDays", "SupplementCardDays", 
+            "CompensatoryLeaveDays", "TotalLeaveDays", "TotalAbnormalDays" };
+        var orderBy = validOrderFields.Contains(input.Order ?? "") ? input.Order : "TotalAbnormalDays";
+        var sortOrder = (input.Sort?.ToLower() == "asc") ? "ASC" : "DESC";
+            
+        return Json(dbConnection.Query<AttendanceAbnormalSummaryOutput>($@"SELECT 
+                r.user_id AS UserId, 
+                r.user_name AS UserName, 
+                r.org_id AS OrgId, 
+                r.org_name AS OrgName,
+                -- 核心异常指标:使用 DISTINCT 确保同一天多次相同异常只计为 1
+                COUNT(DISTINCT CASE WHEN t.clock_in_status_name = '缺卡' THEN r.clock_in_date END) AS MissingCardDays,
+                COUNT(DISTINCT CASE WHEN t.clock_in_status_name = '早退' THEN r.clock_in_date END) AS EarlyLeaveDays,
+                COUNT(DISTINCT CASE WHEN t.clock_in_status_name = '迟到' THEN r.clock_in_date END) AS LateAndEarlyLeaveDays,
+                COUNT(DISTINCT CASE WHEN t.clock_in_status_name = '外勤/迟到' THEN r.clock_in_date END) AS FieldLateDays,
+                COUNT(DISTINCT CASE WHEN t.clock_in_status_name = '外勤/早退' THEN r.clock_in_date END) AS FieldEarlyLeaveDays,
+                -- 请假与补卡类
+                COUNT(DISTINCT CASE WHEN t.clock_in_status_name = '补卡' THEN r.clock_in_date END) AS SupplementCardDays,
+                COUNT(DISTINCT CASE WHEN t.clock_in_status_name = '调休' THEN r.clock_in_date END) AS CompensatoryLeaveDays,
+                COUNT(DISTINCT CASE WHEN t.clock_in_status_name IN ('事假','病假','婚假','丧假','产假','产检假','陪产假','哺乳假','路程假') THEN r.clock_in_date END) AS TotalLeaveDays,
+                -- 总计:这一年该用户有多少天出现了异常
+                COUNT(DISTINCT r.clock_in_date) AS TotalAbnormalDays
+            FROM 
+                oa_user_clock_in_record r
+            JOIN 
+                oa_user_clock_in_record_time t ON r.id = t.record_id
+            WHERE 
+                r.clock_in_date BETWEEN @starttime AND @endtime
+                -- 排除掉要求的 5 种状态
+                AND t.clock_in_status_name NOT IN ('正常', '打卡无效：此记录已被更新', '出差', '外勤')
+                {(string.IsNullOrEmpty(input.OrgName) ? " AND r.org_id = '67' " : " AND r.org_name like @orgname ")}
+                {(string.IsNullOrEmpty(input.UserName) ? "" : " AND r.user_name like @username ")}
+            GROUP BY 
+                r.user_id, r.user_name, r.org_id, r.org_name
+            ORDER BY 
+                {orderBy} {sortOrder}
+            LIMIT {input.Rows} OFFSET {offset};",
+            new
+            {
+                starttime = input.StartTime,
+                endtime = input.EndTime,
+                orgname = $"%{input.OrgName}%",
+                username = $"%{input.UserName}%"
+            }).ToList());
+    }
+
+    [Tags("考勤")]
+    [EndpointSummary("考勤异常明细")]
+    [HttpPost]
+    public ActionResult AttendanceAbnormalDetail(AttendanceAbnormalDetailInput input)
+    {
+        IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
+        var offset = (input.Page - 1) * input.Rows;
+            
+        // 验证排序字段和排序方式
+        var validOrderFields = new[] { "ClockInDate", "UserName", "TotalAbnormalMinutes" };
+        var orderBy = validOrderFields.Contains(input.Order ?? "") ? input.Order : "ClockInDate";
+        var sortOrder = (input.Sort?.ToLower() == "asc") ? "ASC" : "DESC";
+            
+        return Json(dbConnection.Query<AttendanceAbnormalDetailOutput>($@"SELECT 
+                r.clock_in_date AS ClockInDate,
+                r.user_name AS UserName,
+                -- 将打卡时间合并,并按时间先后排序
+                GROUP_CONCAT(DATE_FORMAT(t.clock_in_time, '%H:%i:%s') ORDER BY t.clock_in_time SEPARATOR ' | ') AS ActualClockInTime,
+                -- 将异常状态合并
+                GROUP_CONCAT(t.clock_in_status_name ORDER BY t.clock_in_time SEPARATOR ' | ') AS AbnormalStatus,
+                SUM(t.later_early_minutes) AS TotalAbnormalMinutes,
+                GROUP_CONCAT(t.remark SEPARATOR '; ') AS RemarkSummary
+            FROM 
+                oa_user_clock_in_record r
+            JOIN 
+                oa_user_clock_in_record_time t ON r.id = t.record_id
+            WHERE 
+                r.clock_in_date BETWEEN @starttime AND @endtime
+                -- 排除掉不需要显示的5种状态
+                AND t.clock_in_status_name NOT IN ('正常', '打卡无效：此记录已被更新', '出差', '外勤')
+                {(string.IsNullOrEmpty(input.UserId) ? "" : " AND r.user_id = @userid ")}
+                {(string.IsNullOrEmpty(input.OrgId) ? "" : " AND r.org_id = @orgid ")}
+                {(string.IsNullOrEmpty(input.UserName) ? "" : " AND r.user_name like @username ")}
+            GROUP BY 
+                r.clock_in_date, r.day_of_week, r.team_name, r.user_name
+            ORDER BY 
+                {orderBy} {sortOrder}
+            LIMIT {input.Rows} OFFSET {offset};",
+            new
+            {
+                starttime = input.StartTime,
+                endtime = input.EndTime,
+                userid = input.UserId,
+                orgid = input.OrgId,
+                username = $"%{input.UserName}%"
+            }).ToList());
+    }
 }
