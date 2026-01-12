@@ -1,13 +1,14 @@
 ﻿using System.Data;
 using System.Globalization;
 using Dapper;
+using FreeWim.Models.PmisAndZentao;
+using FreeWim.Models.PmisAndZentao.Dto;
+using FreeWim.Utils;
 using Microsoft.Extensions.AI;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Npgsql;
-using FreeWim.Models.PmisAndZentao;
 using JsonSerializer = System.Text.Json.JsonSerializer;
-using FreeWim.Utils;
 
 namespace FreeWim.Services;
 
@@ -212,40 +213,41 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
     /// </summary>
     /// <param name="projectInfo"></param>
     /// <param name="orderNo"></param>
-    /// <returns></returns>
-    public string OvertimeWork_Insert(ProjectInfo projectInfo, string orderNo, string Content)
+    /// <returns></returns> 
+    public string OvertimeWork_Insert(ProjectInfo projectInfo, string orderNo, string Content, bool isDayRest, DateTime workDate)
     {
         var id = string.Empty;
         var httpHelper = new HttpRequestHelper();
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
-        //var projectInfo = GetProjectInfo(projectCode);
+        string PlanStartDate = isDayRest ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverStartTime) ? " 07:00:00" : " " + pmisInfo.WeekOverStartTime) : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime;
+        string PlanEndDate = isDayRest ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverEndTime) ? " 19:30:00" : " " + pmisInfo.WeekOverEndTime) : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime;
         var requestObject = new Dictionary<string, object?>
         {
             { "child_groups", new object[] { } },
             { "user_sn", pmisInfo.UserAccount },
             { "pms_pushed", "0" },
-            { "work_date", DateTime.Now.ToString("yyyy-MM-dd") },
+            { "work_date", workDate.ToString("yyyy-MM-dd") },
             { "user_id$$text", pmisInfo.UserName },
             { "user_id", pmisInfo.UserId },
             { "org_id$$text", "管网产品组" },
             { "org_id", "67" },
-            { "work_overtime_type", "1" },
+            { "work_overtime_type", isDayRest ? "2" : "1" },
             { "work_type", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "3" : "1" },
             { "contract_id", projectInfo.contract_id },
             { "contract_unit", projectInfo.contract_unit },
             { "project_name", projectInfo.project_name },
             { "position", "1" },
-            { "plan_start_time", DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime },
-            { "plan_end_time", DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime },
+            { "plan_start_time", PlanStartDate },
+            { "plan_end_time", PlanEndDate },
             {
                 "plan_work_overtime_hour",
-                (DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime) - DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime)).TotalHours
+                (DateTime.Parse(PlanEndDate) - DateTime.Parse(PlanStartDate)).TotalHours
             },
             { "subject_matter", Content },
             { "reason", "1" },
             { "order_no", orderNo },
             { "remark", "" },
-            { "work_overtime_type$$text", "延时加班" },
+            { "work_overtime_type$$text", isDayRest ? "周末" : "延时加班"  },
             { "work_type$$text", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "产品开发/测试/设计" : "项目开发/测试/设计" },
             { "position$$text", "公司" },
             { "reason$$text", "上线支撑" },
@@ -270,11 +272,13 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
     /// <param name="id"></param>
     /// <param name="orderNo"></param>
     /// <returns></returns>
-    public string OvertimeWork_CreateOrder(ProjectInfo projectInfo, string id, string orderNo, string Content)
+    public string OvertimeWork_CreateOrder(ProjectInfo projectInfo, string id, string orderNo, string Content, bool isDayRest, DateTime workDate)
     {
         var ProcessId = string.Empty;
         var httpHelper = new HttpRequestHelper();
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
+        string PlanStartDate = isDayRest ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverStartTime) ? " 07:00:00" : " " + pmisInfo.WeekOverStartTime) : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime;
+        string PlanEndDate = isDayRest ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverEndTime) ? " 19:30:00" : " " + pmisInfo.WeekOverEndTime) : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime;
         var requestObject = new Dictionary<string, object?>
         {
             { "child_groups", new object[] { } },
@@ -285,23 +289,23 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
             { "user_id", pmisInfo.UserId },
             { "org_id$$text", "管网产品组" },
             { "org_id", "67" },
-            { "work_overtime_type", "1" },
+            { "work_overtime_type", isDayRest ? "2" : "1" },
             { "work_type", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "3" : "1" },
             { "contract_id", projectInfo.contract_id },
             { "contract_unit", projectInfo.contract_unit },
             { "project_name", projectInfo.project_name },
             { "position", "1" },
-            { "plan_start_time", DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime },
-            { "plan_end_time", DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime },
+            { "plan_start_time", PlanStartDate },
+            { "plan_end_time", PlanEndDate },
             {
                 "plan_work_overtime_hour",
-                (DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime) - DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime)).TotalHours
+                (DateTime.Parse(PlanEndDate) - DateTime.Parse(PlanStartDate)).TotalHours
             },
             { "subject_matter", Content },
             { "reason", "1" },
             { "order_no", orderNo },
             { "remark", "" },
-            { "work_overtime_type$$text", "延时加班" },
+            { "work_overtime_type$$text", isDayRest ? "周末" : "延时加班" },
             { "work_type$$text", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "产品开发/测试/设计" : "项目开发/测试/设计" },
             { "position$$text", "公司" },
             { "reason$$text", "上线支撑" },
@@ -315,7 +319,7 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
             { "creator_sn", pmisInfo.UserAccount },
             { "id", id },
             { "", "" }, // 注意：空字段名称
-            { "$$formHtmlId", "b187562cecea44598d9cdbe2bf5efc42" },
+            { "$$formHtmlId", isDayRest ? "6e670a6f51474a53914aad6ec75521b1" : "b187562cecea44598d9cdbe2bf5efc42" },
             { "$$saveType", "N" },
             { "$$saveFields", "" },
             { "$$objectPK", "id" }
@@ -376,39 +380,41 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
     /// <param name="orderNo"></param>
     /// <param name="processId"></param>
     /// <returns></returns>
-    public JObject OvertimeWork_Update(ProjectInfo projectInfo, string id, string orderNo, string processId, string Content)
+    public JObject OvertimeWork_Update(ProjectInfo projectInfo, string id, string orderNo, string processId, string Content, bool isDayRest, DateTime workDate)
     {
         //var id = string.Empty;
         var processInfo = OvertimeWork_Query(id);
         var httpHelper = new HttpRequestHelper();
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
+        string PlanStartDate = isDayRest ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverStartTime) ? " 07:00:00" : " " + pmisInfo.WeekOverStartTime) : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime;
+        string PlanEndDate = isDayRest ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverEndTime) ? " 19:30:00" : " " + pmisInfo.WeekOverEndTime) : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime;
         var requestObject = new Dictionary<string, object?>
         {
             { "child_groups", new object[] { } },
             { "user_sn", pmisInfo.UserAccount },
             { "pms_pushed", "0" },
-            { "work_date", DateTime.Now.ToString("yyyy-MM-dd") },
+            { "work_date", workDate.ToString("yyyy-MM-dd") },
             { "user_id$$text", pmisInfo.UserName },
             { "user_id", pmisInfo.UserId },
             { "org_id$$text", "管网产品组" },
             { "org_id", "67" },
-            { "work_overtime_type", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "3" : "1" },
-            { "work_type", "1" },
+            { "work_overtime_type", isDayRest ? "2" : "1" },
+            { "work_type", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "3" : "1" },
             { "contract_id", projectInfo.contract_id },
             { "contract_unit", projectInfo.contract_unit },
             { "project_name", projectInfo.project_name },
             { "position", "1" },
-            { "plan_start_time", DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime },
-            { "plan_end_time", DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime },
+            { "plan_start_time", PlanStartDate },
+            { "plan_end_time", PlanEndDate },
             {
                 "plan_work_overtime_hour",
-                (DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime) - DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime)).TotalHours
+                (DateTime.Parse(PlanEndDate) - DateTime.Parse(PlanStartDate)).TotalHours
             },
             { "subject_matter", Content },
             { "reason", "1" },
             { "order_no", orderNo },
             { "remark", "" },
-            { "work_overtime_type$$text", "延时加班" },
+            { "work_overtime_type$$text", isDayRest ? "周末" : "延时加班" },
             { "work_type$$text", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "产品开发/测试/设计" : "项目开发/测试/设计" },
             { "position$$text", "公司" },
             { "reason$$text", "上线支撑" },
@@ -472,18 +478,18 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
         pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var httpHelper = new HttpRequestHelper();
         var getResponse = httpHelper.PostAsync(pmisInfo.Url + $"/unioa/job/userWork/queryMyCommit", new
+        {
+            index = 1,
+            size = 30,
+            conditions = new object[] { },
+            order = new object[] { },
+            data = new
             {
-                index = 1,
-                size = 30,
-                conditions = new object[] { },
-                order = new object[] { },
-                data = new
-                {
-                    beginDate = weekDayInfo.StartOfWeek,
-                    endDate = weekDayInfo.EndOfWeek,
-                    userId = pmisInfo.UserId
-                }
-            },
+                beginDate = weekDayInfo.StartOfWeek,
+                endDate = weekDayInfo.EndOfWeek,
+                userId = pmisInfo.UserId
+            }
+        },
             new Dictionary<string, string> { { "authorization", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
         var json = JObject.Parse(getResponse.Content.ReadAsStringAsync().Result);
         return json;
@@ -911,10 +917,10 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var httpHelper = new HttpRequestHelper();
         var postResponse = httpHelper.PostAsync(pmisInfo.Url + $"/hddev/form/formobjectdata/oa_workovertime_plan_apply:15/query.json", new
-            {
-                index = 1,
-                size = 30,
-                conditions = new object[]
+        {
+            index = 1,
+            size = 30,
+            conditions = new object[]
                 {
                     new
                     {
@@ -931,7 +937,7 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
                         Relation = "and"
                     }
                 },
-                order = new object[]
+            order = new object[]
                 {
                     new
                     {
@@ -944,8 +950,8 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
                         Type = -1
                     }
                 },
-                conditionsSql = new string[] { }
-            },
+            conditionsSql = new string[] { }
+        },
             new Dictionary<string, string> { { "token", tokenService.GetTokenAsync() ?? string.Empty }, { "uniwaterUtoken", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
         var json = JObject.Parse(postResponse.Content.ReadAsStringAsync().Result);
         // 安全地取出 detailList
@@ -998,72 +1004,85 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
             if (DateTime.Now.TimeOfDay < workStart || DateTime.Now.TimeOfDay > workEnd) return;
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
             using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
-            //判断休息日不提交加班
-            var checkinrule = dbConnection.Query<string>($@"select checkinrule from public.attendancerecordday where to_char(attendancedate,'yyyy-MM-dd')  = to_char(now(),'yyyy-MM-dd')")
-                .FirstOrDefault();
-            if (checkinrule == "休息") return;
-            //查询是否打卡上班
-            var clockinCount = dbConnection
-                .Query<int>($@"SELECT COUNT(0) FROM public.attendancerecorddaydetail WHERE clockintype= '0' AND TO_CHAR(clockintime,'yyyy-MM-dd') = to_char(now(),'yyyy-MM-dd')")
-                .FirstOrDefault();
-            if (clockinCount == 0) return;
-            //查询是否已提交加班申请
-            var hasOvertime = dbConnection.Query<int>($@"select count(0) from  public.overtimerecord where work_date = '{DateTime.Now:yyyy-MM-dd}'").FirstOrDefault();
-            if (hasOvertime != 0) return;
-            var zentaoInfo = dbConnection.Query<dynamic>($@"select
-                                                                            id,
-                                                                        	project,
-	                                                                        taskname ,
-	                                                                        taskdesc,
-	                                                                        projectcode
-                                                                        from
-                                                                        	zentaotask z
-                                                                        where
-                                                                        	to_char(eststarted,
-                                                                        	'yyyy-MM-dd') = to_char(now(),
-                                                                        	'yyyy-MM-dd')
-                                                                        	and taskstatus = 'wait'
-                                                                        order by
-                                                                        	timeleft desc").FirstOrDefault();
 
-            if (zentaoInfo?.project == null || zentaoInfo?.id == null || string.IsNullOrEmpty(zentaoInfo?.projectcode)) return;
-            if (string.IsNullOrEmpty(zentaoInfo?.projectcode)) return;
-            if (zentaoInfo?.projectcode == "GIS-Product")
-                projectInfo = new ProjectInfo
+            var zentaoList = dbConnection.Query<CommitOvertimeWorkOutput>($@"SELECT
+                                                                               b.checkinrule,
+                                                                               b.attendancedate,
+                                                                               CASE
+                                                                                 WHEN checkinrule = '休息' then 1
+                                                                                 else 0
+                                                                               END AS isnextdayrest,
+                                                                               a.id,
+                                                                               a.project,
+                                                                               a.taskname,
+                                                                               a.taskdesc,
+                                                                               a.projectcode,
+                                                                               a.eststarted
+                                                                             FROM
+                                                                               public.zentaotask a
+                                                                               LEFT JOIN public.attendancerecordday b ON a.eststarted = b.attendancedate
+                                                                             WHERE
+                                                                               a.eststarted >= '{DateTime.Now:yyyy-MM-dd} 00:00:00'
+                                                                               and taskstatus = 'wait'
+                                                                             ORDER BY
+                                                                               a.eststarted asc").ToList();
+            bool isDayRest = false;
+            DateTime ApplicationDate = DateTime.Now;
+            foreach (var zentaoInfo in zentaoList)
+            {
+                isDayRest = zentaoInfo.CheckInRule == "休息";
+                ApplicationDate = zentaoInfo.EstStarted;
+                if (zentaoInfo.EstStarted.Date != DateTime.Now.Date)
+                    if (zentaoInfo.IsNextDayRest != 1) break;
+                if (zentaoInfo.CheckInRule != "休息")
                 {
-                    contract_id = "",
-                    contract_unit = "",
-                    project_name = "GIS外业管理系统"
-                };
-            else
-                projectInfo = GetProjectInfo(zentaoInfo?.projectcode);
+                    //查询工作日是否打卡上班
+                    var clockinCount = dbConnection
+                        .Query<int>($@"SELECT COUNT(0) FROM public.attendancerecorddaydetail WHERE clockintype= '0' AND TO_CHAR(clockintime,'yyyy-MM-dd') = '{ApplicationDate:yyyy-MM-dd}'")
+                        .FirstOrDefault();
+                    if (clockinCount == 0) continue;
+                }
 
-            if (string.IsNullOrEmpty(projectInfo.project_name))
-            {
-                pushMessageService.Push("加班申请失败", "未在PMIS系统中查询到项目信息", PushMessageService.PushIcon.Alert);
-                return;
-            }
+                //查询是否已提交加班申请
+                var hasOvertime = dbConnection.Query<int>($@"select count(0) from  public.overtimerecord where work_date = '{ApplicationDate:yyyy-MM-dd}'").FirstOrDefault();
+                if (hasOvertime != 0) return;
 
-            var chatOptions = new ChatOptions { Tools = [] };
-            var chatHistory = new List<ChatMessage>
-            {
+                if (zentaoInfo.Project == null || zentaoInfo.Id == null || string.IsNullOrEmpty(zentaoInfo.ProjectCode)) return;
+                if (string.IsNullOrEmpty(zentaoInfo.ProjectCode)) return;
+                if (zentaoInfo.ProjectCode == "GIS-Product")
+                    projectInfo = new ProjectInfo
+                    {
+                        contract_id = "",
+                        contract_unit = "",
+                        project_name = "GIS外业管理系统"
+                    };
+                else
+                    projectInfo = GetProjectInfo(zentaoInfo.ProjectCode);
+
+                if (string.IsNullOrEmpty(projectInfo.project_name))
+                {
+                    pushMessageService.Push("加班申请失败", "未在PMIS系统中查询到项目信息", PushMessageService.PushIcon.Alert);
+                    return;
+                }
+
+                var chatOptions = new ChatOptions { Tools = [] };
+                var chatHistory = new List<ChatMessage>{
                 new(ChatRole.System, pmisInfo!.DailyPrompt),
-                new(ChatRole.User, "加班内容：" + zentaoInfo!.taskname + ":" + zentaoInfo.taskdesc)
-            };
-            var res = chatClient.GetResponseAsync(chatHistory, chatOptions).Result;
-            if (string.IsNullOrWhiteSpace(res?.Text)) return;
-            var workContent = res.Text;
-            if (string.IsNullOrEmpty(workContent)) return;
-            var insertId = OvertimeWork_Insert(projectInfo, zentaoInfo?.id.ToString(), workContent);
-            if (string.IsNullOrEmpty(insertId)) return;
-            var processId = OvertimeWork_CreateOrder(projectInfo, insertId, zentaoInfo?.id.ToString(), workContent);
-            if (!string.IsNullOrEmpty(processId))
-            {
-                JObject updateResult = OvertimeWork_Update(projectInfo, insertId, zentaoInfo?.id.ToString(), processId, workContent);
-                if (updateResult["Response"] != null)
+                new(ChatRole.User, "加班内容：" + zentaoInfo!.TaskName + ":" + zentaoInfo.TaskDesc)};
+                var res = chatClient.GetResponseAsync(chatHistory, chatOptions).Result;
+                if (string.IsNullOrWhiteSpace(res?.Text)) return;
+                var workContent = res.Text;
+                if (string.IsNullOrEmpty(workContent)) return;
+                var insertId = OvertimeWork_Insert(projectInfo, zentaoInfo.Id.ToString(), workContent, isDayRest, ApplicationDate);
+                if (string.IsNullOrEmpty(insertId)) return;
+                var processId = OvertimeWork_CreateOrder(projectInfo, insertId, zentaoInfo.Id.ToString(), workContent, isDayRest, ApplicationDate);
+                if (!string.IsNullOrEmpty(processId))
                 {
-                    pushMessageService.Push("加班申请", DateTime.Now.ToString("yyyy-MM-dd") + " 加班申请已提交\n加班事由：" + workContent, PushMessageService.PushIcon.OverTime);
-                    dbConnection.Execute($@"
+                    JObject updateResult = OvertimeWork_Update(projectInfo, insertId, zentaoInfo.Id.ToString(), processId, workContent, isDayRest, ApplicationDate);
+                    if (updateResult["Response"] != null)
+                    {
+                        pushMessageService.Push("加班申请", DateTime.Now.ToString("yyyy-MM-dd") + " 加班申请已提交\n加班事由：" + workContent, PushMessageService.PushIcon.OverTime);
+                        dbConnection.Execute($@"
                                       insert
                                       	into
                                       	public.overtimerecord
@@ -1087,6 +1106,7 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
                                       '{updateResult["Response"]?["work_date"]}',
                                       '{updateResult["Response"]?["subject_matter"]}',
                                       '{updateResult["Response"]?["id"]}');");
+                    }
                 }
             }
         }

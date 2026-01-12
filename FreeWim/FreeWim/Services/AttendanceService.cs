@@ -1,13 +1,13 @@
 ﻿using System.Data;
 using System.Text;
 using Dapper;
-using Npgsql;
 using FreeWim.Models.Attendance;
 using FreeWim.Models.Attendance.Dto;
 using FreeWim.Models.PmisAndZentao;
+using FreeWim.Utils;
 using Hangfire.Server;
 using Newtonsoft.Json;
-using FreeWim.Utils;
+using Npgsql;
 
 namespace FreeWim.Services;
 
@@ -22,8 +22,8 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
     {
         double hours = 0;
         using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
-        var isSignout = dbConnection.Query<int>($@"select count(0) from public.attendancerecordday where to_char(attendancedate,'yyyy-MM-dd') = '{date:yyyy-MM-dd}' and workhours > 0 ").First();
-        if (isSignout <= 0) return hours;
+        var isSignout = dbConnection.Query<string>($@"select checkinrule from public.attendancerecordday where to_char(attendancedate,'yyyy-MM-dd') = '{date:yyyy-MM-dd}' and workhours > 0 ").ToList();
+        if (isSignout.Count <= 0) return hours;
         var attendanceList = dbConnection.Query<WorkHoursInOutTime>($@"select
                                             	clockintype,
                                             	max(clockintime) as clockintime
@@ -38,21 +38,27 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
         if (attendanceList.FirstOrDefault(e => e.ClockInType == 0) != null) signInDate = attendanceList.FirstOrDefault(e => e.ClockInType == 0)?.ClockInTime;
         if (attendanceList.FirstOrDefault(e => e.ClockInType == 1) != null) signOutDate = attendanceList.FirstOrDefault(e => e.ClockInType == 1)?.ClockInTime;
         if (signInDate == null || signOutDate == null) return hours;
-        signInDate = RoundToHalfHour(signInDate.Value, RoundDirection.Up);
-        signOutDate = RoundToHalfHour(signOutDate.Value, RoundDirection.Down);
-        hours = (signOutDate.Value - signInDate.Value).TotalHours;
+        if (isSignout.First() == "休息")
+        {
+            hours = Math.Floor((signOutDate.Value - signInDate.Value).TotalHours * 2) / 2;
+        }
+        else
+        {
+            signInDate = RoundToHalfHour(signInDate.Value, RoundDirection.Up);
+            signOutDate = RoundToHalfHour(signOutDate.Value, RoundDirection.Down);
+            hours = (signOutDate.Value - signInDate.Value).TotalHours;
 
-        var noonStart = new DateTime(signInDate.Value.Year, signInDate.Value.Month, signInDate.Value.Day, 12, 0, 0);
-        var noonEnd = new DateTime(signInDate.Value.Year, signInDate.Value.Month, signInDate.Value.Day, 13, 0, 0);
+            var noonStart = new DateTime(signInDate.Value.Year, signInDate.Value.Month, signInDate.Value.Day, 12, 0, 0);
+            var noonEnd = new DateTime(signInDate.Value.Year, signInDate.Value.Month, signInDate.Value.Day, 13, 0, 0);
 
-        // 计算时间段与午休时间的重叠
-        var overlapStart = signInDate > noonStart ? signInDate : noonStart;
-        var overlapEnd = signOutDate < noonEnd ? signOutDate : noonEnd;
+            // 计算时间段与午休时间的重叠
+            var overlapStart = signInDate > noonStart ? signInDate : noonStart;
+            var overlapEnd = signOutDate < noonEnd ? signOutDate : noonEnd;
 
-        double overlapHours = 0;
-        if (overlapStart < overlapEnd) overlapHours = (overlapEnd.Value - overlapStart.Value).TotalHours;
-        hours = hours - overlapHours;
-
+            double overlapHours = 0;
+            if (overlapStart < overlapEnd) overlapHours = (overlapEnd.Value - overlapStart.Value).TotalHours;
+            hours = hours - overlapHours;
+        }
         // return hours - overlapHours;
         return hours;
     }
@@ -216,7 +222,7 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
         client.DefaultRequestHeaders.Add("Authorization", tokenService.GetTokenAsync());
         var startDate = DateTime.Now;
         if (DateTime.Now.Hour <= 7 || DateTime.Now.Hour >= 23) return;
-        
+
         var response = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.ToString("yyyy-MM")).Result;
         var result = response.Content.ReadAsStringAsync().Result;
         var resultModel = JsonConvert.DeserializeObject<AttendanceResponse>(result);
