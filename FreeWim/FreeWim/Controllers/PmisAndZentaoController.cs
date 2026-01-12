@@ -206,7 +206,7 @@ public class PmisAndZentaoController(
             var workEnd = new TimeSpan(20, 30, 0); // 20:30
             if (DateTime.Now.TimeOfDay < workStart || DateTime.Now.TimeOfDay > workEnd) return "";
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
-            IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             //判断休息日不提交加班
             var checkinrule = dbConnection.Query<string>($@"select checkinrule from public.attendancerecordday where to_char(attendancedate,'yyyy-MM-dd')  = to_char(now(),'yyyy-MM-dd')")
                 .FirstOrDefault();
@@ -325,7 +325,7 @@ public class PmisAndZentaoController(
     [HttpGet]
     public ActionResult latest()
     {
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var taskCount = dbConnection.Query<int>(@"select count(0) as taskcount from zentaotask z where to_char(z.eststarted,'yyyy-MM-dd')  = to_char(now(),'yyyy-MM-dd')").First();
         var overtime = dbConnection.Query<string>(@"select case when count(0) > 1 then '已提交' else '未提交' end as overtimere from overtimerecord z where z.work_date  = to_char(now(),'yyyy-MM-dd')")
             .First();

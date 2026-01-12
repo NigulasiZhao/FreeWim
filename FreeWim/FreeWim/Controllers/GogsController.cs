@@ -23,7 +23,7 @@ public class GogsController(PushMessageService pushMessageService, IConfiguratio
     [HttpGet]
     public ActionResult latest()
     {
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var commitDates = dbConnection.Query<int>(@"select
                                                           	count(0)
                                                           from
@@ -53,7 +53,7 @@ public class GogsController(PushMessageService pushMessageService, IConfiguratio
     [HttpGet]
     public ActionResult calendar(string start = "", string end = "")
     {
-        IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
         string sqlwhere = " where 1=1 ", sqlwhere1 = " where 1=1 ";
         if (!string.IsNullOrEmpty(start))
         {
@@ -143,7 +143,7 @@ public class GogsController(PushMessageService pushMessageService, IConfiguratio
     [HttpPost]
     public ActionResult GogsPush([FromBody] WebhookPayload input)
     {
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var branchName = input.Ref?.Split("/").Last();
         try
         {
@@ -177,7 +177,7 @@ public class GogsController(PushMessageService pushMessageService, IConfiguratio
     [HttpPost]
     public ActionResult GitLabPush([FromBody] JsonDocument json)
     {
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var root = json.RootElement;
         var branchName = root.GetProperty("ref").GetString()?.Split("/").Last();
         try
@@ -233,7 +233,7 @@ public class GogsController(PushMessageService pushMessageService, IConfiguratio
     [HttpPost]
     public ActionResult GitHubPush([FromBody] GitHubWebhookPayload input)
     {
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var branchName = input.@ref?.Split("/").Last();
         var dataSql = "";
         try

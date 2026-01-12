@@ -22,7 +22,7 @@ public class DatabaseInitializerService
     public void Initialize()
     {
         var pmisInfo = _Configuration.GetSection("PMISInfo").Get<PMISInfo>();
-        IDbConnection _dbConnection = new NpgsqlConnection(_Configuration["Connection"]);
+        using IDbConnection _dbConnection = new NpgsqlConnection(_Configuration["Connection"]);
         
         // 一次性查询所有表，避免重复查询
         var existingTables = GetExistingTables(_dbConnection);

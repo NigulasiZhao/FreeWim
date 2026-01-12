@@ -23,7 +23,7 @@ public class EventInfoController : Controller
     public ActionResult EventPush([FromBody] EventPushInput input)
     {
         //purple
-        IDbConnection _DbConnection = new NpgsqlConnection(_Configuration["Connection"]);
+        using IDbConnection _DbConnection = new NpgsqlConnection(_Configuration["Connection"]);
         try
         {
             var Existence = _DbConnection.Query<int>("SELECT COUNT(0) FROM public.eventinfo WHERE Source = :source AND DistinguishingMark = :distinguishingmark",

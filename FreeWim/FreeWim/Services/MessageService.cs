@@ -29,7 +29,7 @@ public class MessageService(IConfiguration configuration, TokenService tokenServ
     /// </summary>
     private async Task SendMessage()
     {
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var lastDay = dbConnection.Query<string>($@"select
                                                                                                 	checkinrule
                                                                                                 from

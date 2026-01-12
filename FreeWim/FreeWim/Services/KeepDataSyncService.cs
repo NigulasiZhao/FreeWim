@@ -25,7 +25,7 @@ public class KeepDataSyncService(IConfiguration configuration)
             || string.IsNullOrEmpty(configuration["KEEPAuthorization"]))
             return;
 
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var client = new HttpClient();
         client.DefaultRequestHeaders.Add("x-bundleId", configuration["KEEPx-bundleId"]);
         client.DefaultRequestHeaders.Add("x-session-id", configuration["KEEPx-session-id"]);

@@ -73,7 +73,7 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
         try
         {
             var attempt = 0;
-            IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             var finishCount = 0;
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
             var httpHelper = new HttpRequestHelper();
@@ -517,7 +517,7 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
             var finishCount = 0;
             var httpHelper = new HttpRequestHelper();
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
-            IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             var repeat = false;
             //判断是否已提交过周报
             var weekList = QueryMyByWeek();
@@ -642,7 +642,7 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
     /// <returns></returns>
     public JArray RealOverTimeList()
     {
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var existautocheckin =
             dbConnection.Query<int>($"SELECT COUNT(0) FROM public.autocheckinrecord WHERE to_char(clockintime,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}' and clockinstate = 0 ").First();
         if (existautocheckin > 0) return new JArray();
@@ -958,7 +958,7 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
                 if (!string.IsNullOrEmpty(workDate) && !string.IsNullOrEmpty(realtime)) workovertimeresult.Add(workDate, double.Parse(realtime));
             }
 
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var AttendancedateList = dbConnection.Query<OaWorkoverTimeOutput>($@"select
                                                                                 	to_char(ar.attendancedate ,'yyyy-mm-dd') as attendancedate,
                                                                                 	o.real_work_overtime_hour 
@@ -997,7 +997,7 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
             var workEnd = new TimeSpan(20, 30, 0);
             if (DateTime.Now.TimeOfDay < workStart || DateTime.Now.TimeOfDay > workEnd) return;
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
-            IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             //判断休息日不提交加班
             var checkinrule = dbConnection.Query<string>($@"select checkinrule from public.attendancerecordday where to_char(attendancedate,'yyyy-MM-dd')  = to_char(now(),'yyyy-MM-dd')")
                 .FirstOrDefault();

@@ -26,7 +26,7 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
     [HttpGet]
     public ActionResult latest()
     {
-        IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
         var WorkDays = _DbConnection
             .Query<int>("select count(0) from (select to_char(attendancedate,'yyyy-mm-dd'),count(0) from public.attendancerecorddaydetail  group by to_char(attendancedate,'yyyy-mm-dd'))").First();
         var WorkHours = _DbConnection.Query<decimal>("select sum(workhours) from public.attendancerecordday").First();
@@ -44,7 +44,7 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
     [HttpGet]
     public ActionResult calendar(string start = "", string end = "")
     {
-        IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
         var sqlwhere = " where 1=1 ";
         if (!string.IsNullOrEmpty(start)) sqlwhere += $" and a.clockintime >= '{DateTime.Parse(start)}'";
         if (!string.IsNullOrEmpty(end)) sqlwhere += $" and a.clockintime <= '{DateTime.Parse(end).AddDays(1).AddSeconds(-1)}'";
@@ -88,7 +88,7 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
     public ActionResult CancelOverTimeWork([FromBody] CancelOverTimeWorkInput input)
     {
         var rowsCount = 0;
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var cancelCount = dbConnection.Query<int>($@"SELECT COUNT(0) FROM public.overtimerecord WHERE work_date = '{DateTime.Now:yyyy-MM-dd}';").FirstOrDefault();
         if (cancelCount == 0)
             rowsCount = dbConnection.Execute($@"insert
@@ -107,7 +107,7 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
     public ActionResult RestoreOverTimeWork([FromBody] CancelOverTimeWorkInput input)
     {
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var rowsCount = dbConnection.Execute($@"DELETE FROM 
 														public.overtimerecord
 													WHERE work_date = '{DateTime.Now:yyyy-MM-dd}';");
@@ -127,7 +127,7 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
     public ActionResult GetBoardData()
     {
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
-        IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
         var sqlThisMonth = @"
 							        SELECT
   EXTRACT(DAY FROM attendancedate)::int AS day,
@@ -468,7 +468,7 @@ limit 10;";
                 input.SelectTime = input.SelectTime.Value.AddSeconds(offsetSeconds);
             }
 
-            IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             var currentQuantity = dbConnection.Query<int>($@"SELECT count(0) FROM public.autocheckinrecord where to_char(clockintime,'yyyy-mm-dd') = '{input.SelectTime.Value:yyyy-MM-dd}'").First();
             if (currentQuantity >= 2) return Json(new { jobId = "", SelectTime = input.SelectTime, message = "登记失败,今日操作过于频繁" });
             var jobId = BackgroundJob.Schedule(() => attendanceService.AutoCheckIniclock(null), input.SelectTime.Value);
@@ -491,7 +491,7 @@ limit 10;";
     [HttpPost]
     public ActionResult CancelAutoCheckIn([FromBody] AutoCheckInInput input)
     {
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var flag = BackgroundJob.Delete(input.jobId);
         dbConnection.Execute($@"DELETE FROM public.autocheckinrecord WHERE jobid = '{input.jobId}'");
         dbConnection.Dispose();
@@ -503,7 +503,7 @@ limit 10;";
     [HttpGet]
     public ActionResult GetAutoCheckInList(int page = 1, int rows = 10)
     {
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var offset = (page - 1) * rows;
         return Json(dbConnection.Query<AutoCheckInRecord>($@"SELECT * FROM public.autocheckinrecord ORDER BY clockintime desc LIMIT :rows OFFSET :offset", new { rows, offset }).ToList());
     }
@@ -513,7 +513,7 @@ limit 10;";
     [HttpPost]
     public ActionResult WorkingOvertimeOnWeekends(WorkingOvertimeOnWeekendsInput input)
     {
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var offset = (input.Page - 1) * input.Rows;
         return Json(dbConnection.Query<WorkingOvertimeOnWeekendsIOutput>($@"SELECT 
 																		    name,
@@ -536,7 +536,7 @@ limit 10;";
     [HttpPost]
     public ActionResult RankingOfWorkingHours(RankingOfWorkingHoursInput input)
     {
-        IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
+        using IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
         var offset = (input.Page - 1) * input.Rows;
         return Json(dbConnection.Query<RankingOfWorkingHoursOutput>($@"WITH user_stats AS (
                                    SELECT 
@@ -587,7 +587,7 @@ limit 10;";
     [HttpPost]
     public ActionResult AttendanceAbnormalSummary(AttendanceAbnormalSummaryInput input)
     {
-        IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
+        using IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
         var offset = (input.Page - 1) * input.Rows;
             
         // 验证排序字段和排序方式
@@ -643,7 +643,7 @@ limit 10;";
     [HttpPost]
     public ActionResult AttendanceAbnormalDetail(AttendanceAbnormalDetailInput input)
     {
-        IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
+        using IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
         var offset = (input.Page - 1) * input.Rows;
             
         // 验证排序字段和排序方式

@@ -21,7 +21,7 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
     public double GetWorkHoursByDate(DateTime date)
     {
         double hours = 0;
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var isSignout = dbConnection.Query<int>($@"select count(0) from public.attendancerecordday where to_char(attendancedate,'yyyy-MM-dd') = '{date:yyyy-MM-dd}' and workhours > 0 ").First();
         if (isSignout <= 0) return hours;
         var attendanceList = dbConnection.Query<WorkHoursInOutTime>($@"select
@@ -106,7 +106,7 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
 
     public void AutoCheckIniclock(PerformContext? context)
     {
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var jobId = context?.BackgroundJob.Id;
         if (!string.IsNullOrEmpty(jobId))
         {
@@ -153,7 +153,7 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
         if (DateTime.Now.Hour <= 7 || DateTime.Now.Hour >= 23) return;
         var httpRequestHelper = new HttpRequestHelper();
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var lastDay = dbConnection.Query<string>($@"select
                                                                                                 	checkinrule
                                                                                                 from
@@ -211,7 +211,7 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
         var pushMessage = "";
         var insertIdent = false;
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>();
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var client = new HttpClient();
         client.DefaultRequestHeaders.Add("Authorization", tokenService.GetTokenAsync());
         var startDate = DateTime.Now;

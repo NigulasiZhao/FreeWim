@@ -3,13 +3,13 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Unicode;
 using Dapper;
-using Newtonsoft.Json.Linq;
-using Npgsql;
 using FreeWim.Models.PmisAndZentao;
+using FreeWim.Utils;
 using Microsoft.Extensions.AI;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Npgsql;
 using JsonSerializer = System.Text.Json.JsonSerializer;
-using FreeWim.Utils;
 
 namespace FreeWim.Services;
 
@@ -153,7 +153,7 @@ public class ZentaoService(IConfiguration configuration, ILogger<ZentaoService> 
         var pushMessage = string.Empty;
         try
         {
-            IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             var zentaoInfo = configuration.GetSection("ZentaoInfo").Get<ZentaoInfo>()!;
             var httpHelper = new HttpRequestHelper();
             var tasklist = AllocateWork(finishedDate, totalHours);
@@ -220,7 +220,7 @@ public class ZentaoService(IConfiguration configuration, ILogger<ZentaoService> 
     public List<TaskItem> AllocateWork(DateTime startDate, double totalHours)
     {
         var result = new List<TaskItem>();
-        IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+        using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var registerhours = dbConnection.Query<float?>($@"select sum(registerhours) from public.zentaotask where to_char(eststarted,'yyyy-MM-dd') = '{startDate:yyyy-MM-dd}'").FirstOrDefault();
         if (registerhours == null) return result;
         totalHours -= registerhours.Value;
@@ -273,7 +273,7 @@ public class ZentaoService(IConfiguration configuration, ILogger<ZentaoService> 
         try
         {
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
-            IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             var taskList = dbConnection
                 .Query<(int id, string taskname, string taskdesc)>(
                     "select id,taskname,taskdesc from public.zentaotask where to_char(eststarted,'yyyy-MM-dd') = to_char(now(),'yyyy-MM-dd') and (target is null or planfinishact is  null or realjob is  null)")
