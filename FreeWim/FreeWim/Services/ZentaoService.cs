@@ -272,6 +272,8 @@ public class ZentaoService(IConfiguration configuration, ILogger<ZentaoService> 
     {
         try
         {
+            var workStart = new TimeSpan(9, 0, 0);
+            if (DateTime.Now.TimeOfDay < workStart) return;
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
             using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             var taskList = dbConnection
