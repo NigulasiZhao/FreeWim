@@ -1,25 +1,24 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Newtonsoft.Json.Linq;
-using Newtonsoft.Json;
+﻿using System.Data;
+using System.Text;
+using Dapper;
 using FreeWim.Models;
 using FreeWim.Models.Attendance;
-using System.Data;
-using System.Globalization;
-using Dapper;
-using FreeWim.Services;
-using FreeWim.Utils;
 using FreeWim.Models.Attendance.Dto;
 using FreeWim.Models.PmisAndZentao;
+using FreeWim.Services;
+using FreeWim.Utils;
 using Hangfire;
-using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc;
 using MySql.Data.MySqlClient;
+using Newtonsoft.Json;
 using Npgsql;
 
 namespace FreeWim.Controllers;
 
 [ApiController]
 [Route("api/[controller]/[action]")]
-public class AttendanceRecordController(IConfiguration configuration, AttendanceService attendanceService) : Controller
+public class AttendanceRecordController(IConfiguration configuration, AttendanceService attendanceService, PushMessageService
+  pushMessageService) : Controller
 {
     [Tags("考勤")]
     [EndpointSummary("考勤组件数据查询接口")]
@@ -28,7 +27,9 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
     {
         using IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
         var WorkDays = _DbConnection
-            .Query<int>("select count(0) from (select to_char(attendancedate,'yyyy-mm-dd'),count(0) from public.attendancerecorddaydetail  group by to_char(attendancedate,'yyyy-mm-dd'))").First();
+          .Query<int>(
+            "select count(0) from (select to_char(attendancedate,'yyyy-mm-dd'),count(0) from public.attendancerecorddaydetail  group by to_char(attendancedate,'yyyy-mm-dd'))")
+          .First();
         var WorkHours = _DbConnection.Query<decimal>("select sum(workhours) from public.attendancerecordday").First();
         _DbConnection.Dispose();
         return Json(new
@@ -47,7 +48,8 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
         using IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
         var sqlwhere = " where 1=1 ";
         if (!string.IsNullOrEmpty(start)) sqlwhere += $" and a.clockintime >= '{DateTime.Parse(start)}'";
-        if (!string.IsNullOrEmpty(end)) sqlwhere += $" and a.clockintime <= '{DateTime.Parse(end).AddDays(1).AddSeconds(-1)}'";
+        if (!string.IsNullOrEmpty(end))
+            sqlwhere += $" and a.clockintime <= '{DateTime.Parse(end).AddDays(1).AddSeconds(-1)}'";
         var WorkList = _DbConnection.Query<AttendanceCalendarOutput>(@"select
                                                                                                     	a.id as rownum,
                                                                                                     	case
@@ -77,7 +79,8 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
                                                                                                     	to_char(a.attendancedate,
                                                                                                     	'yyyy-mm-dd') = to_char(b.attendancedate,
                                                                                                     	'yyyy-mm-dd')
-                                                                                                    " + sqlwhere + " order by clockintime").ToList();
+                                                                                                    " + sqlwhere +
+                                                                     " order by clockintime").ToList();
         _DbConnection.Dispose();
         return Json(WorkList);
     }
@@ -89,7 +92,9 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
     {
         var rowsCount = 0;
         using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
-        var cancelCount = dbConnection.Query<int>($@"SELECT COUNT(0) FROM public.overtimerecord WHERE work_date = '{DateTime.Now:yyyy-MM-dd}';").FirstOrDefault();
+        var cancelCount = dbConnection
+          .Query<int>($@"SELECT COUNT(0) FROM public.overtimerecord WHERE work_date = '{DateTime.Now:yyyy-MM-dd}';")
+          .FirstOrDefault();
         if (cancelCount == 0)
             rowsCount = dbConnection.Execute($@"insert
 														into
@@ -114,10 +119,13 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
         dbConnection.Dispose();
         return Json(new
         {
-            rowsCount, pmisInfo.OverStartTime, pmisInfo.OverEndTime,
-            TotalHours = (DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime) - DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime))
-                .TotalHours
-                .ToString() + "h"
+            rowsCount,
+            pmisInfo.OverStartTime,
+            pmisInfo.OverEndTime,
+            TotalHours = (DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime) -
+                        DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime))
+            .TotalHours
+            .ToString() + "h"
         });
     }
 
@@ -259,7 +267,10 @@ ORDER BY attendancedate::date
         ELSE NULL
     END AS last_vs_before_last_percent;
 ";
-        var HeaderResult = _DbConnection.Query<(double thismonth, double lastmonth, double beforelastmonth, double thisvslastpercent, double lastvsbeforelastpercent)>(sqlforHeader);
+        var HeaderResult =
+          _DbConnection
+            .Query<(double thismonth, double lastmonth, double beforelastmonth, double thisvslastpercent, double
+              lastvsbeforelastpercent)>(sqlforHeader);
 
         var sqlforavgworkhours = @"select
 	round(this_avg.workhours / nullif(this_avg.days, 0), 2) as thisavghours,
@@ -293,7 +304,8 @@ from
 		yearmonth = to_char(current_date - interval '1 month', 'YYYY-MM')
 			and workhours > 0
 ) as last_avg;";
-        var avgworkhoursResult = _DbConnection.Query<(double thisavghours, double lastavghours, double improvepercent)>(sqlforavgworkhours);
+        var avgworkhoursResult =
+          _DbConnection.Query<(double thisavghours, double lastavghours, double improvepercent)>(sqlforavgworkhours);
 
         // 重构后的加班率计算逻辑：加班天数 / 工作日天数 × 100%
         // 注意：排除今天的数据，因为当天工时可能还未完成
@@ -337,7 +349,8 @@ from
 		yearmonth = to_char(current_date - interval '1 month', 'YYYY-MM') 
 		and checkinrule <> '休息'
 ) as last_avg;";
-        var avgovertimeResult = _DbConnection.Query<(double thisavghours, double lastavghours, double improvepercent)>(sqlforavgovertime);
+        var avgovertimeResult =
+          _DbConnection.Query<(double thisavghours, double lastavghours, double improvepercent)>(sqlforavgovertime);
 
 
         var sqlforovertimerecord = @"select
@@ -360,21 +373,24 @@ from
 order by
 work_date desc
 limit 10;";
-        var overtimerecord = _DbConnection.Query<(string id, string date, string contractunit, string start, string end, string duration, string status)>(sqlforovertimerecord).ToList();
+        var overtimerecord = _DbConnection
+          .Query<(string id, string date, string contractunit, string start, string end, string duration, string status)>(
+            sqlforovertimerecord).ToList();
         if (!overtimerecord.Exists(e => e.date == DateTime.Now.ToString("yyyy-MM-dd")))
         {
             overtimerecord.RemoveAt(overtimerecord.Count - 1);
             overtimerecord.Add(
-                (
-                    Guid.NewGuid().ToString(),
-                    DateTime.Now.ToString("yyyy-MM-dd"),
-                    "待定",
-                    pmisInfo.OverStartTime,
-                    pmisInfo.OverEndTime,
-                    (DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime) - DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime)).TotalHours
-                    .ToString(),
-                    "待申请"
-                ));
+              (
+                Guid.NewGuid().ToString(),
+                DateTime.Now.ToString("yyyy-MM-dd"),
+                "待定",
+                pmisInfo.OverStartTime,
+                pmisInfo.OverEndTime,
+                (DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime) -
+                 DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime)).TotalHours
+                .ToString(),
+                "待申请"
+              ));
         }
 
 
@@ -452,7 +468,8 @@ limit 10;";
     {
         if (input.SelectTime != null)
         {
-            if (input.SelectTime < DateTime.Now) return Json(new { jobId = "", SelectTime = input.SelectTime, message = "登记失败,时间不能小于当前时间" });
+            if (input.SelectTime < DateTime.Now)
+                return Json(new { jobId = "", SelectTime = input.SelectTime, message = "登记失败,时间不能小于当前时间" });
             //早上9点之前立即执行
             var workStart = new TimeSpan(10, 0, 0);
             if (input.SelectTime.Value.TimeOfDay > workStart)
@@ -469,11 +486,15 @@ limit 10;";
             }
 
             using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
-            var currentQuantity = dbConnection.Query<int>($@"SELECT count(0) FROM public.autocheckinrecord where to_char(clockintime,'yyyy-mm-dd') = '{input.SelectTime.Value:yyyy-MM-dd}'").First();
-            if (currentQuantity >= 2) return Json(new { jobId = "", SelectTime = input.SelectTime, message = "登记失败,今日操作过于频繁" });
+            var currentQuantity = dbConnection
+              .Query<int>(
+                $@"SELECT count(0) FROM public.autocheckinrecord where to_char(clockintime,'yyyy-mm-dd') = '{input.SelectTime.Value:yyyy-MM-dd}'")
+              .First();
+            if (currentQuantity >= 2)
+                return Json(new { jobId = "", SelectTime = input.SelectTime, message = "登记失败,今日操作过于频繁" });
             var jobId = BackgroundJob.Schedule(() => attendanceService.AutoCheckIniclock(null), input.SelectTime.Value);
             dbConnection.Execute(
-                $@"insert
+              $@"insert
                 	into
                 	public.autocheckinrecord(id, jobid, clockintime, clockinstate)
                 values('{Guid.NewGuid().ToString()}', '{jobId}', to_timestamp('{input.SelectTime:yyyy-MM-dd HH:mm:ss}', 'yyyy-mm-dd hh24:mi:ss'), 0)");
@@ -505,7 +526,10 @@ limit 10;";
     {
         using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var offset = (page - 1) * rows;
-        return Json(dbConnection.Query<AutoCheckInRecord>($@"SELECT * FROM public.autocheckinrecord ORDER BY clockintime desc LIMIT :rows OFFSET :offset", new { rows, offset }).ToList());
+        return Json(dbConnection
+          .Query<AutoCheckInRecord>(
+            $@"SELECT * FROM public.autocheckinrecord ORDER BY clockintime desc LIMIT :rows OFFSET :offset",
+            new { rows, offset }).ToList());
     }
 
     [Tags("考勤")]
@@ -528,7 +552,15 @@ limit 10;";
 																		GROUP BY name,to_char(clockintime, 'yyyy-MM-dd') 
 																		ORDER BY {input.Order} {input.Sort}
 																		 LIMIT :rows OFFSET :offset;",
-            new { order = input.Order, rows = input.Rows, offset = offset, sort = input.Sort, starttime = input.StartTime + " 00:00:00", endtime = input.EndTime + " 23:59:59" }).ToList());
+          new
+          {
+              order = input.Order,
+              rows = input.Rows,
+              offset = offset,
+              sort = input.Sort,
+              starttime = input.StartTime + " 00:00:00",
+              endtime = input.EndTime + " 23:59:59"
+          }).ToList());
     }
 
     [Tags("考勤")]
@@ -575,11 +607,13 @@ limit 10;";
                                where 1=1  {(string.IsNullOrEmpty(input.OrgName) ? "" : " AND org_name like @orgname ")} {(string.IsNullOrEmpty(input.UserName) ? "" : " AND user_name like @username ")}
                                order by  {input.Order} {input.Sort}
                                 LIMIT {input.Rows} OFFSET {offset};",
-            new
-            {
-                starttime = input.StartTime, endtime = input.EndTime, orgname = $"%{input.OrgName}%",
-                username = $"%{input.UserName}%"
-            }).ToList());
+          new
+          {
+              starttime = input.StartTime,
+              endtime = input.EndTime,
+              orgname = $"%{input.OrgName}%",
+              username = $"%{input.UserName}%"
+          }).ToList());
     }
 
     [Tags("考勤")]
@@ -589,14 +623,17 @@ limit 10;";
     {
         using IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
         var offset = (input.Page - 1) * input.Rows;
-            
+
         // 验证排序字段和排序方式
-        var validOrderFields = new[] { "UserId", "UserName", "OrgName", "MissingCardDays", "EarlyLeaveDays", 
-            "LateAndEarlyLeaveDays", "FieldLateDays", "FieldEarlyLeaveDays", "SupplementCardDays", 
-            "CompensatoryLeaveDays", "TotalLeaveDays", "TotalAbnormalDays" };
+        var validOrderFields = new[]
+        {
+      "UserId", "UserName", "OrgName", "MissingCardDays", "EarlyLeaveDays",
+      "LateAndEarlyLeaveDays", "FieldLateDays", "FieldEarlyLeaveDays", "SupplementCardDays",
+      "CompensatoryLeaveDays", "TotalLeaveDays", "TotalAbnormalDays"
+    };
         var orderBy = validOrderFields.Contains(input.Order ?? "") ? input.Order : "TotalAbnormalDays";
         var sortOrder = (input.Sort?.ToLower() == "asc") ? "ASC" : "DESC";
-            
+
         return Json(dbConnection.Query<AttendanceAbnormalSummaryOutput>($@"SELECT 
                 r.user_id AS UserId, 
                 r.user_name AS UserName, 
@@ -629,13 +666,13 @@ limit 10;";
             ORDER BY 
                 {orderBy} {sortOrder}
             LIMIT {input.Rows} OFFSET {offset};",
-            new
-            {
-                starttime = input.StartTime,
-                endtime = input.EndTime,
-                orgname = $"%{input.OrgName}%",
-                username = $"%{input.UserName}%"
-            }).ToList());
+          new
+          {
+              starttime = input.StartTime,
+              endtime = input.EndTime,
+              orgname = $"%{input.OrgName}%",
+              username = $"%{input.UserName}%"
+          }).ToList());
     }
 
     [Tags("考勤")]
@@ -645,12 +682,12 @@ limit 10;";
     {
         using IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
         var offset = (input.Page - 1) * input.Rows;
-            
+
         // 验证排序字段和排序方式
         var validOrderFields = new[] { "ClockInDate", "UserName", "TotalAbnormalMinutes" };
         var orderBy = validOrderFields.Contains(input.Order ?? "") ? input.Order : "ClockInDate";
         var sortOrder = (input.Sort?.ToLower() == "asc") ? "ASC" : "DESC";
-            
+
         return Json(dbConnection.Query<AttendanceAbnormalDetailOutput>($@"SELECT 
                 r.clock_in_date AS ClockInDate,
                 r.user_name AS UserName,
@@ -676,13 +713,86 @@ limit 10;";
             ORDER BY 
                 {orderBy} {sortOrder}
             LIMIT {input.Rows} OFFSET {offset};",
-            new
+          new
+          {
+              starttime = input.StartTime,
+              endtime = input.EndTime,
+              userid = input.UserId,
+              orgid = input.OrgId,
+              username = $"%{input.UserName}%"
+          }).ToList());
+    }
+
+    [Tags("考勤")]
+    [EndpointSummary("检查是否在工作并控制智能设备")]
+    [HttpGet]
+    public async Task<ActionResult> CheckWorkingAndControlDevice()
+    {
+        try
+        {
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+
+            // 执行查询判断是否在工作
+            var sql = @"SELECT 
+                CASE 
+                    WHEN (
+                        a.checkinrule != '休息' 
+                        OR EXISTS (
+                            SELECT 1 
+                            FROM public.overtimerecord o 
+                            WHERE o.plan_start_time::date = CURRENT_DATE
+                        )
+                    ) 
+                    AND NOT EXISTS (
+                        SELECT 1 
+                        FROM public.attendancerecorddaydetail d 
+                        WHERE d.clockintime::date = CURRENT_DATE
+                    ) 
+                    THEN 1
+                    ELSE 0 
+                END AS isworking
+            FROM 
+                public.attendancerecordday a
+            WHERE 
+                a.attendancedate::date = CURRENT_DATE
+            LIMIT 1;";
+
+            var isWorking = dbConnection.Query<int>(sql).FirstOrDefault();
+
+            if (isWorking == 1)
             {
-                starttime = input.StartTime,
-                endtime = input.EndTime,
-                userid = input.UserId,
-                orgid = input.OrgId,
-                username = $"%{input.UserName}%"
-            }).ToList());
+                var homeAssistantInfo = configuration.GetSection("HomeAssistant").Get<HomeAssistantInfo>();
+
+                if (homeAssistantInfo == null || string.IsNullOrEmpty(homeAssistantInfo.Url))
+                {
+                    return Json(new { success = false, message = "HomeAssistant配置未找到" });
+                }
+
+                var httpHelper = new HttpRequestHelper();
+                var response = await httpHelper.PostAsync(homeAssistantInfo.Url, new
+                {
+                    entity_id = homeAssistantInfo.EntityId
+                }, new Dictionary<string, string> { { "Authorization", homeAssistantInfo.Authorization ?? string.Empty } });
+
+                if (response.IsSuccessStatusCode)
+                {
+                    pushMessageService.Push("开机提醒", "已为您开启电脑", PushMessageService.PushIcon.Windows);
+                    return Json(new { success = true, message = "设备已开启", isWorking = 1 });
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    return Json(new { success = false, message = $"调用Home Assistant失败: {errorContent}", isWorking = 1 });
+                }
+            }
+            else
+            {
+                return Json(new { success = true, message = "不在工作状态，无需控制设备", isWorking = 0 });
+            }
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = $"执行失败: {ex.Message}" });
+        }
     }
 }
