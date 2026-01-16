@@ -12,3 +12,7 @@ public class AttendanceAbnormalDetailInput
     public string? Order { get; set; } = "ClockInDate";
     public string? Sort { get; set; } = "asc";
 }
+public class RangeActionInput
+{
+    public int Type { get; set; }
+}

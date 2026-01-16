@@ -1045,10 +1045,10 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
 
                 //查询是否已提交加班申请
                 var hasOvertime = dbConnection.Query<int>($@"select count(0) from  public.overtimerecord where work_date = '{ApplicationDate:yyyy-MM-dd}'").FirstOrDefault();
-                if (hasOvertime != 0) return;
+                if (hasOvertime != 0) continue;
 
-                if (zentaoInfo.Project == null || zentaoInfo.Id == null || string.IsNullOrEmpty(zentaoInfo.ProjectCode)) return;
-                if (string.IsNullOrEmpty(zentaoInfo.ProjectCode)) return;
+                if (zentaoInfo.Project == null || zentaoInfo.Id == null || string.IsNullOrEmpty(zentaoInfo.ProjectCode)) continue;
+                if (string.IsNullOrEmpty(zentaoInfo.ProjectCode)) continue;
                 if (zentaoInfo.ProjectCode == "GIS-Product")
                     projectInfo = new ProjectInfo
                     {
@@ -1062,7 +1062,7 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
                 if (string.IsNullOrEmpty(projectInfo.project_name))
                 {
                     pushMessageService.Push("加班申请失败", "未在PMIS系统中查询到项目信息", PushMessageService.PushIcon.Alert);
-                    return;
+                    continue;
                 }
 
                 var chatOptions = new ChatOptions { Tools = [] };
@@ -1070,11 +1070,11 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
                 new(ChatRole.System, pmisInfo!.DailyPrompt),
                 new(ChatRole.User, "加班内容：" + zentaoInfo!.TaskName + ":" + zentaoInfo.TaskDesc)};
                 var res = chatClient.GetResponseAsync(chatHistory, chatOptions).Result;
-                if (string.IsNullOrWhiteSpace(res?.Text)) return;
+                if (string.IsNullOrWhiteSpace(res?.Text)) continue;
                 var workContent = res.Text;
-                if (string.IsNullOrEmpty(workContent)) return;
+                if (string.IsNullOrEmpty(workContent)) continue;
                 var insertId = OvertimeWork_Insert(projectInfo, zentaoInfo.Id.ToString(), workContent, isDayRest, ApplicationDate);
-                if (string.IsNullOrEmpty(insertId)) return;
+                if (string.IsNullOrEmpty(insertId)) continue;
                 var processId = OvertimeWork_CreateOrder(projectInfo, insertId, zentaoInfo.Id.ToString(), workContent, isDayRest, ApplicationDate);
                 if (!string.IsNullOrEmpty(processId))
                 {

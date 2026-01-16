@@ -125,6 +125,7 @@ public class PushMessageService(IConfiguration configuration)
             PushIcon.Zktime => "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/cloudreve.png",
             PushIcon.SpeedTest => "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/myspeed.png",
             PushIcon.Windows => "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/1password-dark.png",
+            PushIcon.Close => "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/toggl-dark.png",
             _ => ""
         };
     }
@@ -143,6 +144,7 @@ public class PushMessageService(IConfiguration configuration)
         Amount,
         Zktime,
         SpeedTest,
-        Windows
+        Windows,
+        Close
     }
 }

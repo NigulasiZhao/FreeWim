@@ -27,6 +27,8 @@ public class PMISInfo
     public required string ZkKey { get; set; }
     public required string? WeekOverStartTime { get; set; }
     public required string? WeekOverEndTime { get; set; }
+
+    public required string? ShutDownUrl { get; set; }
 }
 
 public class PMISInsertResponse

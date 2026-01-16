@@ -132,6 +132,16 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
                     {
                         dbConnection.Execute($@"UPDATE public.autocheckinrecord SET clockinstate = 1,updateat = now() WHERE jobid = '{jobId}'");
                         pushMessageService.Push("任务调度", $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务已执行，请关注后续考勤同步信息。", PushMessageService.PushIcon.Zktime);
+                        if (!string.IsNullOrEmpty(pmisInfo.ShutDownUrl))
+                        {
+                            using var ShutDownClient = new HttpClient();
+                            var shutDownUrl = pmisInfo.ShutDownUrl;
+                            var shutDownResponse = ShutDownClient.GetAsync(shutDownUrl).Result;
+                            if (shutDownResponse.StatusCode == System.Net.HttpStatusCode.OK)
+                            {
+                                pushMessageService.Push("关机提醒", $"您的电脑即将关机", PushMessageService.PushIcon.Close);
+                            }
+                        }
                     }
                     else
                     {

@@ -329,25 +329,23 @@ from
 		-- 本月加班天数（工时>=8.5小时的天数）
 		sum(case when workhours >= 8.5 then 1 else 0 end) as overtimeday,
 		-- 本月工作日天数（非休息日，排除今天）
-		COUNT(distinct attendancedate::date) as workdays
+		sum(case when checkinrule <> '休息' then 1 else 0 end) as workdays
 	from
 		attendancerecordday
 	where
 		yearmonth = to_char(current_date, 'YYYY-MM') 
 		and to_char(attendancedate,'yyyy-MM-dd') < to_char(now(),'yyyy-MM-dd')
-		and checkinrule <> '休息'
 ) as this_avg,
 	(
 	select
 		-- 上月加班天数（工时>=8.5小时的天数）
 		sum(case when workhours >= 8.5 then 1 else 0 end) as overtimeday,
 		-- 上月工作日天数（非休息日）
-		COUNT(distinct attendancedate::date) as workdays
+		sum(case when checkinrule <> '休息' then 1 else 0 end) as workdays
 	from
 		attendancerecordday
 	where
 		yearmonth = to_char(current_date - interval '1 month', 'YYYY-MM') 
-		and checkinrule <> '休息'
 ) as last_avg;";
         var avgovertimeResult =
           _DbConnection.Query<(double thisavghours, double lastavghours, double improvepercent)>(sqlforavgovertime);
@@ -398,11 +396,11 @@ limit 10;";
         {
             header = new
             {
-                thismonth = HeaderResult.FirstOrDefault().thismonth,
-                lastmonth = HeaderResult.FirstOrDefault().lastmonth,
-                beforelastmonth = HeaderResult.FirstOrDefault().beforelastmonth,
-                thisvslastpercent = HeaderResult.FirstOrDefault().thisvslastpercent,
-                lastvsbeforelastpercent = HeaderResult.FirstOrDefault().lastvsbeforelastpercent
+                HeaderResult.FirstOrDefault().thismonth,
+                HeaderResult.FirstOrDefault().lastmonth,
+                HeaderResult.FirstOrDefault().beforelastmonth,
+                HeaderResult.FirstOrDefault().thisvslastpercent,
+                HeaderResult.FirstOrDefault().lastvsbeforelastpercent
             },
             avgWorkHours = new
             {
@@ -418,13 +416,13 @@ limit 10;";
             },
             overTimeRecord = overtimerecord.Select(e => new
             {
-                id = e.id,
-                date = e.date,
-                contractunit = e.contractunit,
-                start = e.start,
-                end = e.end,
-                duration = e.duration,
-                status = e.status
+                e.id,
+                e.date,
+                e.contractunit,
+                e.start,
+                e.end,
+                e.duration,
+                e.status
             }).OrderByDescending(e => e.date).ToList(),
             monthTrend = new
             {
@@ -456,7 +454,7 @@ limit 10;";
                 thisWeek = 40,
                 lastWeek = 38
             },
-            punchHeatmap = punchHeatmap
+            punchHeatmap
         };
         return Json(endresult);
     }
@@ -724,9 +722,32 @@ limit 10;";
     }
 
     [Tags("考勤")]
-    [EndpointSummary("检查是否在工作并控制智能设备")]
-    [HttpGet]
-    public async Task<ActionResult> CheckWorkingAndControlDevice()
+    [EndpointSummary("公司范围动作触发(0进入，1离开)")]
+    [HttpPost]
+    public async Task<ActionResult> RangeAction([FromBody] RangeActionInput input)
+    {
+        if (input.Type == 0) return await HandleEnterRange();
+        if (input.Type == 1) return await HandleLeaveRange();
+        return Json(new { success = false, message = "参数错误" });
+    }
+    [Tags("考勤")]
+    [EndpointSummary("测试-公司范围动作触发(0进入，1离开)")]
+    [HttpPost]
+    public async Task<ActionResult> RangeActionTest([FromBody] RangeActionInput input)
+    {
+        if (input.Type == 0)
+        {
+            pushMessageService.Push("测试提醒", "Type" + input.Type, PushMessageService.PushIcon.Windows);
+            return Json(new { success = true, message = "设备已开启", isWorking = 1 });
+        }
+        if (input.Type == 1)
+        {
+             pushMessageService.Push("测试提醒", "Type" + input.Type, PushMessageService.PushIcon.Windows);
+            return Json(new { success = true, message = "设备已开启", isWorking = 1 });
+        }
+        return Json(new { success = true, message = "设备已开启", isWorking = 1 });
+    }
+    private async Task<ActionResult> HandleEnterRange()
     {
         try
         {
@@ -788,6 +809,79 @@ limit 10;";
             else
             {
                 return Json(new { success = true, message = "不在工作状态，无需控制设备", isWorking = 0 });
+            }
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = $"执行失败: {ex.Message}" });
+        }
+    }
+
+    private async Task<ActionResult> HandleLeaveRange()
+    {
+        try
+        {
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            var httpRequestHelper = new HttpRequestHelper();
+            // 1. 判断是否存在未执行的自动打卡记录
+            var existautocheckin = dbConnection.Query<int>(
+                $"SELECT COUNT(0) FROM public.autocheckinrecord WHERE to_char(clockintime,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}' and clockinstate = 0 ").First();
+            if (existautocheckin > 0)
+            {
+                return Json(new { success = true });
+            }
+
+            // 2. 获取今日工时
+            var workHours = dbConnection.Query<double>(
+                "SELECT workhours FROM public.attendancerecordday WHERE attendancedate::date = CURRENT_DATE LIMIT 1").FirstOrDefault();
+
+            var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
+
+            if (workHours > 0)
+            {
+                // 3. 工时大于0，调用关机接口
+                if (!string.IsNullOrEmpty(pmisInfo.ShutDownUrl))
+                {
+                    var shutDownResponse = await httpRequestHelper.GetAsync(pmisInfo.ShutDownUrl);
+                    if (shutDownResponse.IsSuccessStatusCode)
+                    {
+                        pushMessageService.Push("关机提醒", "您的电脑即将关机", PushMessageService.PushIcon.Close);
+                    }
+                }
+                return Json(new { success = true });
+            }
+            else
+            {
+                var response = await httpRequestHelper.PostAsync(pmisInfo.ZkUrl + "/api/v2/transaction/get/?key=" + pmisInfo.ZkKey,
+                    new
+                    {
+                        starttime = DateTime.Now.ToString("yyyy-MM-dd 00:00:00"),
+                        endtime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                    });
+
+                var result = await response.Content.ReadAsStringAsync();
+                var resultModel = JsonConvert.DeserializeObject<ZktResponse>(result);
+                var pin = "100" + pmisInfo.UserAccount;
+                var myRecordsCount = resultModel?.Data?.Items?.Count(e => e.Pin == pin) ?? 0;
+
+                if (myRecordsCount >= 2)
+                {
+                    if (!string.IsNullOrEmpty(pmisInfo.ShutDownUrl))
+                    {
+                        var shutDownResponse = await httpRequestHelper.GetAsync(pmisInfo.ShutDownUrl);
+                        if (shutDownResponse.IsSuccessStatusCode)
+                        {
+                            pushMessageService.Push("关机提醒", "您的电脑即将关机,已为您触发考勤同步", PushMessageService.PushIcon.Close);
+                        }
+                    }
+                    // 5. 本人打卡数据大于等于两条，触发同步和关机
+                    attendanceService.SyncAttendanceRecord();
+                    return Json(new { success = true });
+                }
+                else
+                {
+                    return Json(new { success = true });
+                }
             }
         }
         catch (Exception ex)
