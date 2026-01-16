@@ -1081,7 +1081,7 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
                     JObject updateResult = OvertimeWork_Update(projectInfo, insertId, zentaoInfo.Id.ToString(), processId, workContent, isDayRest, ApplicationDate);
                     if (updateResult["Response"] != null)
                     {
-                        pushMessageService.Push("加班申请", DateTime.Now.ToString("yyyy-MM-dd") + " 加班申请已提交\n加班事由：" + workContent, PushMessageService.PushIcon.OverTime);
+                        pushMessageService.Push("加班申请", ApplicationDate.ToString("yyyy-MM-dd") + " 加班申请已提交\n加班事由：" + workContent, PushMessageService.PushIcon.OverTime);
                         dbConnection.Execute($@"
                                       insert
                                       	into

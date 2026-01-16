@@ -723,26 +723,26 @@ limit 10;";
 
     [Tags("考勤")]
     [EndpointSummary("公司范围动作触发(0进入，1离开)")]
-    [HttpPost]
-    public async Task<ActionResult> RangeAction([FromBody] RangeActionInput input)
+    [HttpGet]
+    public async Task<ActionResult> RangeAction(int Type)
     {
-        if (input.Type == 0) return await HandleEnterRange();
-        if (input.Type == 1) return await HandleLeaveRange();
+        if (Type == 0) return await HandleEnterRange();
+        if (Type == 1) return await HandleLeaveRange();
         return Json(new { success = false, message = "参数错误" });
     }
     [Tags("考勤")]
     [EndpointSummary("测试-公司范围动作触发(0进入，1离开)")]
-    [HttpPost]
-    public async Task<ActionResult> RangeActionTest([FromBody] RangeActionInput input)
+    [HttpGet]
+    public async Task<ActionResult> RangeActionTest(int Type)
     {
-        if (input.Type == 0)
+        if (Type == 0)
         {
-            pushMessageService.Push("测试提醒", "Type" + input.Type, PushMessageService.PushIcon.Windows);
+            pushMessageService.Push("测试提醒", "Type" + Type, PushMessageService.PushIcon.Windows);
             return Json(new { success = true, message = "设备已开启", isWorking = 1 });
         }
-        if (input.Type == 1)
+        if (Type == 1)
         {
-             pushMessageService.Push("测试提醒", "Type" + input.Type, PushMessageService.PushIcon.Windows);
+             pushMessageService.Push("测试提醒", "Type" + Type, PushMessageService.PushIcon.Windows);
             return Json(new { success = true, message = "设备已开启", isWorking = 1 });
         }
         return Json(new { success = true, message = "设备已开启", isWorking = 1 });
