@@ -842,10 +842,19 @@ limit 10;";
                 // 3. 工时大于0，调用关机接口
                 if (!string.IsNullOrEmpty(pmisInfo.ShutDownUrl))
                 {
-                    var shutDownResponse = await httpRequestHelper.GetAsync(pmisInfo.ShutDownUrl);
-                    if (shutDownResponse.IsSuccessStatusCode)
+                    try
                     {
-                        pushMessageService.Push("关机提醒", "您的电脑即将关机", PushMessageService.PushIcon.Close);
+                        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                        var shutDownResponse = await client.GetAsync(pmisInfo.ShutDownUrl);
+                        if (shutDownResponse.IsSuccessStatusCode)
+                        {
+                            pushMessageService.Push("关机提醒", "您的电脑即将关机", PushMessageService.PushIcon.Close);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // 忽略关机接口调用失败，可能是机器已关机
+                        Console.WriteLine($"调用关机接口失败: {ex.Message}");
                     }
                 }
                 return Json(new { success = true });
@@ -868,10 +877,19 @@ limit 10;";
                 {
                     if (!string.IsNullOrEmpty(pmisInfo.ShutDownUrl))
                     {
-                        var shutDownResponse = await httpRequestHelper.GetAsync(pmisInfo.ShutDownUrl);
-                        if (shutDownResponse.IsSuccessStatusCode)
+                        try
                         {
-                            pushMessageService.Push("关机提醒", "您的电脑即将关机,已为您触发考勤同步", PushMessageService.PushIcon.Close);
+                            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                            var shutDownResponse = await client.GetAsync(pmisInfo.ShutDownUrl);
+                            if (shutDownResponse.IsSuccessStatusCode)
+                            {
+                                pushMessageService.Push("关机提醒", "您的电脑即将关机,已为您触发考勤同步", PushMessageService.PushIcon.Close);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            // 忽略关机接口调用失败，可能是机器已关机
+                            Console.WriteLine($"调用关机接口失败: {ex.Message}");
                         }
                     }
                     // 5. 本人打卡数据大于等于两条，触发同步和关机
