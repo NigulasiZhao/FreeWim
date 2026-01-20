@@ -733,7 +733,7 @@ limit 10;";
     [Tags("考勤")]
     [EndpointSummary("测试-公司范围动作触发(0进入，1离开)")]
     [HttpPost]
-    public async Task<ActionResult> RangeActionTest([FromBody] RangeActionInput input)
+    public ActionResult RangeActionTest([FromBody] RangeActionInput input)
     {
         if (input.Type == 0)
         {
