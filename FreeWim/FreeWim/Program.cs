@@ -30,7 +30,21 @@ builder.Configuration
 builder.Services.AddDirectoryBrowser();
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, context, cancellationToken) =>
+    {
+        document.Info.Title = "FreeWim API";
+        // 使用 Markdown 插入图片
+        document.Info.Description = @"
+<div align='center'>
+  <img src='/favicon.ico' width='200' />
+  <br/>
+  <strong>FreeWim：打破流程魔咒的自动化之刃</strong>
+</div>";
+        return Task.CompletedTask;
+    });
+});
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -65,10 +79,10 @@ builder.Services.AddHangfireServer();
 // 自动注册所有 Service 类（包括 Services 目录下的和根目录下的）
 var assembly = typeof(Program).Assembly;
 var serviceTypes = assembly.GetTypes()
-    .Where(t => t.Namespace != null && 
+    .Where(t => t.Namespace != null &&
                 (t.Namespace == "FreeWim.Services" || t.Namespace == "FreeWim") &&
-                t.Name.EndsWith("Service") && 
-                t.IsClass && 
+                t.Name.EndsWith("Service") &&
+                t.IsClass &&
                 !t.IsAbstract)
     .ToList();
 
