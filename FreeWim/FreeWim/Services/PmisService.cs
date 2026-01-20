@@ -219,8 +219,12 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
         var id = string.Empty;
         var httpHelper = new HttpRequestHelper();
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
-        string PlanStartDate = isDayRest ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverStartTime) ? " 07:00:00" : " " + pmisInfo.WeekOverStartTime) : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime;
-        string PlanEndDate = isDayRest ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverEndTime) ? " 19:30:00" : " " + pmisInfo.WeekOverEndTime) : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime;
+        var PlanStartDate = isDayRest
+            ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverStartTime) ? " 07:00:00" : " " + pmisInfo.WeekOverStartTime)
+            : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime;
+        var PlanEndDate = isDayRest
+            ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverEndTime) ? " 19:30:00" : " " + pmisInfo.WeekOverEndTime)
+            : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime;
         var requestObject = new Dictionary<string, object?>
         {
             { "child_groups", new object[] { } },
@@ -247,7 +251,7 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
             { "reason", "1" },
             { "order_no", orderNo },
             { "remark", "" },
-            { "work_overtime_type$$text", isDayRest ? "周末" : "延时加班"  },
+            { "work_overtime_type$$text", isDayRest ? "周末" : "延时加班" },
             { "work_type$$text", string.IsNullOrEmpty(projectInfo.contract_id) && string.IsNullOrEmpty(projectInfo.contract_unit) ? "产品开发/测试/设计" : "项目开发/测试/设计" },
             { "position$$text", "公司" },
             { "reason$$text", "上线支撑" },
@@ -277,8 +281,12 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
         var ProcessId = string.Empty;
         var httpHelper = new HttpRequestHelper();
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
-        string PlanStartDate = isDayRest ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverStartTime) ? " 07:00:00" : " " + pmisInfo.WeekOverStartTime) : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime;
-        string PlanEndDate = isDayRest ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverEndTime) ? " 19:30:00" : " " + pmisInfo.WeekOverEndTime) : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime;
+        var PlanStartDate = isDayRest
+            ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverStartTime) ? " 07:00:00" : " " + pmisInfo.WeekOverStartTime)
+            : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime;
+        var PlanEndDate = isDayRest
+            ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverEndTime) ? " 19:30:00" : " " + pmisInfo.WeekOverEndTime)
+            : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime;
         var requestObject = new Dictionary<string, object?>
         {
             { "child_groups", new object[] { } },
@@ -386,8 +394,12 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
         var processInfo = OvertimeWork_Query(id);
         var httpHelper = new HttpRequestHelper();
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
-        string PlanStartDate = isDayRest ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverStartTime) ? " 07:00:00" : " " + pmisInfo.WeekOverStartTime) : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime;
-        string PlanEndDate = isDayRest ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverEndTime) ? " 19:30:00" : " " + pmisInfo.WeekOverEndTime) : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime;
+        var PlanStartDate = isDayRest
+            ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverStartTime) ? " 07:00:00" : " " + pmisInfo.WeekOverStartTime)
+            : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime;
+        var PlanEndDate = isDayRest
+            ? workDate.ToString("yyyy-MM-dd") + (string.IsNullOrEmpty(pmisInfo.WeekOverEndTime) ? " 19:30:00" : " " + pmisInfo.WeekOverEndTime)
+            : workDate.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime;
         var requestObject = new Dictionary<string, object?>
         {
             { "child_groups", new object[] { } },
@@ -720,7 +732,7 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
             var overTimeResponse = httpHelper.PostAsync(
                 pmisInfo.Url + $@"/hd-oa/api/oaWorkOvertime/getWorkOvertimeData", new
                 {
-                    workDate = DateTime.Parse(result["plan_start_time"]?.ToString()).ToString("yyyy-MM-dd"),
+                    workDate = DateTime.Parse(result["plan_start_time"]?.ToString()!).ToString("yyyy-MM-dd"),
                     userId = pmisInfo.UserId
                 }, new Dictionary<string, string> { { "uniwater_utoken", tokenService.GetTokenAsync() ?? string.Empty } }).Result;
             var overTimeResult = JObject.Parse(overTimeResponse.Content.ReadAsStringAsync().Result);
@@ -731,7 +743,7 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
             if (overTimeHours < 1)
             {
                 //不是今天的单子，并且没有加班时长，则作废申请单
-                if (DateTime.Parse(result["plan_start_time"]?.ToString()).ToString("yyyy-MM-dd") != DateTime.Now.ToString("yyyy-MM-dd"))
+                if (DateTime.Parse(result["plan_start_time"]?.ToString()!).ToString("yyyy-MM-dd") != DateTime.Now.ToString("yyyy-MM-dd"))
                 {
                     var intervalDays = (DateTime.Now - DateTime.Parse(result["plan_start_time"]?.ToString() ?? string.Empty)).Days;
                     if (intervalDays > 2)
@@ -754,19 +766,21 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
                                         	real_end_time = '{overTimeResult["data"]?["endTime"]?.ToString()}',
                                         	real_work_overtime_hour = {overTimeHours}
                                         where
-                                        	work_date = '{DateTime.Parse(result["plan_start_time"]?.ToString()).ToString("yyyy-MM-dd")}';");
-                        pushMessageService.Push("实际加班", DateTime.Parse(result["plan_start_time"]?.ToString()).ToString("yyyy-MM-dd") + " 加班时长不足1小时已作废\n", PushMessageService.PushIcon.OverTime);
+                                        	work_date = '{DateTime.Parse(result["plan_start_time"]?.ToString()!):yyyy-MM-dd}';");
+                        pushMessageService.Push("实际加班", DateTime.Parse(result["plan_start_time"]?.ToString()!).ToString("yyyy-MM-dd") + " 加班时长不足1小时已作废\n", PushMessageService.PushIcon.OverTime);
                     }
                 }
             }
             else
             {
-                if (DateTime.Parse(result["plan_start_time"]?.ToString()).ToString("yyyy-MM-dd") == DateTime.Now.ToString("yyyy-MM-dd"))
+                if (DateTime.Parse(result["plan_start_time"]?.ToString()!).ToString("yyyy-MM-dd") == DateTime.Now.ToString("yyyy-MM-dd"))
                 {
-                    var HaveWorkHours = dbConnection.Query<int>($"SELECT COUNT(0) FROM public.attendancerecordday WHERE to_char(attendancedate,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}' and workhours > 0 ").First();
+                    var HaveWorkHours = dbConnection
+                        .Query<int>($"SELECT COUNT(0) FROM public.attendancerecordday WHERE to_char(attendancedate,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}' and workhours > 0 ").First();
                     if (HaveWorkHours <= 0)
                         continue;
                 }
+
                 //获取实际加班下一步处理人相关信息
                 var realApplyResponse = httpHelper.PostAsync(
                     pmisInfo.Url + $@"/hddev/form/formobjectdata/oa_work_overtime_real_apply:13/detail.json", new
@@ -878,8 +892,9 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
                                         	real_end_time = '{overTimeResult["data"]?["endTime"]?.ToString()}',
                                         	real_work_overtime_hour = {overTimeHours}
                                         where
-                                        	work_date = '{DateTime.Parse(result["plan_start_time"]?.ToString()).ToString("yyyy-MM-dd")}';");
-                pushMessageService.Push("实际加班", DateTime.Parse(result["plan_start_time"]?.ToString()).ToString("yyyy-MM-dd") + " 实际加班申请已提交\n加班时长：" + overTimeHours + " 小时", PushMessageService.PushIcon.OverTime);
+                                        	work_date = '{DateTime.Parse(result["plan_start_time"]?.ToString()!).ToString("yyyy-MM-dd")}';");
+                pushMessageService.Push("实际加班", DateTime.Parse(result["plan_start_time"]?.ToString()!).ToString("yyyy-MM-dd") + " 实际加班申请已提交\n加班时长：" + overTimeHours + " 小时",
+                    PushMessageService.PushIcon.OverTime);
                 results.Add(result);
             }
         }
@@ -967,7 +982,9 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
             {
                 var workDate = historyitem["work_date"]?.ToString();
                 var realtime = historyitem["realtime"]?.ToString();
-                if (!string.IsNullOrEmpty(workDate) && !string.IsNullOrEmpty(realtime)) workovertimeresult.Add(workDate, double.Parse(realtime));
+                if (!string.IsNullOrEmpty(workDate) && !string.IsNullOrEmpty(realtime))
+                    if (!workovertimeresult.ContainsKey(workDate))
+                        workovertimeresult.Add(workDate, double.Parse(realtime));
             }
 
         using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
@@ -1032,14 +1049,15 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
                                                                                and taskstatus = 'wait'
                                                                              ORDER BY
                                                                                a.eststarted asc").ToList();
-            bool isDayRest = false;
-            DateTime ApplicationDate = DateTime.Now;
+            var isDayRest = false;
+            var ApplicationDate = DateTime.Now;
             foreach (var zentaoInfo in zentaoList)
             {
                 isDayRest = zentaoInfo.CheckInRule == "休息";
                 ApplicationDate = zentaoInfo.EstStarted;
                 if (zentaoInfo.EstStarted.Date != DateTime.Now.Date)
-                    if (zentaoInfo.IsNextDayRest != 1) break;
+                    if (zentaoInfo.IsNextDayRest != 1)
+                        break;
                 if (zentaoInfo.CheckInRule != "休息")
                 {
                     //查询工作日是否打卡上班
@@ -1072,9 +1090,11 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
                 }
 
                 var chatOptions = new ChatOptions { Tools = [] };
-                var chatHistory = new List<ChatMessage>{
-                new(ChatRole.System, pmisInfo!.DailyPrompt),
-                new(ChatRole.User, "加班内容：" + zentaoInfo!.TaskName + ":" + zentaoInfo.TaskDesc)};
+                var chatHistory = new List<ChatMessage>
+                {
+                    new(ChatRole.System, pmisInfo!.DailyPrompt),
+                    new(ChatRole.User, "加班内容：" + zentaoInfo!.TaskName + ":" + zentaoInfo.TaskDesc)
+                };
                 var res = chatClient.GetResponseAsync(chatHistory, chatOptions).Result;
                 if (string.IsNullOrWhiteSpace(res?.Text)) continue;
                 var workContent = res.Text;
@@ -1084,7 +1104,7 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
                 var processId = OvertimeWork_CreateOrder(projectInfo, insertId, zentaoInfo.Id.ToString(), workContent, isDayRest, ApplicationDate);
                 if (!string.IsNullOrEmpty(processId))
                 {
-                    JObject updateResult = OvertimeWork_Update(projectInfo, insertId, zentaoInfo.Id.ToString(), processId, workContent, isDayRest, ApplicationDate);
+                    var updateResult = OvertimeWork_Update(projectInfo, insertId, zentaoInfo.Id.ToString(), processId, workContent, isDayRest, ApplicationDate);
                     if (updateResult["Response"] != null)
                     {
                         pushMessageService.Push("加班申请", ApplicationDate.ToString("yyyy-MM-dd") + " 加班申请已提交\n加班事由：" + workContent, PushMessageService.PushIcon.OverTime);
