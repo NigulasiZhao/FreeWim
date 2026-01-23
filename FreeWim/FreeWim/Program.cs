@@ -186,5 +186,10 @@ app.MapGet("/bnormalattendance", async context =>
     context.Response.ContentType = "text/html";
     await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "AttendanceAbnormal.html"));
 });
+app.MapGet("/annualreport", async context =>
+{
+    context.Response.ContentType = "text/html";
+    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "AnnualReport.html"));
+});
 app.MapGet("/", () => Results.Redirect("/scalar"));
 app.Run();

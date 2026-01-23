@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FreeWim 年度报告</title>
+    <script src="/lib/tailwindcss/tailwindcss.js"></script>
+    <script src="/lib/echarts/echarts.min.js"></script>
+    <link rel="stylesheet" href="/lib/animate/animate.min.css" />
+    <link rel="stylesheet" href="/lib/fontawesome/all.min.css" />
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        modern_purple: '#7F5AF0',
+                        modern_green: '#2CB67D',
+                        modern_text: '#FFFFFE',
+                        modern_sub: '#94A1B2',
+                        glass_bg: 'rgba(22, 22, 26, 0.6)',
+                        glass_border: 'rgba(255, 255, 255, 0.1)',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-20px)' },
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #16161a;
+            color: #fffffe;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Fixed Background Layer */
+        #bg-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .bg-slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            opacity: 0;
+            transition: opacity 1.5s ease-in-out, transform 10s ease-out;
+            transform: scale(1.1);
+            filter: brightness(0.6) contrast(1.1);
+        }
+
+        .bg-slide.active {
+            opacity: 1;
+            transform: scale(1.0);
+            z-index: 1;
+        }
+
+        /* Gradient Overlay */
+        .bg-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, rgba(22,22,26,0.2), rgba(22,22,26,0.8));
+            z-index: 2;
+        }
+
+        .scroll-container {
+            height: 100vh;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            scroll-behavior: smooth;
+            position: relative;
+            z-index: 10;
+        }
+
+        .section {
+            height: 100vh;
+            width: 100%;
+            scroll-snap-align: start;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            padding: 2rem;
+        }
+
+        /* Hide scrollbar */
+        .scroll-container::-webkit-scrollbar { display: none; }
+        .scroll-container { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Glassmorphism Card */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .glass-panel {
+            background: rgba(22, 22, 26, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* Animations */
+        .anim-hidden { opacity: 0; transition: all 1.2s cubic-bezier(0.22, 1, 0.36, 1); }
+        
+        .anim-up { transform: translateY(60px); }
+        .section.visible .anim-up { opacity: 1; transform: translateY(0); }
+
+        .anim-zoom { transform: scale(0.9) translateY(20px); }
+        .section.visible .anim-zoom { opacity: 1; transform: scale(1) translateY(0); }
+
+        .anim-left { transform: translateX(-60px); }
+        .section.visible .anim-left { opacity: 1; transform: translateX(0); }
+
+        .anim-right { transform: translateX(60px); }
+        .section.visible .anim-right { opacity: 1; transform: translateX(0); }
+
+        .delay-100 { transition-delay: 100ms; }
+        .delay-200 { transition-delay: 300ms; }
+        .delay-300 { transition-delay: 500ms; }
+        .delay-400 { transition-delay: 700ms; }
+        .delay-500 { transition-delay: 900ms; }
+        .delay-600 { transition-delay: 1100ms; }
+        .delay-800 { transition-delay: 1300ms; }
+
+        .layout-intro { text-align: center; }
+        .layout-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; width: 100%; max-width: 1200px; }
+        .layout-split { display: flex; width: 100%; max-width: 1200px; gap: 4rem; align-items: center; }
+        .layout-center { text-align: center; max-width: 1000px; }
+
+        @media (max-width: 768px) {
+            .layout-grid, .layout-split { grid-template-columns: 1fr; flex-direction: column; gap: 2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Dynamic Backgrounds -->
+    <div id="bg-layer">
+        <div class="bg-overlay"></div>
+        <!-- 0. Intro -->
+        <div class="bg-slide active" id="bg-0" style="background-image: url('../images/annual_report/bg-0.jpg');"></div>
+        <!-- 1. Ranking -->
+        <div class="bg-slide" id="bg-1" style="background-image: url('../images/annual_report/bg-1.jpg');"></div>
+        <!-- 2. Auto Check-in -->
+        <div class="bg-slide" id="bg-2" style="background-image: url('../images/annual_report/bg-2.jpg');"></div>
+        <!-- 3. Auto Reports -->
+        <div class="bg-slide" id="bg-3" style="background-image: url('../images/annual_report/bg-3.jpg');"></div>
+        <!-- 4. Auto Overtime -->
+        <div class="bg-slide" id="bg-4" style="background-image: url('../images/annual_report/bg-4.jpg');"></div>
+        <!-- 5. Attendance -->
+        <div class="bg-slide" id="bg-5" style="background-image: url('../images/annual_report/bg-5.jpg');"></div>
+        <!-- 6. Code -->
+        <div class="bg-slide" id="bg-6" style="background-image: url('../images/annual_report/bg-6.jpg');"></div>
+        <!-- 7. Tasks -->
+        <div class="bg-slide" id="bg-7" style="background-image: url('../images/annual_report/bg-7.jpg');"></div>
+        <!-- 9. Closing (Now 8) -->
+        <div class="bg-slide" id="bg-8" style="background-image: url('../images/annual_report/bg-9.jpg');"></div>
+    </div>
+
+    <div class="scroll-container" id="fullpage">
+        
+        <!-- Section 0: Intro -->
+        <section class="section" data-index="0">
+            <div class="layout-intro z-10">
+                <h2 class="text-2xl md:text-3xl text-modern_sub mb-4 tracking-[0.5em] uppercase anim-hidden anim-up delay-100">FreeWim Annual Report</h2>
+                <h1 class="text-8xl md:text-[12rem] font-bold text-transparent bg-clip-text bg-gradient-to-r from-modern_purple to-modern_green mb-8 anim-hidden anim-up delay-200 animate-float" id="year-title">202X</h1>
+                <p class="text-xl md:text-2xl text-white font-light anim-hidden anim-up delay-300 max-w-2xl mx-auto leading-relaxed">
+                    在代码的宇宙中，我们不仅是构建者，更是探索者。<br>
+                    <span class="text-modern_green">打破流程魔咒 · 解锁自由之路</span>
+                </p>
+                <div class="mt-24 animate-bounce text-white/50 anim-hidden anim-up delay-800">
+                    <svg class="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 1: Ranking (Redesigned) -->
+        <section class="section" data-index="1">
+            <div class="layout-split z-10 items-center">
+                 <div class="w-full md:w-1/2 anim-hidden anim-left delay-100">
+                     <div class="relative">
+                        <div class="absolute -top-10 -left-10 w-32 h-32 bg-yellow-500/20 rounded-full blur-3xl"></div>
+                        <h2 class="text-4xl md:text-6xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-500">荣耀时刻</h2>
+                     </div>
+                     <p class="text-lg md:text-xl text-white/80 leading-relaxed mb-8 font-light">
+                         在 <span class="text-yellow-400 font-bold text-2xl" id="user-name-display">You</span> 的身后，<br>
+                         是 <span class="text-white font-bold" id="total-users">-</span> 位并肩作战的伙伴。<br>
+                         每一份努力，都在定义着你的位置。
+                     </p>
+                     <div class="glass-panel p-6 border-l-4 border-yellow-400 anim-hidden anim-up delay-300">
+                         <div class="flex items-center gap-4 mb-2">
+                            <i class="fas fa-crown text-yellow-400 text-xl"></i>
+                            <span class="text-yellow-100/80 font-bold">年度综合评价</span>
+                         </div>
+                         <p class="text-lg text-white font-light italic" id="rank-description">
+                             <span class="inline-block animate-pulse">正在回顾您的年度历程...</span>
+                         </p>
+                     </div>
+                 </div>
+                 
+                 <div class="w-full md:w-1/2 anim-hidden anim-zoom delay-300">
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Work Rank Card -->
+                        <div class="glass-card p-6 relative overflow-hidden group hover:bg-white/10 transition-all">
+                            <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <i class="fas fa-briefcase text-6xl text-blue-400"></i>
+                            </div>
+                            <div class="relative z-10">
+                                <div class="text-sm text-blue-300/80 uppercase tracking-widest mb-2">工时排名</div>
+                                <div class="flex items-end gap-2 mb-4">
+                                    <span class="text-5xl font-bold text-white" id="work-rank">-</span>
+                                    <span class="text-sm text-white/50 mb-2">/ <span id="work-total">-</span></span>
+                                </div>
+                                <div class="text-xs text-white/40 mb-2">击败了全公司</div>
+                                <div class="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                                    <div class="bg-blue-400 h-full w-0 transition-all duration-1000" id="work-beat-bar"></div>
+                                </div>
+                                <div class="text-right text-xs text-blue-400 mt-1 font-mono" id="work-beat-rate">0%</div>
+                            </div>
+                        </div>
+
+                        <!-- Overtime Rank Card -->
+                        <div class="glass-card p-6 relative overflow-hidden group hover:bg-white/10 transition-all">
+                            <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <i class="fas fa-moon text-6xl text-purple-400"></i>
+                            </div>
+                            <div class="relative z-10">
+                                <div class="text-sm text-purple-300/80 uppercase tracking-widest mb-2">加班排名</div>
+                                <div class="flex items-end gap-2 mb-4">
+                                    <span class="text-5xl font-bold text-white" id="overtime-rank">-</span>
+                                    <span class="text-sm text-white/50 mb-2">/ <span id="overtime-total">-</span></span>
+                                </div>
+                                <div class="text-xs text-white/40 mb-2">击败了全公司</div>
+                                <div class="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                                    <div class="bg-purple-400 h-full w-0 transition-all duration-1000" id="overtime-beat-bar"></div>
+                                </div>
+                                <div class="text-right text-xs text-purple-400 mt-1 font-mono" id="overtime-beat-rate">0%</div>
+                            </div>
+                        </div>
+                     </div>
+                 </div>
+            </div>
+        </section>
+
+        <!-- Section 2: Auto Check-in (Swapped) -->
+        <section class="section" data-index="2">
+            <div class="layout-split z-10">
+                <div class="w-full md:w-1/2 anim-hidden anim-left delay-100">
+                    <h2 class="text-4xl md:text-6xl font-bold mb-6">无感考勤<br><span class="text-modern_purple">如影随形</span></h2>
+                    <p class="text-lg text-modern_sub mb-8 leading-relaxed">
+                        清晨的第一缕阳光洒下时，FreeWim 已经为你完成了今天的第一次"握手"。<br>
+                        无需记忆，无需操作，让开始工作变得纯粹而简单。
+                    </p>
+                    <div class="flex gap-6">
+                         <div class="glass-panel p-6 flex-1 anim-hidden anim-up delay-300 border-l-4 border-modern_purple">
+                            <div class="flex justify-between items-center gap-8">
+                                <div>
+                                    <div class="text-sm text-modern_sub mb-2">最早自动打卡</div>
+                                    <div class="text-3xl font-bold font-mono" id="earliest-auto-checkin">-</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-sm text-modern_sub mb-2">最晚自动打卡</div>
+                                    <div class="text-3xl font-bold font-mono" id="latest-auto-checkin">-</div>
+                                </div>
+                            </div>
+                            <div class="text-xs text-white/50 mt-4 text-center border-t border-white/10 pt-2">覆盖全天候的无感体验</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full md:w-1/2 anim-hidden anim-zoom delay-300 flex justify-center">
+                    <div class="glass-card p-10 relative w-80 h-80 flex items-center justify-center rounded-full border-4 border-modern_purple/30">
+                        <div class="absolute inset-0 rounded-full border-4 border-t-modern_purple animate-spin" style="animation-duration: 3s;"></div>
+                        <div class="text-center z-10">
+                            <div class="text-6xl font-bold text-white mb-2" id="auto-checkin-rate">0%</div>
+                            <div class="text-sm text-modern_sub uppercase tracking-widest">打卡成功率</div>
+                            <div class="mt-4 text-xl font-bold text-modern_purple" id="auto-checkin-count">0</div>
+                            <div class="text-xs text-white/50">Total Check-ins</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Auto Reports -->
+        <section class="section" data-index="3">
+             <div class="layout-split z-10 flex-row-reverse">
+                <div class="w-full md:w-1/2 anim-hidden anim-right delay-100 text-right">
+                    <h2 class="text-4xl md:text-6xl font-bold mb-6">智能总结<br><span class="text-blue-400">字字珠玑</span></h2>
+                    <p class="text-lg text-modern_sub mb-8 leading-relaxed">
+                        当一天的工作落下帷幕，FreeWim 默默梳理着你的思维脉络。<br>
+                        从碎片化的提交记录，编织成条理清晰的工作篇章。
+                    </p>
+                    <div class="glass-panel p-6 inline-block text-left min-w-[300px] anim-hidden anim-up delay-300 border-r-4 border-blue-400">
+                        <div class="flex justify-between items-end mb-2">
+                             <div class="text-4xl font-bold text-white" id="total-words">0</div>
+                             <div class="text-sm text-blue-400 mb-2">字</div>
+                        </div>
+                        <div class="text-sm text-modern_sub">年度自动生成汇报字数</div>
+                        <div class="w-full h-1 bg-white/10 mt-4 rounded-full overflow-hidden">
+                            <div class="h-full bg-blue-400 w-full animate-pulse"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full md:w-1/2 anim-hidden anim-left delay-300">
+                    <div class="grid grid-cols-1 gap-6 max-w-md mx-auto">
+                        <div class="glass-card p-6 flex items-center justify-between transform hover:scale-105 transition-transform">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-500 text-xl">
+                                    <i class="fas fa-sun"></i>
+                                </div>
+                                <div>
+                                    <div class="text-xl font-bold text-white">日报生成</div>
+                                    <div class="text-xs text-modern_sub">Daily Reports</div>
+                                </div>
+                            </div>
+                            <div class="text-4xl font-bold text-blue-400" id="auto-daily-count">0</div>
+                        </div>
+                        <div class="glass-card p-6 flex items-center justify-between transform hover:scale-105 transition-transform">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-500 text-xl">
+                                    <i class="fas fa-calendar-week"></i>
+                                </div>
+                                <div>
+                                    <div class="text-xl font-bold text-white">周报汇总</div>
+                                    <div class="text-xs text-modern_sub">Weekly Reports</div>
+                                </div>
+                            </div>
+                            <div class="text-4xl font-bold text-purple-500" id="auto-weekly-count">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Auto Overtime (Merged with Overtime Stats) -->
+        <section class="section" data-index="4">
+            <div class="layout-center z-10 w-full max-w-6xl">
+                <div class="w-40 h-40 rounded-full bg-red-500/10 blur-3xl absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
+                <h2 class="text-4xl md:text-6xl font-bold mb-6 anim-hidden anim-up delay-100">星光不问赶路人</h2>
+                <p class="text-lg text-red-400 mb-12 uppercase tracking-widest anim-hidden anim-up delay-200">权益守护 · 分秒必争</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center w-full">
+                    <!-- Left: Main Stats (Result) -->
+                    <div class="flex flex-col gap-8 anim-hidden anim-left delay-300">
+                        <div class="flex justify-around items-center">
+                            <div class="text-center">
+                                <div class="text-6xl md:text-7xl font-bold text-yellow-200" id="overtime-count">0</div>
+                                <div class="text-sm mt-2 text-modern_sub uppercase">加班申请 (次)</div>
+                            </div>
+                            <div class="w-px bg-white/10 h-24"></div>
+                            <div class="text-center">
+                                <div class="text-6xl md:text-7xl font-bold text-yellow-200" id="overtime-hours">0</div>
+                                <div class="text-sm mt-2 text-modern_sub uppercase">核定时长 (时)</div>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-lg text-white/60 italic">"那些深夜的代码，终将照亮前行的路"</p>
+                        </div>
+                    </div>
+
+                    <!-- Right: Automation Stats (Contribution) -->
+                    <div class="glass-card p-8 md:p-12 anim-hidden anim-right delay-400 border-t-4 border-red-500 relative overflow-hidden">
+                        <div class="absolute -right-6 -top-6 text-9xl text-red-500/10 transform rotate-12">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <h3 class="text-xl text-white font-bold mb-6 flex items-center gap-2">
+                            <i class="fas fa-shield-alt text-red-400"></i> FreeWim 自动守护
+                        </h3>
+                        
+                        <div class="space-y-6">
+                            <div class="flex justify-between items-center border-b border-white/10 pb-4">
+                                <span class="text-modern_sub">自动发起申请</span>
+                                <div class="text-right">
+                                    <span class="text-3xl font-bold text-white" id="auto-overtime-count">0</span>
+                                    <span class="text-xs text-white/40 block">次</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-modern_sub">节省操作时间</span>
+                                <div class="text-right">
+                                    <span class="text-3xl font-bold text-white" id="saved-minutes">0</span>
+                                    <span class="text-xs text-white/40 block">分钟</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-8 text-xs text-white/30 text-center bg-white/5 p-2 rounded">
+                            每一分钟的额外付出，系统都已为您精准记录
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 5: Attendance (Redesigned) -->
+        <section class="section" data-index="5">
+            <div class="layout-split z-10">
+                <div class="w-full md:w-1/2 anim-hidden anim-left delay-100">
+                     <h2 class="text-4xl md:text-6xl font-bold mb-8">时光足迹<br><span class="text-modern_green">一步一印</span></h2>
+                     <p class="text-lg text-white/80 mb-12 leading-relaxed font-light">
+                         三百六十五个日夜，<br>
+                         您在 FreeWim 留下了 <span class="text-modern_green font-bold text-2xl mx-1" id="work-days">-</span> 个奋斗的脚印。<br>
+                         这些时光，构筑了通往梦想的阶梯。
+                     </p>
+                     
+                     <div class="glass-card p-6 border-l-4 border-modern_green anim-hidden anim-up delay-300">
+                         <div class="text-sm text-modern_sub mb-2">年度累计工时</div>
+                         <div class="text-4xl font-bold text-white font-mono"><span id="total-hours">-</span> <span class="text-lg text-white/50">Hours</span></div>
+                         <div class="w-full bg-white/10 h-1 mt-4 rounded-full overflow-hidden">
+                             <div class="bg-modern_green h-full w-3/4 opacity-80"></div>
+                         </div>
+                     </div>
+                </div>
+                
+                <div class="w-full md:w-1/2 anim-hidden anim-right delay-200">
+                    <div class="grid grid-cols-1 gap-6">
+                        <div class="glass-card p-6 flex items-center gap-6 hover:bg-white/5 transition-all">
+                            <div class="w-12 h-12 rounded-full bg-yellow-400/20 flex items-center justify-center text-yellow-400">
+                                <i class="fas fa-sun"></i>
+                            </div>
+                            <div>
+                                <div class="text-sm text-modern_sub">单日最长奋斗</div>
+                                <div class="text-xl font-bold text-white"><span id="longest-hours">-</span> 小时</div>
+                                <div class="text-xs text-white/40 mt-1" id="longest-date">-</div>
+                            </div>
+                        </div>
+                        
+                        <div class="glass-card p-6 flex items-center gap-6 hover:bg-white/5 transition-all">
+                            <div class="w-12 h-12 rounded-full bg-blue-400/20 flex items-center justify-center text-blue-400">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div>
+                                <div class="text-sm text-modern_sub">平均每日投入</div>
+                                <div class="text-xl font-bold text-white" id="avg-hours">- 小时</div>
+                                <div class="text-xs text-white/40 mt-1">稳定而持续的输出</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 6: Code (Redesigned) -->
+        <section class="section" data-index="6">
+            <div class="layout-center z-10 w-full max-w-5xl">
+                <h2 class="text-4xl md:text-6xl font-bold mb-12 anim-hidden anim-up delay-100">代码宇宙 <span class="text-blue-400">构建未来</span></h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+                    <!-- Main Stat -->
+                    <div class="md:col-span-2 glass-card p-8 md:p-12 flex flex-col justify-between relative overflow-hidden anim-hidden anim-left delay-200 border-t-4 border-blue-500">
+                        <div class="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent"></div>
+                        <div class="relative z-10">
+                            <h3 class="text-xl text-blue-300 mb-2"><i class="fas fa-code-branch mr-2"></i> 年度代码提交</h3>
+                            <div class="text-7xl md:text-8xl font-bold text-white tracking-tight" id="commit-count">-</div>
+                            <p class="text-white/60 mt-4 max-w-md">每一次 Commit，都是对这个世界的一次微小而坚定的改变。</p>
+                        </div>
+                        <div class="absolute bottom-0 right-0 p-8 opacity-10">
+                            <i class="fas fa-laptop-code text-9xl text-white"></i>
+                        </div>
+                    </div>
+                    
+                    <!-- Side Stats -->
+                    <div class="flex flex-col gap-6 anim-hidden anim-right delay-300">
+                        <div class="glass-card p-6 flex-1 flex flex-col justify-center">
+                            <div class="text-sm text-modern_sub mb-1">单日峰值</div>
+                            <div class="text-4xl font-bold text-blue-200" id="max-commit-count">-</div>
+                            <div class="text-xs text-white/30 mt-2">创造力的爆发时刻</div>
+                        </div>
+                        
+                        <div class="glass-card p-6 flex-1 flex flex-col justify-center bg-blue-900/20">
+                            <div class="text-sm text-modern_sub mb-1">Latest Commit</div>
+                            <div class="text-xl font-mono text-blue-300" id="latest-commit-time">-</div>
+                            <div class="text-xs text-white/40 mt-1" id="latest-commit-date">-</div>
+                            <div class="w-2 h-2 bg-green-500 rounded-full mt-4 animate-pulse"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 7: Tasks (Mission Accomplished) -->
+        <section class="section" data-index="7">
+            <div class="layout-split z-10 items-center">
+                 <div class="w-full md:w-1/2 anim-hidden anim-left delay-100">
+                     <h2 class="text-4xl md:text-6xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">使命必达</h2>
+                     <p class="text-lg md:text-xl text-white/80 leading-relaxed mb-8 font-light">
+                         不只是完成任务，更是兑现承诺。<br>
+                         每一个 Checkbox 的勾选，都是信任的闭环。
+                     </p>
+                     <div class="flex flex-col gap-4">
+                          <div class="glass-panel p-4 flex items-center gap-4 text-purple-300/80 anim-hidden anim-up delay-200 border-l-4 border-purple-500">
+                              <div class="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center"><i class="fas fa-check"></i></div>
+                              <span class="text-white/90">需求交付 100%</span>
+                          </div>
+                          <div class="glass-panel p-4 flex items-center gap-4 text-purple-300/80 anim-hidden anim-up delay-300 border-l-4 border-pink-500">
+                              <div class="w-8 h-8 rounded-full bg-pink-500/20 flex items-center justify-center"><i class="fas fa-clock"></i></div>
+                              <span class="text-white/90">精准工时核算</span>
+                          </div>
+                     </div>
+                 </div>
+                 
+                 <div class="w-full md:w-1/2 anim-hidden anim-zoom delay-300">
+                     <div class="glass-card p-8 md:p-12 relative overflow-hidden border-t-4 border-purple-500 shadow-[0_0_50px_rgba(168,85,247,0.15)]">
+                         <div class="absolute -right-10 -bottom-10 opacity-10">
+                             <i class="fas fa-clipboard-check text-9xl text-white"></i>
+                         </div>
+                         
+                         <div class="grid grid-cols-1 gap-8 relative z-10">
+                             <div>
+                                 <div class="text-sm text-purple-200/60 uppercase tracking-widest mb-2">Total Tasks</div>
+                                 <div class="text-7xl font-bold text-white tracking-tight" id="task-count">-</div>
+                                 <div class="w-full bg-white/10 h-1 mt-6 rounded-full overflow-hidden">
+                                     <div class="bg-gradient-to-r from-purple-500 to-pink-500 h-full w-full animate-pulse-slow"></div>
+                                 </div>
+                             </div>
+                             
+                             <div class="flex justify-between items-end border-t border-white/10 pt-6">
+                                 <div>
+                                      <div class="text-sm text-modern_sub mb-1">Consumed Hours</div>
+                                      <div class="text-3xl font-bold text-purple-300" id="task-consumed">-</div>
+                                 </div>
+                                 <div class="text-right">
+                                      <div class="text-xs text-white/40">Efficiency</div>
+                                      <div class="text-xl font-bold text-green-400">High</div>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+            </div>
+        </section>
+
+        <!-- Section 8: Closing (Renumbered) -->
+        <section class="section" data-index="8">
+            <div class="layout-intro z-10">
+                <h1 class="text-5xl md:text-7xl font-bold mb-8 anim-hidden anim-zoom delay-100">感谢你的付出</h1>
+                <p class="text-xl text-modern_sub mb-12 max-w-2xl mx-auto anim-hidden anim-up delay-200">
+                    FreeWim 将继续作为你最坚实的后盾，<br>见证你创造的每一个奇迹。
+                </p>
+                <div class="anim-hidden anim-up delay-500">
+                    <div class="w-16 h-1 bg-gradient-to-r from-modern_purple to-modern_green mx-auto rounded-full"></div>
+                </div>
+                <p class="mt-24 text-xs text-white/20 tracking-widest anim-hidden anim-up delay-800">GENERATED BY FREEWIM</p>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Init ECharts instances (none needed for now in minimalist mode, but keeping structure if needed)
+        let reportData = null;
+        const renderedSections = new Set();
+        const charts = {};
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. Background Logic
+            const bgSlides = document.querySelectorAll('.bg-slide');
+            const observerOptions = { threshold: 0.3 };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                        const index = entry.target.getAttribute('data-index');
+                        if (index !== null) {
+                            bgSlides.forEach(slide => slide.classList.remove('active'));
+                            const activeSlide = document.getElementById(`bg-${index}`);
+                            if (activeSlide) activeSlide.classList.add('active');
+                            
+                            // Trigger Animation
+                            playSectionAnimation(index);
+                        }
+                    }
+                });
+            }, observerOptions);
+
+            document.querySelectorAll('.section').forEach(section => observer.observe(section));
+
+            // 2. Fetch Data
+            const urlParams = new URLSearchParams(window.location.search);
+            const year = urlParams.get('year') || new Date().getFullYear();
+            const userName = urlParams.get('user') || ''; // Default empty
+            document.getElementById('year-title').innerText = year;
+
+            fetch(`/api/AnnualReport/GetSummary?year=${year}&userName=${userName}`)
+                .then(res => res.json())
+                .then(data => {
+                    reportData = data;
+                    setStaticData(data);
+                    
+                    // Check visible sections immediately
+                    document.querySelectorAll('.section.visible').forEach(section => {
+                        const index = section.getAttribute('data-index');
+                        playSectionAnimation(index);
+                    });
+                });
+        });
+
+        function setStaticData(data) {
+             // User Name
+             if (data.userName) {
+                 document.getElementById('user-name-display').innerText = data.userName;
+             }
+             
+             if (data.attendance.earliestCheckIn) {
+                // document.getElementById('earliest-time').innerText = data.attendance.earliestCheckIn.time;
+                // document.getElementById('earliest-date').innerText = data.attendance.earliestCheckIn.date;
+            }
+            if (data.attendance.latestCheckOut) {
+                // document.getElementById('latest-time').innerText = data.attendance.latestCheckOut.time;
+                // document.getElementById('latest-date').innerText = data.attendance.latestCheckOut.date;
+            }
+            if (data.attendance.longestDay) {
+                 document.getElementById('longest-date').innerText = data.attendance.longestDay.date;
+            }
+             if (data.code.maxDay) {
+                // document.getElementById('max-commit-day').innerText = data.code.maxDay.date;
+            }
+            if (data.code.latestCommit) {
+                document.getElementById('latest-commit-time').innerText = data.code.latestCommit.time;
+                document.getElementById('latest-commit-date').innerText = data.code.latestCommit.date;
+            }
+            if (data.automation && data.automation.checkIn) {
+                document.getElementById('earliest-auto-checkin').innerText = data.automation.checkIn.earliestTime;
+                document.getElementById('latest-auto-checkin').innerText = data.automation.checkIn.latestTime;
+            }
+            
+            // Rank Description
+            if (data.overtime && data.overtime.rankDescription) {
+                 document.getElementById('rank-description').innerText = data.overtime.rankDescription;
+            } else {
+                 document.getElementById('rank-description').innerText = "暂无排名数据，请在URL中添加 ?user=您的姓名 查看";
+            }
+        }
+
+        function playSectionAnimation(index) {
+            if (!reportData || renderedSections.has(index)) return;
+            renderedSections.add(index);
+            const data = reportData;
+
+            switch(index) {
+                case '1': // Ranking (Redesigned)
+                    if (data.overtime && data.overtime.rankingInfo) {
+                         const r = data.overtime.rankingInfo;
+                         animateValue('total-users', 0, r.totalUsers, 1000);
+                         animateValue('work-rank', 0, r.workRank, 1000);
+                         animateValue('work-total', 0, r.totalUsers, 1000);
+                         animateValue('work-beat-rate', 0, r.workBeatRate, 1500, '%');
+                         const wBar = document.getElementById('work-beat-bar');
+                         if(wBar) wBar.style.width = r.workBeatRate + '%';
+                         
+                         animateValue('overtime-rank', 0, r.overtimeRank, 1000);
+                         animateValue('overtime-total', 0, r.totalUsers, 1000);
+                         animateValue('overtime-beat-rate', 0, r.overtimeBeatRate, 1500, '%');
+                         const oBar = document.getElementById('overtime-beat-bar');
+                         if(oBar) oBar.style.width = r.overtimeBeatRate + '%';
+                    }
+                    break;
+                case '2': // Auto Check-in (Swapped)
+                    if (data.automation && data.automation.checkIn) {
+                        animateValue('auto-checkin-rate', 0, data.automation.checkIn.successRate, 1500, '%');
+                        animateValue('auto-checkin-count', 0, data.automation.checkIn.count, 1500);
+                    }
+                    break;
+                case '3': // Auto Reports
+                    if (data.automation && data.automation.reports) {
+                        animateValue('total-words', 0, data.automation.reports.totalWords, 2000);
+                        animateValue('auto-daily-count', 0, data.automation.reports.daily, 1500);
+                        animateValue('auto-weekly-count', 0, data.automation.reports.weekly, 1500);
+                    }
+                    break;
+                case '4': // Auto Overtime (Merged with Overtime Stats)
+                    if (data.automation && data.automation.overtime) {
+                        animateValue('auto-overtime-count', 0, data.automation.overtime.count, 1500);
+                        animateValue('saved-minutes', 0, data.automation.overtime.savedMinutes, 1500);
+                    }
+                    if (data.overtime) {
+                         animateValue('overtime-count', 0, data.overtime.count, 1500);
+                         animateValue('overtime-hours', 0, data.overtime.totalHours, 1500);
+                    }
+                    break;
+                case '5': // Attendance (Minimalist)
+                    animateValue('work-days', 0, data.attendance.workDays, 1000);
+                    animateValue('total-hours', 0, data.attendance.totalHours, 1000);
+                    animateValue('avg-hours', 0, data.attendance.averageDailyHours, 1000, ' 小时');
+                    if(data.attendance.longestDay) {
+                        animateValue('longest-hours', 0, data.attendance.longestDay.hours, 1000);
+                    }
+                    break;
+                case '6': // Code (Minimalist)
+                    animateValue('commit-count', 0, data.code.commits, 2000);
+                    if (data.code.maxDay) animateValue('max-commit-count', 0, data.code.maxDay.count, 1500);
+                    break;
+                case '7': // Tasks (Mission Accomplished)
+                    animateValue('task-count', 0, data.tasks.total, 1500);
+                    animateValue('task-consumed', 0, data.tasks.consumed, 1500);
+                    break;
+                case '8': // Closing
+                    break;
+            }
+        }
+
+        function animateValue(id, start, end, duration, suffix = '') {
+            if (start === end) return;
+            const obj = document.getElementById(id);
+            if (!obj) return;
+            
+            if (typeof end !== 'number') {
+                obj.innerText = end + suffix;
+                return;
+            }
+
+            const range = end - start;
+            let current = start;
+            const steps = 60;
+            const stepValue = range / steps;
+            let stepCount = 0;
+
+            const timer = setInterval(() => {
+                stepCount++;
+                current += stepValue;
+                if (stepCount >= steps) {
+                    current = end;
+                    clearInterval(timer);
+                }
+                const val = Number.isInteger(end) ? Math.floor(current) : current.toFixed(1);
+                obj.innerHTML = val + suffix;
+            }, duration / steps);
+        }
+
+        window.addEventListener('resize', () => {
+            Object.values(charts).forEach(chart => chart && chart.resize());
+        });
+    </script>
+</body>
+</html>
