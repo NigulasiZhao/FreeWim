@@ -38,9 +38,16 @@ builder.Services.AddOpenApi(options =>
         // 使用 Markdown 插入图片
         document.Info.Description = @"
 <div align='center'>
-  <img src='/favicon.ico' width='200' />
+  <img src='/homelogo.png' width='200' />
   <br/>
-  <strong>FreeWim：打破流程魔咒的自动化之刃</strong>
+  <strong>FreeWim 就像一把沉默却锋利的“自动化之刃”，<br/>
+    帮助开发者斩断了束缚灵魂的流程锁链。</strong>
+    <br/><br/>
+    它让每一位开发者明白：<br/>
+    代码是我们的梦想，但不应成为我们的枷锁。
+    <br/><br/>
+    它守护的不仅仅是数据和进度，<br/>
+    更是每一位开发者作为“人”的最后一份尊严与自由。
 </div>";
         return Task.CompletedTask;
     });
