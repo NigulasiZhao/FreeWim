@@ -47,6 +47,61 @@
             border-radius: 0.5rem;
             padding-right: 5px; /* 留出一点空间给滚动条，美观 */
         }
+
+        /* 修复 Flatpickr 在深色模式下的显示问题 */
+        .flatpickr-calendar {
+            background-color: #ffffff !important;
+            color: #374151 !important;
+        }
+        .flatpickr-month, .flatpickr-prev-month, .flatpickr-next-month, .flatpickr-current-month .cur-month, .flatpickr-current-month .cur-year {
+            color: #374151 !important;
+            fill: #374151 !important;
+        }
+        .flatpickr-day {
+            color: #374151 !important;
+        }
+        .flatpickr-day.selected {
+            color: #ffffff !important;
+            background-color: #2563eb !important;
+            border-color: #2563eb !important;
+        }
+        .flatpickr-time input {
+            color: #374151 !important;
+        }
+        .flatpickr-time .flatpickr-time-separator, .flatpickr-time .flatpickr-am-pm {
+            color: #374151 !important;
+        }
+
+        /* 深色模式适配 */
+        @media (prefers-color-scheme: dark) {
+            .flatpickr-calendar {
+                background-color: #1f2937 !important; /* gray-800 */
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5) !important;
+            }
+            .flatpickr-month, .flatpickr-prev-month, .flatpickr-next-month, .flatpickr-current-month .cur-month, .flatpickr-current-month .cur-year {
+                color: #e5e7eb !important; /* gray-200 */
+                fill: #e5e7eb !important;
+            }
+            .flatpickr-day {
+                color: #e5e7eb !important;
+            }
+            .flatpickr-day.flatpickr-disabled, .flatpickr-day.flatpickr-disabled:hover {
+                color: #4b5563 !important; /* gray-600 */
+            }
+            .flatpickr-day:hover, .flatpickr-day:focus {
+                background-color: #374151 !important; /* gray-700 */
+            }
+            .flatpickr-day.selected {
+                background-color: #2563eb !important;
+                color: #ffffff !important;
+            }
+            .flatpickr-time input {
+                color: #e5e7eb !important;
+            }
+            .flatpickr-time .flatpickr-time-separator, .flatpickr-time .flatpickr-am-pm {
+                color: #e5e7eb !important;
+            }
+        }
     </style>
 </head>
 <body class="text-gray-800 font-sans antialiased min-h-screen flex flex-col items-center py-6 sm:py-10 px-4">
@@ -361,7 +416,7 @@
             time_24hr: true,
             defaultDate: new Date().setMinutes(new Date().getMinutes() + 5),
             locale: "zh",
-            disableMobile: false,
+            disableMobile: true,
             allowInput: true
         });
 

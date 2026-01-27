@@ -4,6 +4,9 @@ using FreeWim.Models.PmisAndZentao;
 using Microsoft.AspNetCore.Mvc;
 using MySql.Data.MySqlClient;
 using Npgsql;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace FreeWim.Controllers;
 
@@ -94,6 +97,22 @@ public class AnnualReportController(IConfiguration configuration) : Controller
             FROM zentaotask 
             WHERE EXTRACT(YEAR FROM eststarted) = @year", new { year });
 
+        // 3.1 Top Project & Task
+        var topProject = db.QueryFirstOrDefault<dynamic>(@"
+            SELECT projectname, SUM(consumed) as consumed
+            FROM zentaotask 
+            WHERE EXTRACT(YEAR FROM eststarted) = @year AND projectname IS NOT NULL
+            GROUP BY projectname
+            ORDER BY consumed DESC
+            LIMIT 1", new { year });
+
+        var topTask = db.QueryFirstOrDefault<dynamic>(@"
+            SELECT taskname as name, consumed, projectname
+            FROM zentaotask 
+            WHERE EXTRACT(YEAR FROM eststarted) = @year AND taskname IS NOT NULL
+            ORDER BY consumed DESC
+            LIMIT 1", new { year });
+
         // 4. Network Data
         var netStats = db.QueryFirstOrDefault<dynamic>(@"
             SELECT AVG(download) as download, AVG(upload) as upload, MAX(download) as max_download
@@ -112,8 +131,9 @@ public class AnnualReportController(IConfiguration configuration) : Controller
             FROM gogsrecord
             WHERE EXTRACT(YEAR FROM commitsdate) = @year", new { year });
 
+      
+
         // 7. Automation Data
-        // 7.1 Auto Check-in
         var autoCheckInStats = db.QueryFirstOrDefault<dynamic>(@"
             SELECT 
                 COUNT(*) FILTER (WHERE clockinstate = 1) as success_count,
@@ -134,27 +154,20 @@ public class AnnualReportController(IConfiguration configuration) : Controller
             ? ((TimeSpan)autoCheckInStats.latest_time).ToString(@"hh\:mm")
             : "-";
 
-        // 7.2 Auto Reports (Estimate)
         var autoDailyReports = db.QueryFirstOrDefault<int>(@"
             SELECT COUNT(*) 
             FROM attendancerecordday 
             WHERE workhours > 0 AND EXTRACT(YEAR FROM attendancedate) = @year", new { year });
         var autoWeeklyReports = autoDailyReports / 5;
-        // Estimate words: Daily ~300, Weekly ~800
         var totalGeneratedWords = (autoDailyReports * 300) + (autoWeeklyReports * 800);
 
-        // 7.3 Auto Tasks (AI filled)
         var aiTaskCompletions = db.QueryFirstOrDefault<int>(@"
             SELECT COUNT(*) 
             FROM zentaotask 
             WHERE target IS NOT NULL AND planfinishact IS NOT NULL AND EXTRACT(YEAR FROM eststarted) = @year",
             new { year });
 
-        // 7.4 Auto Overtime
         var autoOvertimeApps = (int)(rankingData?.overtime_count ?? 0);
-
-        // Calculate Saved Time (minutes)
-        // CheckIn: 1m, Daily: 5m, Weekly: 20m, Task: 3m, Overtime: 5m
         var savedMinutes = (autoCheckInCount * 1) + (autoDailyReports * 5) + (autoWeeklyReports * 20) +
                            (aiTaskCompletions * 3) + (autoOvertimeApps * 5);
         var savedHours = Math.Round((double)savedMinutes / 60, 1);
@@ -238,7 +251,9 @@ public class AnnualReportController(IConfiguration configuration) : Controller
             Tasks = new
             {
                 Total = taskStats?.total ?? 0,
-                Consumed = taskStats?.consumed ?? 0
+                Consumed = taskStats?.consumed ?? 0,
+                TopProject = topProject != null ? new { Name = (string)topProject.projectname, Consumed = (double)topProject.consumed } : null,
+                TopTask = topTask != null ? new { Name = (string)topTask.name, Consumed = (double)topTask.consumed, Project = (string)topTask.projectname } : null
             },
             Network = new
             {
