@@ -4,9 +4,6 @@ using FreeWim.Models.PmisAndZentao;
 using Microsoft.AspNetCore.Mvc;
 using MySql.Data.MySqlClient;
 using Npgsql;
-using System.Diagnostics;
-using System.Text.RegularExpressions;
-using Microsoft.Extensions.Caching.Memory;
 
 namespace FreeWim.Controllers;
 
@@ -51,7 +48,7 @@ public class AnnualReportController(IConfiguration configuration) : Controller
             ORDER BY workhours DESC LIMIT 1", new { year });
 
         // 2. Overtime & Ranking Data (From OA)
-        dynamic rankingData = null;
+        dynamic? rankingData = null;
         if (!string.IsNullOrEmpty(pmisInfo.UserName))
         {
             using IDbConnection oaDb = new MySqlConnection(configuration["OAConnection"]);
@@ -199,7 +196,7 @@ public class AnnualReportController(IConfiguration configuration) : Controller
         return Json(new
         {
             Year = year,
-            UserName = pmisInfo.UserName,
+            pmisInfo.UserName,
             Attendance = new
             {
                 WorkDays = workDays,
@@ -237,13 +234,13 @@ public class AnnualReportController(IConfiguration configuration) : Controller
                     TotalUsers = (int)rankingData.total_users,
                    WorkBeatRate = (long)rankingData.total_users > 1
                        ? Math.Round(
-                           ((double)((long)rankingData.total_users - (long)rankingData.work_rank)) * 100.0 /
+                           ((long)rankingData.total_users - (long)rankingData.work_rank) * 100.0 /
                            ((long)rankingData.total_users - 1), 1)
                        : 100,
 
                    OvertimeBeatRate = (long)rankingData.total_users > 1
                        ? Math.Round(
-                           ((double)((long)rankingData.total_users - (long)rankingData.overtime_rank)) * 100.0 /
+                           ((long)rankingData.total_users - (long)rankingData.overtime_rank) * 100.0 /
                            ((long)rankingData.total_users - 1), 1)
                        : 100
                 } : null

@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+<head>
+    <meta charset="UTF-8">
+    <title>加班申请查询</title>
+    <link rel="stylesheet" href="/lib/fontawesome/all.min.css"/>
+    
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.75);
+            --glass-border: rgba(255, 255, 255, 0.5);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+            --ios-blue: #007AFF;
+            --text-main: #1d1d1f;
+            --font-stack: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+        }
+
+        body {
+            font-family: var(--font-stack);
+            margin: 0;
+            padding: 0;
+            height: 100vh; /* Fixed height for body */
+            color: var(--text-main);
+            background-color: #f0f4f8;
+            position: relative;
+            overflow: hidden; /* Prevent body scroll */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .liquid-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            overflow: hidden;
+            background: #f2f6ff;
+        }
+
+        .blob {
+            position: absolute;
+            filter: blur(60px);
+            opacity: 0.6;
+            border-radius: 50%;
+            animation: move 10s infinite alternate;
+        }
+
+        .blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: #e0f2ff; }
+        .blob-2 { bottom: -10%; right: -10%; width: 50vw; height: 50vw; background: #e6e6ff; animation-delay: -5s; }
+
+        @keyframes move {
+            from { transform: translate(0, 0); }
+            to { transform: translate(20px, 20px); }
+        }
+
+        .container {
+            width: 95%;
+            margin: 0 auto;
+            padding: 20px;
+            height: 100%; /* Full height */
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header-section {
+            text-align: center;
+            margin-bottom: 20px;
+            flex-shrink: 0;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 0;
+            color: #1d1d1f;
+        }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            box-shadow: var(--glass-shadow);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1; /* Take remaining space */
+            overflow: hidden; /* Contain children */
+        }
+
+        .card-header {
+            flex-shrink: 0;
+            margin-bottom: 16px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            padding-bottom: 16px;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 15px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .input-group label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #666;
+            margin-left: 2px;
+        }
+
+        .ios-input {
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s;
+            width: 150px;
+        }
+
+        .ios-input:focus {
+            background: #fff;
+            border-color: var(--ios-blue);
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+
+        .ios-btn {
+            background: var(--ios-blue);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            height: 38px;
+        }
+
+        .ios-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(0, 122, 255, 0.25);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2); 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.3); 
+        }
+
+        /* Table Styling */
+        .table-container {
+            flex-grow: 1; /* Fill remaining space */
+            overflow: auto; /* Enable scroll */
+            border-radius: 12px;
+            border: 1px solid rgba(0,0,0,0.08);
+            position: relative; /* For sticky header context */
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            z-index: 20; /* Higher than body content */
+        }
+        
+        thead tr th {
+            position: relative; /* For resizer */
+            padding: 12px 16px;
+            font-weight: 600;
+            color: #444;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            border-right: 1px solid rgba(0,0,0,0.05);
+            text-align: center;
+            background: rgba(245, 245, 247, 0.98); /* Ensure solid background */
+            backdrop-filter: blur(10px);
+            background-clip: padding-box;
+        }
+
+        thead tr:first-child th {
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        /* Adjust specific header backgrounds if needed, but the general one above covers it. 
+           We can keep the colored groups if we want, overriding the default. */
+        thead tr:first-child th:nth-child(1) { background: rgba(240,240,245,0.98); }
+        thead tr:first-child th:nth-child(2) { background: rgba(220,230,250,0.98); }
+        thead tr:first-child th:nth-child(3) { background: rgba(220,250,230,0.98); }
+
+        tbody tr {
+            background: rgba(255, 255, 255, 0.4);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            transition: background 0.1s;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        td {
+            padding: 10px 16px;
+            border-right: 1px solid rgba(0,0,0,0.03);
+            vertical-align: middle;
+            text-align: center; /* Center align all cells */
+        }
+
+        .sticky-col {
+            position: sticky;
+            left: 0;
+            z-index: 6; /* Body sticky col */
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            box-shadow: 2px 0 8px rgba(0,0,0,0.05);
+        }
+
+        /* Header sticky col needs higher z-index */
+        thead th.sticky-col {
+            z-index: 30;
+            background: rgba(245, 245, 247, 0.98); /* Match header bg */
+        }
+
+        .resizer {
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            width: 5px;
+            background: rgba(0, 0, 0, 0);
+            cursor: col-resize;
+            user-select: none;
+            touch-action: none;
+            z-index: 100;
+        }
+        
+        .resizer:hover, .resizing {
+            background: rgba(0, 122, 255, 0.5); /* Blue highlight on hover/drag */
+        }
+
+        .text-wrap {
+            white-space: normal;
+            min-width: 200px;
+            max-width: 300px;
+            line-height: 1.4;
+            text-align: left; /* Keep long text left aligned for readability */
+            margin: 0 auto; /* Center the block itself if needed */
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 500;
+            display: inline-block;
+        }
+        .badge.green { background: rgba(52, 199, 89, 0.15); color: #34C759; }
+        .badge.red { background: rgba(255, 59, 48, 0.15); color: #FF3B30; }
+        .badge.gray { background: rgba(142, 142, 147, 0.15); color: #8E8E93; }
+
+        .pagination {
+            flex-shrink: 0;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-top: 15px;
+            gap: 15px;
+            font-size: 13px;
+            color: #666;
+            padding-top: 10px;
+            border-top: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        .page-btn {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 5px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            border-radius: 16px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="liquid-bg">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+</div>
+
+<div class="container">
+    <div class="header-section">
+        <h1>加班申请查询</h1>
+    </div>
+
+    <div class="glass-card">
+        <div class="card-header">
+            <div class="card-title"><i class="fas fa-search"></i> 查询条件</div>
+            <div class="filter-row">
+                <div class="input-group">
+                    <label>开始日期</label>
+                    <input type="date" id="startDate" class="ios-input">
+                </div>
+                <div class="input-group">
+                    <label>结束日期</label>
+                    <input type="date" id="endDate" class="ios-input">
+                </div>
+                <div class="input-group">
+                    <label>部门名称</label>
+                    <input type="text" id="orgName" class="ios-input" value="管网产品组" placeholder="例如: 管网产品组">
+                </div>
+                <div class="input-group">
+                    <label>申请人</label>
+                    <input type="text" id="applicant" class="ios-input" placeholder="姓名">
+                </div>
+                <button class="ios-btn" onclick="search()"><i class="fas fa-search"></i> 查询</button>
+            </div>
+        </div>
+        
+        <div style="position: relative; flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
+            <div id="loading" class="loading-overlay" style="display: none;">
+                <i class="fas fa-spinner fa-spin fa-2x" style="color: var(--ios-blue)"></i>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th colspan="5" style="text-align: center; background: rgba(240,240,245,0.95);">基本信息</th>
+                            <th colspan="6" style="text-align: center; background: rgba(220,230,250,0.95);">计划加班</th>
+                            <th colspan="8" style="text-align: center; background: rgba(220,250,230,0.95);">实际加班</th>
+                        </tr>
+                        <tr>
+                            <!-- Basic -->
+                            <th class="sticky-col">申请人</th>
+                            <th>部门</th>
+                            <th>工单号</th>
+                            <th>类型</th>
+                            <th>地点</th>
+                            
+                            <!-- Plan -->
+                            <th>开始时间</th>
+                            <th>结束时间</th>
+                            <th>时长</th>
+                            <th>事由</th>
+                            <th>审批</th>
+                            <th>审批人</th>
+                            
+                            <!-- Actual -->
+                            <th>开始时间</th>
+                            <th>结束时间</th>
+                            <th>时长</th>
+                            <th>核减</th>
+                            <th>内容</th>
+                            <th>审批</th>
+                            <th>意见</th>
+                            <th>审批人</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Rows rendered here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="pagination">
+            <span id="pageInfo">第 1 页</span>
+            <div>
+                <button class="page-btn" id="prevBtn" onclick="changePage(-1)">上一页</button>
+                <button class="page-btn" id="nextBtn" onclick="changePage(1)">下一页</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentPage = 1;
+    const pageSize = 30;
+    let totalItems = 0;
+
+    // 初始化日期为最近7天
+    function initDates() {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(end.getDate() - 6);
+        
+        document.getElementById('endDate').valueAsDate = end;
+        document.getElementById('startDate').valueAsDate = start;
+    }
+
+    function formatDateTime(str) {
+        if (!str) return '-';
+        return str.replace('T', ' ');
+    }
+
+    function search() {
+        currentPage = 1;
+        loadData();
+    }
+
+    function changePage(delta) {
+        const newPage = currentPage + delta;
+        if (newPage < 1) return;
+        // if (newPage > Math.ceil(totalItems / pageSize)) return; // Optional check
+        currentPage = newPage;
+        loadData();
+    }
+
+    async function loadData() {
+        const loading = document.getElementById('loading');
+        loading.style.display = 'flex';
+        
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const orgName = document.getElementById('orgName').value;
+        const applicant = document.getElementById('applicant').value;
+
+        // Simplified payload matching the new backend DTO
+        const payload = {
+            index: currentPage,
+            size: pageSize,
+            startDate: startDate ? new Date(startDate) : null,
+            endDate: endDate ? new Date(endDate) : null,
+            departmentName: orgName || null,
+            applicantName: applicant || null
+        };
+
+        try {
+            const resp = await fetch('/api/Overtime/QueryOvertimePlan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!resp.ok) {
+                const txt = await resp.text();
+                alert('查询失败: ' + txt);
+                return;
+            }
+
+            const data = await resp.json();
+            if (data.Code === 0 && data.Response) {
+                renderTable(data.Response.rows);
+                totalItems = data.Response.total;
+                updatePagination();
+            } else {
+                alert('API错误: ' + (data.Message || '未知错误'));
+            }
+
+        } catch (e) {
+            console.error(e);
+            alert('请求异常: ' + e.message);
+        } finally {
+            loading.style.display = 'none';
+        }
+    }
+
+    function renderTable(rows) {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        
+        if (!rows || rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="19" style="text-align:center; padding: 20px; color:#999;">无数据</td></tr>';
+            return;
+        }
+
+        rows.forEach(row => {
+            const tr = document.createElement('tr');
+            
+            // Helper for approval status
+            const getStatusBadge = (status) => {
+                if (status === "1") return '<span class="badge green">通过</span>';
+                if (status === "0") return '<span class="badge red">拒绝</span>';
+                return '<span class="badge gray">待定</span>';
+            };
+
+            tr.innerHTML = `
+                <td class="sticky-col">${row.user_id$$text || '-'}</td>
+                <td>${row.org_id$$text || '-'}</td>
+                <td>${row.order_no || '-'}</td>
+                <td>${row.work_overtime_type$$text || '-'}</td>
+                <td>${row.position$$text || '-'}</td>
+
+                <td>${formatDateTime(row.plan_start_time)}</td>
+                <td>${formatDateTime(row.plan_end_time)}</td>
+                <td>${row.plan_work_overtime_hour ?? '-'}</td>
+                <td><div class="text-wrap">${row.subject_matter || '-'}</div></td>
+                <td>${getStatusBadge(row.plan_is_pass)}</td>
+                <td>${row.approval_user_id$$text || '-'}</td>
+
+                <td>${formatDateTime(row.start_time)}</td>
+                <td>${formatDateTime(row.end_time)}</td>
+                <td>${row.work_overtime_hour ?? '-'}</td>
+                <td>${row.work_overtime_hour_sub ?? 0}</td>
+                <td><div class="text-wrap">${row.real_subject_matter || '-'}</div></td>
+                <td>${getStatusBadge(row.is_pass)}</td>
+                <td><div class="text-wrap">${row.approval_opinion || '-'}</div></td>
+                <td>${row.approval_user_id$$text || '-'}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function updatePagination() {
+        const totalPages = Math.ceil(totalItems / pageSize);
+        document.getElementById('pageInfo').innerText = `第 ${currentPage} 页 / 共 ${totalPages || 1} 页 (总数: ${totalItems})`;
+        
+        document.getElementById('prevBtn').disabled = currentPage <= 1;
+        document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+    }
+
+    // Init
+    initDates();
+    search();
+    initResize(); // Call directly as DOM is ready
+    
+    // Column Resizing Logic
+    function initResize() {
+        const table = document.querySelector('table');
+        const headerCells = table.querySelectorAll('thead tr:last-child th');
+
+        headerCells.forEach(th => {
+            const resizer = document.createElement('div');
+            resizer.classList.add('resizer');
+            th.appendChild(resizer);
+            
+            let x = 0;
+            let w = 0;
+
+            const mouseDownHandler = (e) => {
+                x = e.clientX;
+                const styles = window.getComputedStyle(th);
+                w = parseInt(styles.width, 10);
+                
+                resizer.classList.add('resizing');
+                document.addEventListener('mousemove', mouseMoveHandler);
+                document.addEventListener('mouseup', mouseUpHandler);
+            };
+
+            const mouseMoveHandler = (e) => {
+                const dx = e.clientX - x;
+                th.style.width = `${w + dx}px`;
+                th.style.minWidth = `${w + dx}px`; // Force min-width to respect resize
+            };
+
+            const mouseUpHandler = () => {
+                resizer.classList.remove('resizing');
+                document.removeEventListener('mousemove', mouseMoveHandler);
+                document.removeEventListener('mouseup', mouseUpHandler);
+            };
+
+            resizer.addEventListener('mousedown', mouseDownHandler);
+        });
+    }
+</script>
+</body>
+</html>

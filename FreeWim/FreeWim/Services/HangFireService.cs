@@ -56,5 +56,7 @@ public class HangFireService(
         RecurringJob.AddOrUpdate("YHLO WebSocket心跳", () => yhloWebSocketService.SendHeartbeat(), "*/30 * * * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
         // 在线状态刷新 - 每日执行一次
         RecurringJob.AddOrUpdate("刷新在线状态", () => yhloWebSocketService.RefreshOnlineStatus(), "0 0 9 * * ?", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
+
+        RecurringJob.AddOrUpdate("休息日加班提醒", () => pmisService.RestDayOvertimeReminder(), "30 17 * * *", new RecurringJobOptions { TimeZone = TimeZoneInfo.Local });
     }
 }

@@ -1,8 +1,9 @@
-﻿using System.Data;
+using System.Data;
 using System.Globalization;
 using Dapper;
 using FreeWim.Models.PmisAndZentao;
 using FreeWim.Models.PmisAndZentao.Dto;
+using FreeWim.Models.Attendance;
 using FreeWim.Utils;
 using Microsoft.Extensions.AI;
 using Newtonsoft.Json;
@@ -38,6 +39,149 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
         var json = JObject.Parse(postResponse.Content.ReadAsStringAsync().Result);
         //var result = JsonSerializer.Deserialize<QueryMyByDateOutput>(postResponse.Content.ReadAsStringAsync().Result);
         return json;
+    }
+
+    /// <summary>
+    /// 查询加班申请
+    /// </summary>
+    /// <param name="query"></param>
+    /// <returns></returns>
+    public async Task<JObject> QueryOvertimePlan(OvertimeQueryRequest query)
+    {
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
+        var token = tokenService.GetTokenAsync();
+
+        var conditions = new List<object>
+        {
+            new
+            {
+                Field = "plan_start_time",
+                Value = new[]
+                {
+                    query.StartDate?.ToString("yyyy-MM-dd 00:00:00") ?? "2020-01-01 00:00:00",
+                    query.EndDate?.ToString("yyyy-MM-dd 23:59:59") ?? "2099-12-31 23:59:59"
+                },
+                Operate = "between",
+                Relation = "and"
+            }
+        };
+
+        if (!string.IsNullOrEmpty(query.DepartmentName))
+        {
+            conditions.Add(new
+            {
+                Field = "org_id$$text",
+                Value = query.DepartmentName,
+                Operate = "=",
+                Relation = "and"
+            });
+        }
+
+        if (!string.IsNullOrEmpty(query.ApplicantName))
+        {
+            conditions.Add(new
+            {
+                Field = "user_id$$text",
+                Value = query.ApplicantName,
+                Operate = "=",
+                Relation = "and"
+            });
+        }
+
+        var payload = new
+        {
+            index = query.Index,
+            size = query.Size,
+            conditions,
+            order = new[]
+            {
+                new { Field = "work_date", Type = -1 },
+                new { Field = "plan_start_time", Type = -1 }
+            },
+            conditionsSql = new object[] { }
+        };
+
+        var httpHelper = new HttpRequestHelper();
+        var response = await httpHelper.PostAsync(
+            $"{pmisInfo.Url}/hddev/form/formobjectdata/oa_workovertime_plan_apply:21/query.json",
+            payload,
+            new Dictionary<string, string>
+            {
+                { "token", token ?? string.Empty },
+                { "uniwaterUtoken", token ?? string.Empty }
+            }
+        );
+
+        var content = await response.Content.ReadAsStringAsync();
+        return JObject.Parse(content);
+    }
+
+    public void RestDayOvertimeReminder()
+    {
+        try
+        {
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
+            var tomorrow = DateTime.Now.Date.AddDays(1);
+            var rule = dbConnection.Query<string>($@"select checkinrule from public.attendancerecordday 
+                                                     where to_char(attendancedate,'yyyy-MM-dd') = '{tomorrow:yyyy-MM-dd}'").FirstOrDefault();
+            if (rule is not "休息") return;
+
+            var sql = $@"
+                WITH ConstantGroups AS (
+                    SELECT 
+                        attendancedate::date AS attendancedate,
+                        attendancedate::date - (ROW_NUMBER() OVER (ORDER BY attendancedate))::int AS grp
+                    FROM public.attendancerecordday
+                    WHERE checkinrule = '休息'
+                ),
+                TargetGroup AS (
+                    SELECT grp
+                    FROM ConstantGroups
+                    WHERE attendancedate::date = '{tomorrow:yyyy-MM-dd}'::date
+                )
+                SELECT MAX(attendancedate) AS end_date
+                FROM ConstantGroups
+                WHERE grp = (SELECT grp FROM TargetGroup)";
+            var lastRestDay = dbConnection.Query<DateTime?>(sql).FirstOrDefault() ?? tomorrow;
+            var startTime = DateTime.Now;
+            var endTime = new DateTime(lastRestDay.Year, lastRestDay.Month, lastRestDay.Day, 23, 59, 59);
+
+            var listOfPersonnel = configuration.GetSection("ListOfPersonnel").Get<List<ListOfPersonnel>>() ?? [];
+            var result = QueryOvertimePlan(new OvertimeQueryRequest
+            {
+                StartDate = startTime,
+                EndDate = endTime,
+                Index = 1,
+                Size = 1000
+            }).Result;
+
+            var rows = result["Response"]?["rows"] as JArray;
+            if (rows == null || rows.Count == 0) return;
+            var nameMap = listOfPersonnel
+                .Where(p => !string.IsNullOrEmpty(p.RealName))
+                .ToDictionary(p => p.RealName!, p => p.FlowerName ?? p.RealName);
+
+            var lines = new List<string>();
+            foreach (var row in rows)
+            {
+                var realName = row["user_id$$text"]?.ToString() ?? string.Empty;
+                if (!nameMap.ContainsKey(realName)) continue;
+                var start = row["plan_start_time"]?.ToString() ?? "";
+                var end = row["plan_end_time"]?.ToString() ?? "";
+                if (!string.IsNullOrEmpty(start)) start = start.Replace("T", " ");
+                if (!string.IsNullOrEmpty(end)) end = end.Replace("T", " ");
+                var flowerName = nameMap[realName];
+                lines.Add($"{flowerName} {start} ~ {end}");
+            }
+            if (lines.Count == 0) return;
+
+            var msg = string.Join("\n", lines);
+            pushMessageService.Push("休息日加班提醒", msg, PushMessageService.PushIcon.OverTime);
+        }
+        catch (Exception e)
+        {
+            pushMessageService.Push("休息日加班提醒异常", e.Message, PushMessageService.PushIcon.Alert);
+        }
     }
 
     /// <summary>
