@@ -11,7 +11,12 @@ using Npgsql;
 
 namespace FreeWim.Services;
 
-public class AttendanceService(IConfiguration configuration, PushMessageService pushMessageService, TokenService tokenService, WorkFlowExecutorService workFlowExecutorService, PmisService pmisService)
+public class AttendanceService(
+    IConfiguration configuration,
+    PushMessageService pushMessageService,
+    TokenService tokenService,
+    WorkFlowExecutorService workFlowExecutorService,
+    PmisService pmisService)
 {
     /// <summary>
     /// 根据日期获取当日工时
@@ -22,7 +27,10 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
     {
         double hours = 0;
         using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
-        var isSignout = dbConnection.Query<string>($@"select checkinrule from public.attendancerecordday where to_char(attendancedate,'yyyy-MM-dd') = '{date:yyyy-MM-dd}' and workhours > 0 ").ToList();
+        var isSignout = dbConnection
+            .Query<string>(
+                $@"select checkinrule from public.attendancerecordday where to_char(attendancedate,'yyyy-MM-dd') = '{date:yyyy-MM-dd}' and workhours > 0 ")
+            .ToList();
         if (isSignout.Count <= 0) return hours;
         var attendanceList = dbConnection.Query<WorkHoursInOutTime>($@"select
                                             	clockintype,
@@ -35,8 +43,10 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
                                             	clockintype").ToList();
         DateTime? signInDate = null;
         DateTime? signOutDate = null;
-        if (attendanceList.FirstOrDefault(e => e.ClockInType == 0) != null) signInDate = attendanceList.FirstOrDefault(e => e.ClockInType == 0)?.ClockInTime;
-        if (attendanceList.FirstOrDefault(e => e.ClockInType == 1) != null) signOutDate = attendanceList.FirstOrDefault(e => e.ClockInType == 1)?.ClockInTime;
+        if (attendanceList.FirstOrDefault(e => e.ClockInType == 0) != null)
+            signInDate = attendanceList.FirstOrDefault(e => e.ClockInType == 0)?.ClockInTime;
+        if (attendanceList.FirstOrDefault(e => e.ClockInType == 1) != null)
+            signOutDate = attendanceList.FirstOrDefault(e => e.ClockInType == 1)?.ClockInTime;
         if (signInDate == null || signOutDate == null) return hours;
         if (isSignout.First() == "休息")
         {
@@ -59,6 +69,7 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
             if (overlapStart < overlapEnd) overlapHours = (overlapEnd.Value - overlapStart.Value).TotalHours;
             hours = hours - overlapHours;
         }
+
         // return hours - overlapHours;
         return hours;
     }
@@ -84,7 +95,8 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
                 if (minute < 30)
                     return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, 30, 0);
                 else
-                    return new DateTime(dt.AddHours(1).Year, dt.AddHours(1).Month, dt.AddHours(1).Day, dt.AddHours(1).Hour, 0, 0);
+                    return new DateTime(dt.AddHours(1).Year, dt.AddHours(1).Month, dt.AddHours(1).Day,
+                        dt.AddHours(1).Hour, 0, 0);
 
             case RoundDirection.Down:
                 var roundedMinute = minute < 30 ? 0 : 30;
@@ -96,7 +108,8 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
                 else if (minute < 45)
                     return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, 30, 0);
                 else
-                    return new DateTime(dt.AddHours(1).Year, dt.AddHours(1).Month, dt.AddHours(1).Day, dt.AddHours(1).Hour, 0, 0);
+                    return new DateTime(dt.AddHours(1).Year, dt.AddHours(1).Month, dt.AddHours(1).Day,
+                        dt.AddHours(1).Hour, 0, 0);
 
             default:
                 throw new ArgumentException("Unsupported round direction.");
@@ -116,12 +129,15 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
         var jobId = context?.BackgroundJob.Id;
         if (!string.IsNullOrEmpty(jobId))
         {
-            var autoCheckInRecord = dbConnection.Query<AutoCheckInRecord>($@"SELECT * FROM public.autocheckinrecord WHERE jobid = '{jobId}'").FirstOrDefault();
+            var autoCheckInRecord = dbConnection
+                .Query<AutoCheckInRecord>($@"SELECT * FROM public.autocheckinrecord WHERE jobid = '{jobId}'")
+                .FirstOrDefault();
             if (autoCheckInRecord != null)
             {
                 var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
                 var url = $"{pmisInfo.ZkUrl}/iclock/cdata?SN={pmisInfo.ZkSN}&table=ATTLOG&Stamp=9999";
-                var contentString = $"100{pmisInfo.UserAccount}\t{autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss}\t0\t15\t0\t0\t0";
+                var contentString =
+                    $"100{pmisInfo.UserAccount}\t{autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss}\t0\t15\t0\t0\t0";
                 using var client = new HttpClient();
                 var content = new StringContent(contentString, Encoding.UTF8, "text/plain");
                 var response = client.PostAsync(url, content).Result;
@@ -130,13 +146,17 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
                 {
                     if (result.Contains("OK:1"))
                     {
-                        dbConnection.Execute($@"UPDATE public.autocheckinrecord SET clockinstate = 1,updateat = now() WHERE jobid = '{jobId}'");
-                        pushMessageService.Push("任务调度", $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务已执行，请关注后续考勤同步信息。", PushMessageService.PushIcon.Zktime);
+                        dbConnection.Execute(
+                            $@"UPDATE public.autocheckinrecord SET clockinstate = 1,updateat = now() WHERE jobid = '{jobId}'");
+                        pushMessageService.Push("任务调度",
+                            $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务已执行，请关注后续考勤同步信息。",
+                            PushMessageService.PushIcon.Zktime);
+                        if (autoCheckInRecord.clockintime.Hour <= 10) return;
                         if (!string.IsNullOrEmpty(pmisInfo.ShutDownUrl))
                         {
                             try
                             {
-                                using var ShutDownClient = new HttpClient{ Timeout = TimeSpan.FromSeconds(5) };
+                                using var ShutDownClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
                                 var shutDownUrl = pmisInfo.ShutDownUrl;
                                 var shutDownResponse = ShutDownClient.GetAsync(shutDownUrl).Result;
                                 if (shutDownResponse.StatusCode == System.Net.HttpStatusCode.OK)
@@ -153,14 +173,20 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
                     }
                     else
                     {
-                        dbConnection.Execute($@"UPDATE public.autocheckinrecord SET clockinstate = 2,updateat = now() WHERE jobid = '{jobId}'");
-                        pushMessageService.Push("任务调度", $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务未能成功完成。\n失败原因：" + result, PushMessageService.PushIcon.Alert);
+                        dbConnection.Execute(
+                            $@"UPDATE public.autocheckinrecord SET clockinstate = 2,updateat = now() WHERE jobid = '{jobId}'");
+                        pushMessageService.Push("任务调度",
+                            $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务未能成功完成。\n失败原因：" + result,
+                            PushMessageService.PushIcon.Alert);
                     }
                 }
                 else
                 {
-                    dbConnection.Execute($@"UPDATE public.autocheckinrecord SET clockinstate = 2 ,updateat = now() WHERE jobid = '{jobId}'");
-                    pushMessageService.Push("任务调度", $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务未能成功完成。\n接口调用失败：" + result, PushMessageService.PushIcon.Alert);
+                    dbConnection.Execute(
+                        $@"UPDATE public.autocheckinrecord SET clockinstate = 2 ,updateat = now() WHERE jobid = '{jobId}'");
+                    pushMessageService.Push("任务调度",
+                        $"您设定于 {autoCheckInRecord.clockintime:yyyy-MM-dd HH:mm:ss} 执行的任务未能成功完成。\n接口调用失败：" + result,
+                        PushMessageService.PushIcon.Alert);
                 }
             }
         }
@@ -184,7 +210,8 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
                                                                                                 	public.attendancerecordday
                                                                                                 where
                                                                                                 	to_char(attendancedate,
-                                                                                                	'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}'").FirstOrDefault();
+                                                                                                	'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}'")
+            .FirstOrDefault();
         if (lastDay == null) return;
         if (lastDay != "休息") return;
         var pushMessage = "";
@@ -192,7 +219,8 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
         if (listOfPersonnel != null)
         {
             var realNameList = listOfPersonnel.Select(e => e.RealName).ToList();
-            var response = httpRequestHelper.PostAsync(pmisInfo.ZkUrl + "/api/v2/transaction/get/?key=" + pmisInfo.ZkKey,
+            var response = httpRequestHelper.PostAsync(
+                pmisInfo.ZkUrl + "/api/v2/transaction/get/?key=" + pmisInfo.ZkKey,
                 new
                 {
                     starttime = DateTime.Now.AddMinutes(-10).ToString("yyyy-MM-dd HH:mm:ss"),
@@ -213,9 +241,11 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
                         if (waringcount > 0) continue;
                         if (checktime == null) continue;
                         if (listOfPersonnel.FirstOrDefault(e => e.RealName == person.Ename) != null)
-                            pushMessage += listOfPersonnel.FirstOrDefault(e => e.RealName == person.Ename)!.FlowerName + "-打卡时间:" +
+                            pushMessage += listOfPersonnel.FirstOrDefault(e => e.RealName == person.Ename)!.FlowerName +
+                                           "-打卡时间:" +
                                            DateTime.Parse(checktime).ToString("HH:mm:ss") + "\n";
-                        dbConnection.Execute($@"INSERT INTO public.checkinwarning(id,name,clockintime) VALUES('{Guid.NewGuid()}','{person.Ename}','{checktime}')");
+                        dbConnection.Execute(
+                            $@"INSERT INTO public.checkinwarning(id,name,clockintime) VALUES('{Guid.NewGuid()}','{person.Ename}','{checktime}')");
                     }
             }
         }
@@ -241,7 +271,8 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
         var startDate = DateTime.Now;
         if (DateTime.Now.Hour <= 7 || DateTime.Now.Hour >= 23) return;
 
-        var response = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.ToString("yyyy-MM")).Result;
+        var response = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" +
+                                       startDate.ToString("yyyy-MM")).Result;
         var result = response.Content.ReadAsStringAsync().Result;
         var resultModel = JsonConvert.DeserializeObject<AttendanceResponse>(result);
         if (resultModel is { Code: 200 })
@@ -262,20 +293,33 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
                             if (daydetail.DetailList != null)
                                 foreach (var daydetailitem in daydetail.DetailList)
                                     if (!todayAttendanceList.Any(e => daydetailitem.ClockInType != null &&
-                                                                      e.ClockInType == int.Parse(daydetailitem.ClockInType) &&
-                                                                      e.ClockInTime == (DateTime.TryParse(daydetailitem.ClockInTime, out var parsedDate) ? parsedDate : null)))
+                                                                      e.ClockInType ==
+                                                                      int.Parse(daydetailitem.ClockInType) &&
+                                                                      e.ClockInTime ==
+                                                                      (DateTime.TryParse(daydetailitem.ClockInTime,
+                                                                          out var parsedDate)
+                                                                          ? parsedDate
+                                                                          : null)))
                                     {
                                         insertIdent = true;
                                         if (string.IsNullOrEmpty(daydetailitem.ClockInTime)) continue;
-                                        pushMessage = "数据已同步\n" + (daydetailitem.ClockInType != null && int.Parse(daydetailitem.ClockInType) == 0 ? "签到时间:" : "签退时间:") + daydetailitem.ClockInTime;
-                                        if (daydetailitem.ClockInType != null && int.Parse(daydetailitem.ClockInType) == 1) signout = true;
+                                        pushMessage = "数据已同步\n" +
+                                                      (daydetailitem.ClockInType != null &&
+                                                       int.Parse(daydetailitem.ClockInType) == 0
+                                                          ? "签到时间:"
+                                                          : "签退时间:") + daydetailitem.ClockInTime;
+                                        if (daydetailitem.ClockInType != null &&
+                                            int.Parse(daydetailitem.ClockInType) == 1) signout = true;
                                     }
 
             if (insertIdent)
             {
-                dbConnection.Execute($"delete from public.attendancerecord where attendancemonth = '{startDate:yyyy-MM}'");
-                dbConnection.Execute($"delete from public.attendancerecordday where to_char(attendancedate,'yyyy-mm') = '{startDate:yyyy-MM}'");
-                dbConnection.Execute($"delete from public.attendancerecorddaydetail where to_char(attendancedate,'yyyy-mm') = '{startDate:yyyy-MM}'");
+                dbConnection.Execute(
+                    $"delete from public.attendancerecord where attendancemonth = '{startDate:yyyy-MM}'");
+                dbConnection.Execute(
+                    $"delete from public.attendancerecordday where to_char(attendancedate,'yyyy-mm') = '{startDate:yyyy-MM}'");
+                dbConnection.Execute(
+                    $"delete from public.attendancerecorddaydetail where to_char(attendancedate,'yyyy-mm') = '{startDate:yyyy-MM}'");
                 if (resultModel.Data != null)
                 {
                     dbConnection.Execute(
@@ -303,7 +347,8 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
                         }
                 }
 
-                if (!string.IsNullOrEmpty(pushMessage)) pushMessageService.Push("考勤", pushMessage, PushMessageService.PushIcon.Attendance);
+                if (!string.IsNullOrEmpty(pushMessage))
+                    pushMessageService.Push("考勤", pushMessage, PushMessageService.PushIcon.Attendance);
                 if (signout)
                 {
                     workFlowExecutorService.ExecuteAll();
@@ -315,10 +360,15 @@ public class AttendanceService(IConfiguration configuration, PushMessageService 
         var daysInMonth = DateTime.DaysInMonth(startDate.Year, startDate.Month);
         if (startDate.Day >= daysInMonth - 1)
         {
-            var lastMonthData = dbConnection.Query<int>($@"select count(0) from public.attendancerecordday where yearmonth = '{startDate.AddMonths(1):yyyy-MM}'").First();
+            var lastMonthData = dbConnection
+                .Query<int>(
+                    $@"select count(0) from public.attendancerecordday where yearmonth = '{startDate.AddMonths(1):yyyy-MM}'")
+                .First();
             if (lastMonthData == 0)
             {
-                var lastresponse = client.GetAsync(pmisInfo!.Url + "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" + startDate.AddMonths(1).ToString("yyyy-MM")).Result;
+                var lastresponse = client.GetAsync(pmisInfo!.Url +
+                                                   "/hd-oa/api/oaUserClockInRecord/clockInDataMonth?yearMonth=" +
+                                                   startDate.AddMonths(1).ToString("yyyy-MM")).Result;
                 var lastresult = lastresponse.Content.ReadAsStringAsync().Result;
                 var lastresultModel = JsonConvert.DeserializeObject<AttendanceResponse>(lastresult);
                 if (lastresultModel is { Code: 200, Data.DayVoList.Count: > 0 })

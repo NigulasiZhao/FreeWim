@@ -10,31 +10,19 @@ namespace FreeWim.Controllers;
 
 [ApiController]
 [Route("api/[controller]/[action]")]
-public class AsusRouterController : Controller
+public class AsusRouterController(
+    IConfiguration configuration,
+    AsusRouterService asusRouterService,
+    TokenService tokenService,
+    ILogger<AsusRouterController> logger)
+    : Controller
 {
-    private readonly IConfiguration _configuration;
-    private readonly AsusRouterService _asusRouterService;
-    private readonly TokenService _tokenService;
-    private readonly ILogger<AsusRouterController> _logger;
-
-    public AsusRouterController(
-        IConfiguration configuration,
-        AsusRouterService asusRouterService,
-        TokenService tokenService,
-        ILogger<AsusRouterController> logger)
-    {
-        _configuration = configuration;
-        _asusRouterService = asusRouterService;
-        _tokenService = tokenService;
-        _logger = logger;
-    }
-
     [Tags("华硕")]
     [EndpointSummary("获取华硕路由器token")]
     [HttpGet]
     public string? GetAsusRouterTokenAsync()
     {
-        var json = _tokenService.GetAsusRouterTokenAsync();
+        var json = tokenService.GetAsusRouterTokenAsync();
         return json;
     }
 
@@ -45,7 +33,7 @@ public class AsusRouterController : Controller
     {
         try
         {
-            var devices = await _asusRouterService.GetNetworkDevicesAsync();
+            var devices = await asusRouterService.GetNetworkDevicesAsync();
 
             return Json(new
             {
@@ -83,10 +71,10 @@ public class AsusRouterController : Controller
         try
         {
             // 1. 获取设备信息
-            var devices = await _asusRouterService.GetNetworkDevicesAsync();
+            var devices = await asusRouterService.GetNetworkDevicesAsync();
 
             // 2. 保存到数据库
-            var savedCount = await _asusRouterService.SaveDevicesToDatabaseAsync(devices);
+            var savedCount = await asusRouterService.SaveDevicesToDatabaseAsync(devices);
 
             return Json(new
             {
@@ -120,7 +108,7 @@ public class AsusRouterController : Controller
     {
         try
         {
-            using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
 
             var devices = await dbConnection.QueryAsync<AsusRouterDevice>(
                 "SELECT * FROM asusrouterdevice ORDER BY updatedat DESC"
@@ -163,15 +151,13 @@ public class AsusRouterController : Controller
         try
         {
             if (string.IsNullOrEmpty(mac))
-            {
                 return Json(new
                 {
                     success = false,
                     message = "MAC地址不能为空"
                 });
-            }
 
-            using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
 
             var device = await dbConnection.QueryFirstOrDefaultAsync<AsusRouterDevice>(
                 "SELECT * FROM asusrouterdevice WHERE mac = @Mac",
@@ -179,13 +165,11 @@ public class AsusRouterController : Controller
             );
 
             if (device == null)
-            {
                 return Json(new
                 {
                     success = false,
                     message = "未找到该设备"
                 });
-            }
 
             return Json(new
             {
@@ -212,46 +196,38 @@ public class AsusRouterController : Controller
         try
         {
             if (string.IsNullOrEmpty(mac))
-            {
                 return Json(new
                 {
                     success = false,
                     message = "MAC地址不能为空"
                 });
-            }
 
             if (string.IsNullOrEmpty(date))
-            {
                 return Json(new
                 {
                     success = false,
                     message = "日期不能为空，格式: yyyy-MM-dd"
                 });
-            }
 
             if (!DateTime.TryParse(date, out var queryDate))
-            {
                 return Json(new
                 {
                     success = false,
                     message = "日期格式错误，请使用 yyyy-MM-dd 格式"
                 });
-            }
 
             // 转换为Unix时间戳（秒级）
             var dateTimestamp = new DateTimeOffset(queryDate.Date).ToUnixTimeSeconds();
 
             // 调用路由器接口获取小时级流量数据
-            var trafficData = await _asusRouterService.GetDeviceTrafficAsync(mac, dateTimestamp);
+            var trafficData = await asusRouterService.GetDeviceTrafficAsync(mac, dateTimestamp);
 
             if (trafficData.Count == 0)
-            {
                 return Json(new
                 {
                     success = false,
                     message = $"未获取到设备 {mac} 在 {date} 的流量数据，可能设备不存在或该日期无数据"
                 });
-            }
 
             // 计算总流量
             var totalUpload = trafficData.Sum(t => t.Upload);
@@ -272,7 +248,7 @@ public class AsusRouterController : Controller
                     hourlyData = trafficData.Select((t, index) => new
                     {
                         hour = index,
-                        timeRange = $"{index:D2}:00 - {(index + 1):D2}:00",
+                        timeRange = $"{index:D2}:00 - {index + 1:D2}:00",
                         uploadBytes = t.Upload,
                         downloadBytes = t.Download,
                         uploadFormatted = t.Upload / 1073741824,
@@ -299,46 +275,38 @@ public class AsusRouterController : Controller
         try
         {
             if (string.IsNullOrEmpty(mac))
-            {
                 return Json(new
                 {
                     success = false,
                     message = "MAC地址不能为空"
                 });
-            }
 
             if (string.IsNullOrEmpty(date))
-            {
                 return Json(new
                 {
                     success = false,
                     message = "日期不能为空，格式: yyyy-MM-dd"
                 });
-            }
 
             if (!DateTime.TryParse(date, out var queryDate))
-            {
                 return Json(new
                 {
                     success = false,
                     message = "日期格式错误，请使用 yyyy-MM-dd 格式"
                 });
-            }
 
             // 转换为Unix时间戳（秒级）
             var dateTimestamp = new DateTimeOffset(queryDate.Date).ToUnixTimeSeconds();
 
             // 调用路由器接口获取详细流量数据
-            var trafficDetailData = await _asusRouterService.GetDeviceTrafficDetailAsync(mac, dateTimestamp, "detail", 24);
+            var trafficDetailData = await asusRouterService.GetDeviceTrafficDetailAsync(mac, dateTimestamp);
 
             if (trafficDetailData.Count == 0)
-            {
                 return Json(new
                 {
                     success = false,
                     message = $"未获取到设备 {mac} 在 {date} 的详细流量数据，可能设备不存在或该日期无数据"
                 });
-            }
 
             // 计算总流量
             var totalUpload = trafficDetailData.Sum(t => t.Upload);
@@ -407,7 +375,7 @@ public class AsusRouterController : Controller
     {
         try
         {
-            using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
 
             // 解析日期参数，默认为最近30天
             DateTime start, end;
@@ -419,13 +387,11 @@ public class AsusRouterController : Controller
             else
             {
                 if (!DateTime.TryParse(startDate, out start) || !DateTime.TryParse(endDate, out end))
-                {
                     return Json(new
                     {
                         success = false,
                         message = "日期格式错误，请使用 yyyy-MM-dd 格式"
                     });
-                }
                 start = start.Date;
                 end = end.Date;
             }
@@ -463,7 +429,7 @@ public class AsusRouterController : Controller
                 totalDownload += (long)dt.total_download;
             }
 
-            int dayCount = (end - start).Days + 1;
+            var dayCount = (end - start).Days + 1;
             result.Kpi = new KpiStatistics
             {
                 TotalUploadBytes = totalUpload,
@@ -545,8 +511,8 @@ public class AsusRouterController : Controller
 
             foreach (var app in appTrafficData)
             {
-                long upload = (long)app.app_upload;
-                long download = (long)app.app_download;
+                var upload = (long)app.app_upload;
+                var download = (long)app.app_download;
                 result.AppDistributions.Add(new AppTrafficDistribution
                 {
                     AppName = app.appname,
@@ -565,7 +531,7 @@ public class AsusRouterController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "获取流量监控数据失败");
+            logger.LogError(ex, "获取流量监控数据失败");
             return Json(new
             {
                 success = false,
@@ -582,15 +548,13 @@ public class AsusRouterController : Controller
         try
         {
             if (string.IsNullOrEmpty(mac))
-            {
                 return Json(new
                 {
                     success = false,
                     message = "MAC地址不能为空"
                 });
-            }
 
-            using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
 
             // 解析日期参数
             DateTime start, end;
@@ -602,13 +566,11 @@ public class AsusRouterController : Controller
             else
             {
                 if (!DateTime.TryParse(startDate, out start) || !DateTime.TryParse(endDate, out end))
-                {
                     return Json(new
                     {
                         success = false,
                         message = "日期格式错误，请使用 yyyy-MM-dd 格式"
                     });
-                }
                 start = start.Date;
                 end = end.Date;
             }
@@ -659,7 +621,7 @@ public class AsusRouterController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "获取设备流量趋势失败");
+            logger.LogError(ex, "获取设备流量趋势失败");
             return Json(new
             {
                 success = false,
@@ -675,7 +637,7 @@ public class AsusRouterController : Controller
     {
         try
         {
-            using IDbConnection dbConnection = new NpgsqlConnection(_configuration["Connection"]);
+            using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
 
             // 解析日期参数
             DateTime start, end;
@@ -687,13 +649,11 @@ public class AsusRouterController : Controller
             else
             {
                 if (!DateTime.TryParse(startDate, out start) || !DateTime.TryParse(endDate, out end))
-                {
                     return Json(new
                     {
                         success = false,
                         message = "日期格式错误，请使用 yyyy-MM-dd 格式"
                     });
-                }
                 start = start.Date;
                 end = end.Date;
             }
@@ -713,16 +673,16 @@ public class AsusRouterController : Controller
                 ", new { StartDate = start, EndDate = end });
 
                 var hourlyList = hourlyTrafficData.ToList();
-                long totalBytes = hourlyList.Sum(h => (long)h.hour_upload + (long)h.hour_download);
+                var totalBytes = hourlyList.Sum(h => (long)h.hour_upload + (long)h.hour_download);
 
                 var hourlyDistributions = hourlyList.Select(h =>
                 {
-                    long hourTotal = (long)h.hour_upload + (long)h.hour_download;
-                    int hour = (int)h.hour;
+                    var hourTotal = (long)h.hour_upload + (long)h.hour_download;
+                    var hour = (int)h.hour;
                     return new
                     {
                         name = $"{hour:D2}:00",
-                        hour = hour,
+                        hour,
                         value = Math.Round(hourTotal / 1073741824.0, 2), // GB
                         percentage = totalBytes > 0 ? Math.Round((double)hourTotal / totalBytes * 100, 2) : 0
                     };
@@ -756,7 +716,7 @@ public class AsusRouterController : Controller
                 ", new { Mac = deviceId, StartDate = start, EndDate = end });
 
                 var hourlyList = hourlyTrafficData.ToList();
-                long totalBytes = hourlyList.Sum(h => (long)h.hour_upload + (long)h.hour_download);
+                var totalBytes = hourlyList.Sum(h => (long)h.hour_upload + (long)h.hour_download);
 
                 // 获取设备名称
                 var device = await dbConnection.QueryFirstOrDefaultAsync<AsusRouterDevice>(
@@ -767,12 +727,12 @@ public class AsusRouterController : Controller
 
                 var hourlyDistributions = hourlyList.Select(h =>
                 {
-                    long hourTotal = (long)h.hour_upload + (long)h.hour_download;
-                    int hour = (int)h.hour;
+                    var hourTotal = (long)h.hour_upload + (long)h.hour_download;
+                    var hour = (int)h.hour;
                     return new
                     {
                         name = $"{hour:D2}:00",
-                        hour = hour,
+                        hour,
                         value = Math.Round(hourTotal / 1073741824.0, 2), // GB
                         percentage = totalBytes > 0 ? Math.Round((double)hourTotal / totalBytes * 100, 2) : 0
                     };
@@ -794,7 +754,7 @@ public class AsusRouterController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "获取流量占比数据失败");
+            logger.LogError(ex, "获取流量占比数据失败");
             return Json(new
             {
                 success = false,
@@ -808,25 +768,17 @@ public class AsusRouterController : Controller
     /// </summary>
     private string FormatBytes(long bytes)
     {
-        const long GB = 1073741824;
-        const long TB = 1099511627776;
+        const long gb = 1073741824;
+        const long tb = 1099511627776;
 
-        if (bytes >= TB)
-        {
-            return $"{Math.Round(bytes / (double)TB, 2)}TB";
-        }
-        else if (bytes >= GB)
-        {
-            return $"{Math.Round(bytes / (double)GB, 2)}GB";
-        }
+        if (bytes >= tb)
+            return $"{Math.Round(bytes / (double)tb, 2)}TB";
+        else if (bytes >= gb)
+            return $"{Math.Round(bytes / (double)gb, 2)}GB";
         else if (bytes >= 1048576)
-        {
             return $"{Math.Round(bytes / 1048576.0, 2)}MB";
-        }
         else
-        {
             return $"{Math.Round(bytes / 1024.0, 2)}KB";
-        }
     }
 
     /// <summary>

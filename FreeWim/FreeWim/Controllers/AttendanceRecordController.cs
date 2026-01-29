@@ -1,5 +1,4 @@
 ﻿using System.Data;
-using System.Text;
 using Dapper;
 using FreeWim.Models;
 using FreeWim.Models.Attendance;
@@ -17,8 +16,11 @@ namespace FreeWim.Controllers;
 
 [ApiController]
 [Route("api/[controller]/[action]")]
-public class AttendanceRecordController(IConfiguration configuration, AttendanceService attendanceService, PushMessageService
-  pushMessageService) : Controller
+public class AttendanceRecordController(
+    IConfiguration configuration,
+    AttendanceService attendanceService,
+    PushMessageService
+        pushMessageService) : Controller
 {
     [Tags("考勤")]
     [EndpointSummary("考勤组件数据查询接口")]
@@ -27,9 +29,9 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
     {
         using IDbConnection _DbConnection = new NpgsqlConnection(configuration["Connection"]);
         var WorkDays = _DbConnection
-          .Query<int>(
-            "select count(0) from (select to_char(attendancedate,'yyyy-mm-dd'),count(0) from public.attendancerecorddaydetail  group by to_char(attendancedate,'yyyy-mm-dd'))")
-          .First();
+            .Query<int>(
+                "select count(0) from (select to_char(attendancedate,'yyyy-mm-dd'),count(0) from public.attendancerecorddaydetail  group by to_char(attendancedate,'yyyy-mm-dd'))")
+            .First();
         var WorkHours = _DbConnection.Query<decimal>("select sum(workhours) from public.attendancerecordday").First();
         _DbConnection.Dispose();
         return Json(new
@@ -93,8 +95,8 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
         var rowsCount = 0;
         using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var cancelCount = dbConnection
-          .Query<int>($@"SELECT COUNT(0) FROM public.overtimerecord WHERE work_date = '{DateTime.Now:yyyy-MM-dd}';")
-          .FirstOrDefault();
+            .Query<int>($@"SELECT COUNT(0) FROM public.overtimerecord WHERE work_date = '{DateTime.Now:yyyy-MM-dd}';")
+            .FirstOrDefault();
         if (cancelCount == 0)
             rowsCount = dbConnection.Execute($@"insert
 														into
@@ -123,9 +125,9 @@ public class AttendanceRecordController(IConfiguration configuration, Attendance
             pmisInfo.OverStartTime,
             pmisInfo.OverEndTime,
             TotalHours = (DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime) -
-                        DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime))
-            .TotalHours
-            .ToString() + "h"
+                          DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime))
+                .TotalHours
+                .ToString() + "h"
         });
     }
 
@@ -268,9 +270,9 @@ ORDER BY attendancedate::date
     END AS last_vs_before_last_percent;
 ";
         var HeaderResult =
-          _DbConnection
-            .Query<(double thismonth, double lastmonth, double beforelastmonth, double thisvslastpercent, double
-              lastvsbeforelastpercent)>(sqlforHeader);
+            _DbConnection
+                .Query<(double thismonth, double lastmonth, double beforelastmonth, double thisvslastpercent, double
+                    lastvsbeforelastpercent)>(sqlforHeader);
 
         var sqlforavgworkhours = @"select
 	round(this_avg.workhours / nullif(this_avg.days, 0), 2) as thisavghours,
@@ -305,7 +307,7 @@ from
 			and workhours > 0
 ) as last_avg;";
         var avgworkhoursResult =
-          _DbConnection.Query<(double thisavghours, double lastavghours, double improvepercent)>(sqlforavgworkhours);
+            _DbConnection.Query<(double thisavghours, double lastavghours, double improvepercent)>(sqlforavgworkhours);
 
         // 重构后的加班率计算逻辑：加班天数 / 工作日天数 × 100%
         // 注意：排除今天的数据，因为当天工时可能还未完成
@@ -348,7 +350,7 @@ from
 		yearmonth = to_char(current_date - interval '1 month', 'YYYY-MM') 
 ) as last_avg;";
         var avgovertimeResult =
-          _DbConnection.Query<(double thisavghours, double lastavghours, double improvepercent)>(sqlforavgovertime);
+            _DbConnection.Query<(double thisavghours, double lastavghours, double improvepercent)>(sqlforavgovertime);
 
 
         var sqlforovertimerecord = @"select
@@ -372,23 +374,24 @@ order by
 work_date desc
 limit 10;";
         var overtimerecord = _DbConnection
-          .Query<(string id, string date, string contractunit, string start, string end, string duration, string status)>(
-            sqlforovertimerecord).ToList();
+            .Query<(string id, string date, string contractunit, string start, string end, string duration, string
+                status)>(
+                sqlforovertimerecord).ToList();
         if (!overtimerecord.Exists(e => e.date == DateTime.Now.ToString("yyyy-MM-dd")))
         {
             overtimerecord.RemoveAt(overtimerecord.Count - 1);
             overtimerecord.Add(
-              (
-                Guid.NewGuid().ToString(),
-                DateTime.Now.ToString("yyyy-MM-dd"),
-                "待定",
-                pmisInfo.OverStartTime,
-                pmisInfo.OverEndTime,
-                (DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime) -
-                 DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime)).TotalHours
-                .ToString(),
-                "待申请"
-              ));
+                (
+                    Guid.NewGuid().ToString(),
+                    DateTime.Now.ToString("yyyy-MM-dd"),
+                    "待定",
+                    pmisInfo.OverStartTime,
+                    pmisInfo.OverEndTime,
+                    (DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverEndTime) -
+                     DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd") + " " + pmisInfo.OverStartTime)).TotalHours
+                    .ToString(),
+                    "待申请"
+                ));
         }
 
 
@@ -485,14 +488,14 @@ limit 10;";
 
             using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
             var currentQuantity = dbConnection
-              .Query<int>(
-                $@"SELECT count(0) FROM public.autocheckinrecord where to_char(clockintime,'yyyy-mm-dd') = '{input.SelectTime.Value:yyyy-MM-dd}'")
-              .First();
+                .Query<int>(
+                    $@"SELECT count(0) FROM public.autocheckinrecord where to_char(clockintime,'yyyy-mm-dd') = '{input.SelectTime.Value:yyyy-MM-dd}'")
+                .First();
             if (currentQuantity >= 2)
                 return Json(new { jobId = "", SelectTime = input.SelectTime, message = "登记失败,今日操作过于频繁" });
             var jobId = BackgroundJob.Schedule(() => attendanceService.AutoCheckIniclock(null), input.SelectTime.Value);
             dbConnection.Execute(
-              $@"insert
+                $@"insert
                 	into
                 	public.autocheckinrecord(id, jobid, clockintime, clockinstate)
                 values('{Guid.NewGuid().ToString()}', '{jobId}', to_timestamp('{input.SelectTime:yyyy-MM-dd HH:mm:ss}', 'yyyy-mm-dd hh24:mi:ss'), 0)");
@@ -525,9 +528,9 @@ limit 10;";
         using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
         var offset = (page - 1) * rows;
         return Json(dbConnection
-          .Query<AutoCheckInRecord>(
-            $@"SELECT * FROM public.autocheckinrecord ORDER BY clockintime desc LIMIT :rows OFFSET :offset",
-            new { rows, offset }).ToList());
+            .Query<AutoCheckInRecord>(
+                $@"SELECT * FROM public.autocheckinrecord ORDER BY clockintime desc LIMIT :rows OFFSET :offset",
+                new { rows, offset }).ToList());
     }
 
     [Tags("考勤")]
@@ -550,15 +553,15 @@ limit 10;";
 																		GROUP BY name,to_char(clockintime, 'yyyy-MM-dd') 
 																		ORDER BY {input.Order} {input.Sort}
 																		 LIMIT :rows OFFSET :offset;",
-          new
-          {
-              order = input.Order,
-              rows = input.Rows,
-              offset = offset,
-              sort = input.Sort,
-              starttime = input.StartTime + " 00:00:00",
-              endtime = input.EndTime + " 23:59:59"
-          }).ToList());
+            new
+            {
+                order = input.Order,
+                rows = input.Rows,
+                offset = offset,
+                sort = input.Sort,
+                starttime = input.StartTime + " 00:00:00",
+                endtime = input.EndTime + " 23:59:59"
+            }).ToList());
     }
 
     [Tags("考勤")]
@@ -605,13 +608,13 @@ limit 10;";
                                where 1=1  {(string.IsNullOrEmpty(input.OrgName) ? "" : " AND org_name like @orgname ")} {(string.IsNullOrEmpty(input.UserName) ? "" : " AND user_name like @username ")}
                                order by  {input.Order} {input.Sort}
                                 LIMIT {input.Rows} OFFSET {offset};",
-          new
-          {
-              starttime = input.StartTime,
-              endtime = input.EndTime,
-              orgname = $"%{input.OrgName}%",
-              username = $"%{input.UserName}%"
-          }).ToList());
+            new
+            {
+                starttime = input.StartTime,
+                endtime = input.EndTime,
+                orgname = $"%{input.OrgName}%",
+                username = $"%{input.UserName}%"
+            }).ToList());
     }
 
     [Tags("考勤")]
@@ -625,10 +628,10 @@ limit 10;";
         // 验证排序字段和排序方式
         var validOrderFields = new[]
         {
-      "UserId", "UserName", "OrgName", "MissingCardDays", "EarlyLeaveDays",
-      "LateAndEarlyLeaveDays", "FieldLateDays", "FieldEarlyLeaveDays", "SupplementCardDays",
-      "CompensatoryLeaveDays", "TotalLeaveDays", "TotalAbnormalDays"
-    };
+            "UserId", "UserName", "OrgName", "MissingCardDays", "EarlyLeaveDays",
+            "LateAndEarlyLeaveDays", "FieldLateDays", "FieldEarlyLeaveDays", "SupplementCardDays",
+            "CompensatoryLeaveDays", "TotalLeaveDays", "TotalAbnormalDays"
+        };
         var orderBy = validOrderFields.Contains(input.Order ?? "") ? input.Order : "TotalAbnormalDays";
         var sortOrder = (input.Sort?.ToLower() == "asc") ? "ASC" : "DESC";
 
@@ -664,13 +667,13 @@ limit 10;";
             ORDER BY 
                 {orderBy} {sortOrder}
             LIMIT {input.Rows} OFFSET {offset};",
-          new
-          {
-              starttime = input.StartTime,
-              endtime = input.EndTime,
-              orgname = $"%{input.OrgName}%",
-              username = $"%{input.UserName}%"
-          }).ToList());
+            new
+            {
+                starttime = input.StartTime,
+                endtime = input.EndTime,
+                orgname = $"%{input.OrgName}%",
+                username = $"%{input.UserName}%"
+            }).ToList());
     }
 
     [Tags("考勤")]
@@ -711,14 +714,14 @@ limit 10;";
             ORDER BY 
                 {orderBy} {sortOrder}
             LIMIT {input.Rows} OFFSET {offset};",
-          new
-          {
-              starttime = input.StartTime,
-              endtime = input.EndTime,
-              userid = input.UserId,
-              orgid = input.OrgId,
-              username = $"%{input.UserName}%"
-          }).ToList());
+            new
+            {
+                starttime = input.StartTime,
+                endtime = input.EndTime,
+                userid = input.UserId,
+                orgid = input.OrgId,
+                username = $"%{input.UserName}%"
+            }).ToList());
     }
 
     [Tags("考勤")]
@@ -730,6 +733,7 @@ limit 10;";
         if (input.Type == 1) return await HandleLeaveRange();
         return Json(new { success = false, message = "参数错误" });
     }
+
     [Tags("考勤")]
     [EndpointSummary("测试-公司范围动作触发(0进入，1离开)")]
     [HttpPost]
@@ -740,13 +744,16 @@ limit 10;";
             pushMessageService.Push("测试提醒", "Type" + input.Type, PushMessageService.PushIcon.Windows);
             return Json(new { success = true, message = "设备已开启", isWorking = 1 });
         }
+
         if (input.Type == 1)
         {
             pushMessageService.Push("测试提醒", "Type" + input.Type, PushMessageService.PushIcon.Windows);
             return Json(new { success = true, message = "设备已开启", isWorking = 1 });
         }
+
         return Json(new { success = true, message = "设备已开启", isWorking = 1 });
     }
+
     private async Task<ActionResult> HandleEnterRange()
     {
         try
@@ -791,9 +798,11 @@ limit 10;";
 
                 var httpHelper = new HttpRequestHelper();
                 var response = await httpHelper.PostAsync(homeAssistantInfo.Url, new
-                {
-                    entity_id = homeAssistantInfo.EntityId
-                }, new Dictionary<string, string> { { "Authorization", homeAssistantInfo.Authorization ?? string.Empty } });
+                    {
+                        entity_id = homeAssistantInfo.EntityId
+                    },
+                    new Dictionary<string, string>
+                        { { "Authorization", homeAssistantInfo.Authorization ?? string.Empty } });
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -803,7 +812,8 @@ limit 10;";
                 else
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    return Json(new { success = false, message = $"调用Home Assistant失败: {errorContent}", isWorking = 1 });
+                    return Json(new
+                        { success = false, message = $"调用Home Assistant失败: {errorContent}", isWorking = 1 });
                 }
             }
             else
@@ -825,7 +835,8 @@ limit 10;";
             var httpRequestHelper = new HttpRequestHelper();
             // 1. 判断是否存在未执行的自动打卡记录
             var existautocheckin = dbConnection.Query<int>(
-                $"SELECT COUNT(0) FROM public.autocheckinrecord WHERE to_char(clockintime,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}' and clockinstate = 0 ").First();
+                    $"SELECT COUNT(0) FROM public.autocheckinrecord WHERE to_char(clockintime,'yyyy-MM-dd') = '{DateTime.Now:yyyy-MM-dd}' and clockinstate = 0 ")
+                .First();
             if (existautocheckin > 0)
             {
                 return Json(new { success = true });
@@ -833,7 +844,8 @@ limit 10;";
 
             // 2. 获取今日工时
             var workHours = dbConnection.Query<double>(
-                "SELECT workhours FROM public.attendancerecordday WHERE attendancedate::date = CURRENT_DATE LIMIT 1").FirstOrDefault();
+                    "SELECT workhours FROM public.attendancerecordday WHERE attendancedate::date = CURRENT_DATE LIMIT 1")
+                .FirstOrDefault();
 
             var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
 
@@ -844,24 +856,26 @@ limit 10;";
                 {
                     pushMessageService.Push("关机提醒", "您的电脑即将关机", PushMessageService.PushIcon.Close);
                     _ = Task.Run(async () =>
-                      {
-                          try
-                          {
-                              using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-                              await client.GetAsync(pmisInfo.ShutDownUrl);
-                          }
-                          catch (Exception ex)
-                          {
-                              // 忽略关机接口调用失败，可能是机器已关机
-                              Console.WriteLine($"调用关机接口失败: {ex.Message}");
-                          }
-                      });
+                    {
+                        try
+                        {
+                            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                            await client.GetAsync(pmisInfo.ShutDownUrl);
+                        }
+                        catch (Exception ex)
+                        {
+                            // 忽略关机接口调用失败，可能是机器已关机
+                            Console.WriteLine($"调用关机接口失败: {ex.Message}");
+                        }
+                    });
                 }
+
                 return Json(new { success = true });
             }
             else
             {
-                var response = await httpRequestHelper.PostAsync(pmisInfo.ZkUrl + "/api/v2/transaction/get/?key=" + pmisInfo.ZkKey,
+                var response = await httpRequestHelper.PostAsync(
+                    pmisInfo.ZkUrl + "/api/v2/transaction/get/?key=" + pmisInfo.ZkKey,
                     new
                     {
                         starttime = DateTime.Now.ToString("yyyy-MM-dd 00:00:00"),
@@ -871,9 +885,22 @@ limit 10;";
                 var result = await response.Content.ReadAsStringAsync();
                 var resultModel = JsonConvert.DeserializeObject<ZktResponse>(result);
                 var pin = "100" + pmisInfo.UserAccount;
-                var myRecordsCount = resultModel?.Data?.Items?.Count(e => e.Pin == pin) ?? 0;
+                var myRecords = resultModel?.Data?.Items?
+                    .Where(e => e.Pin == pin && !string.IsNullOrEmpty(e.Checktime))
+                    .Select(e => DateTime.Parse(e.Checktime!))
+                    .OrderBy(t => t)
+                    .ToList();
 
-                if (myRecordsCount >= 2)
+                var totalHours = 0.0;
+                if (myRecords is { Count: >= 2 })
+                {
+                    for (int i = 1; i < myRecords.Count; i++)
+                    {
+                        totalHours += (myRecords[i] - myRecords[i - 1]).TotalHours;
+                    }
+                }
+
+                if (myRecords is { Count: >= 2 } && totalHours >= 1)
                 {
                     if (!string.IsNullOrEmpty(pmisInfo.ShutDownUrl))
                     {
@@ -892,6 +919,7 @@ limit 10;";
                             }
                         });
                     }
+
                     // 5. 本人打卡数据大于等于两条，触发同步和关机
                     attendanceService.SyncAttendanceRecord();
                     return Json(new { success = true });

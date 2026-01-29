@@ -2,14 +2,12 @@ using System.ClientModel;
 using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Localization;
-using FreeWim;
 using System.Globalization;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using Scalar.AspNetCore;
 using Serilog;
 using FreeWim.Services;
-using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 if (!Directory.Exists(AppDomain.CurrentDomain.BaseDirectory + "Logs")) Directory.CreateDirectory(AppDomain.CurrentDomain.BaseDirectory + "Logs");
@@ -24,15 +22,15 @@ var environment = builder.Environment.EnvironmentName;
 
 // 根据环境加载配置文件
 builder.Configuration
-    .AddJsonFile(Path.Combine(baseDirectory, "appsettings.json"), optional: false, reloadOnChange: true)
-    .AddJsonFile(Path.Combine(baseDirectory, $"appsettings.{environment}.json"), optional: true, reloadOnChange: true)
+    .AddJsonFile(Path.Combine(baseDirectory, "appsettings.json"), false, true)
+    .AddJsonFile(Path.Combine(baseDirectory, $"appsettings.{environment}.json"), true, true)
     .AddEnvironmentVariables(); // 添加环境变量支持
 builder.Services.AddDirectoryBrowser();
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi(options =>
 {
-    options.AddDocumentTransformer((document, context, cancellationToken) =>
+    options.AddDocumentTransformer((document, _, _) =>
     {
         document.Info.Title = "FreeWim API";
         // 使用 Markdown 插入图片
@@ -64,17 +62,17 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<IChatClient>(sp =>
 {
     var cfg = sp.GetRequiredService<IConfiguration>();
-    var openAIClient = new OpenAIClient(
+    var openAiClient = new OpenAIClient(
         new ApiKeyCredential(cfg["LLM:ApiKey"] ?? string.Empty),
         new OpenAIClientOptions { Endpoint = new Uri(cfg["LLM:EndPoint"] ?? string.Empty) }
     );
-    return new ChatClientBuilder(openAIClient.GetChatClient(cfg["LLM:ModelId"]).AsIChatClient())
+    return new ChatClientBuilder(openAiClient.GetChatClient(cfg["LLM:ModelId"]).AsIChatClient())
         .UseFunctionInvocation()
         .Build();
 });
 builder.Services.AddHangfire(config =>
     config.UsePostgreSqlStorage(c =>
-            c.UseNpgsqlConnection(builder.Configuration["Connection"]?.ToString()),
+            c.UseNpgsqlConnection(builder.Configuration["Connection"]),
         new PostgreSqlStorageOptions
         {
             // 控制过期任务清理频率（默认是1小时，这里改为1分钟）
@@ -93,10 +91,7 @@ var serviceTypes = assembly.GetTypes()
                 !t.IsAbstract)
     .ToList();
 
-foreach (var serviceType in serviceTypes)
-{
-    builder.Services.AddSingleton(serviceType);
-}
+foreach (var serviceType in serviceTypes) builder.Services.AddSingleton(serviceType);
 
 var app = builder.Build();
 var zh = new CultureInfo("zh-CN");
