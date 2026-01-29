@@ -1,614 +1,593 @@
 <!DOCTYPE html>
 <html lang="zh-cn">
-
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>加班申请查询</title>
-    <link rel="stylesheet" href="/lib/fontawesome/all.min.css"/>
     
+    <!-- Libraries -->
+    <link rel="stylesheet" href="/lib/fontawesome/all.min.css"/>
+    <script src="/lib/tailwindcss/tailwindcss.js"></script>
+    <script src="/lib/alpine/alpine.min.js" defer></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ios: {
+                            blue: '#007AFF',
+                            gray: '#8E8E93',
+                            bg: '#F5F5F7', /* Slightly darker iOS background */
+                            card: 'rgba(255, 255, 255, 0.72)',
+                            separator: 'rgba(60, 60, 67, 0.36)'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', '"Inter"', '"Helvetica Neue"', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        :root {
-            --glass-bg: rgba(255, 255, 255, 0.75);
-            --glass-border: rgba(255, 255, 255, 0.5);
-            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
-            --ios-blue: #007AFF;
-            --text-main: #1d1d1f;
-            --font-stack: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
-        }
-
+        [x-cloak] { display: none !important; }
+        
         body {
-            font-family: var(--font-stack);
-            margin: 0;
-            padding: 0;
-            height: 100vh; /* Fixed height for body */
-            color: var(--text-main);
-            background-color: #f0f4f8;
-            position: relative;
-            overflow: hidden; /* Prevent body scroll */
-            display: flex;
-            flex-direction: column;
+            background-color: #f8fafc;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.08) 0px, transparent 50%), 
+                radial-gradient(at 100% 0%, rgba(244, 63, 94, 0.08) 0px, transparent 50%), 
+                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.08) 0px, transparent 50%),
+                radial-gradient(at 0% 100%, rgba(139, 92, 246, 0.08) 0px, transparent 50%);
+            background-attachment: fixed;
         }
 
-        .liquid-bg {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: -1;
-            overflow: hidden;
-            background: #f2f6ff;
-        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
 
-        .blob {
-            position: absolute;
-            filter: blur(60px);
-            opacity: 0.6;
-            border-radius: 50%;
-            animation: move 10s infinite alternate;
-        }
-
-        .blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: #e0f2ff; }
-        .blob-2 { bottom: -10%; right: -10%; width: 50vw; height: 50vw; background: #e6e6ff; animation-delay: -5s; }
-
-        @keyframes move {
-            from { transform: translate(0, 0); }
-            to { transform: translate(20px, 20px); }
-        }
-
-        .container {
-            width: 95%;
-            margin: 0 auto;
-            padding: 20px;
-            height: 100%; /* Full height */
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .header-section {
-            text-align: center;
-            margin-bottom: 20px;
-            flex-shrink: 0;
-        }
-
-        h1 {
-            font-size: 2rem;
-            font-weight: 700;
-            margin: 0;
-            color: #1d1d1f;
-        }
-
-        .glass-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            box-shadow: var(--glass-shadow);
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            flex-grow: 1; /* Take remaining space */
-            overflow: hidden; /* Contain children */
-        }
-
-        .card-header {
-            flex-shrink: 0;
-            margin-bottom: 16px;
-            border-bottom: 1px solid rgba(0,0,0,0.05);
-            padding-bottom: 16px;
-        }
-
-        .card-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .filter-row {
-            display: flex;
-            gap: 15px;
-            align-items: flex-end;
-            flex-wrap: wrap;
-        }
-
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .input-group label {
-            font-size: 13px;
-            font-weight: 500;
-            color: #666;
-            margin-left: 2px;
-        }
-
-        .ios-input {
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            background: rgba(255, 255, 255, 0.6);
-            border-radius: 10px;
-            padding: 8px 12px;
-            font-size: 14px;
-            outline: none;
-            transition: all 0.2s;
-            width: 150px;
-        }
-
-        .ios-input:focus {
-            background: #fff;
-            border-color: var(--ios-blue);
-            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
-        }
-
-        .ios-btn {
-            background: var(--ios-blue);
-            color: white;
-            border: none;
-            padding: 8px 20px;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            height: 38px;
-        }
-
-        .ios-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 10px rgba(0, 122, 255, 0.25);
-        }
-
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent; 
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(0, 0, 0, 0.2); 
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(0, 0, 0, 0.3); 
-        }
-
-        /* Table Styling */
-        .table-container {
-            flex-grow: 1; /* Fill remaining space */
-            overflow: auto; /* Enable scroll */
-            border-radius: 12px;
-            border: 1px solid rgba(0,0,0,0.08);
-            position: relative; /* For sticky header context */
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-            white-space: nowrap;
-        }
-
-        thead {
-            position: sticky;
-            top: 0;
-            z-index: 20; /* Higher than body content */
-        }
-        
-        thead tr th {
-            position: relative; /* For resizer */
-            padding: 12px 16px;
-            font-weight: 600;
-            color: #444;
-            border-bottom: 1px solid rgba(0,0,0,0.1);
-            border-right: 1px solid rgba(0,0,0,0.05);
-            text-align: center;
-            background: rgba(245, 245, 247, 0.98); /* Ensure solid background */
-            backdrop-filter: blur(10px);
-            background-clip: padding-box;
-        }
-
-        thead tr:first-child th {
-            border-bottom: 1px solid rgba(0,0,0,0.1);
-            text-align: center;
-        }
-
-        /* Adjust specific header backgrounds if needed, but the general one above covers it. 
-           We can keep the colored groups if we want, overriding the default. */
-        thead tr:first-child th:nth-child(1) { background: rgba(240,240,245,0.98); }
-        thead tr:first-child th:nth-child(2) { background: rgba(220,230,250,0.98); }
-        thead tr:first-child th:nth-child(3) { background: rgba(220,250,230,0.98); }
-
-        tbody tr {
-            background: rgba(255, 255, 255, 0.4);
-            border-bottom: 1px solid rgba(0,0,0,0.05);
-            transition: background 0.1s;
-        }
-
-        tbody tr:hover {
-            background: rgba(255, 255, 255, 0.9);
-        }
-
-        td {
-            padding: 10px 16px;
-            border-right: 1px solid rgba(0,0,0,0.03);
-            vertical-align: middle;
-            text-align: center; /* Center align all cells */
-        }
-
-        .sticky-col {
-            position: sticky;
-            left: 0;
-            z-index: 6; /* Body sticky col */
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(8px);
-            box-shadow: 2px 0 8px rgba(0,0,0,0.05);
-        }
-
-        /* Header sticky col needs higher z-index */
-        thead th.sticky-col {
-            z-index: 30;
-            background: rgba(245, 245, 247, 0.98); /* Match header bg */
-        }
-
-        .resizer {
-            position: absolute;
-            right: 0;
-            top: 0;
-            height: 100%;
-            width: 5px;
-            background: rgba(0, 0, 0, 0);
-            cursor: col-resize;
-            user-select: none;
-            touch-action: none;
-            z-index: 100;
-        }
-        
-        .resizer:hover, .resizing {
-            background: rgba(0, 122, 255, 0.5); /* Blue highlight on hover/drag */
-        }
-
-        .text-wrap {
-            white-space: normal;
-            min-width: 200px;
-            max-width: 300px;
-            line-height: 1.4;
-            text-align: left; /* Keep long text left aligned for readability */
-            margin: 0 auto; /* Center the block itself if needed */
-        }
-
-        .badge {
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 500;
-            display: inline-block;
-        }
-        .badge.green { background: rgba(52, 199, 89, 0.15); color: #34C759; }
-        .badge.red { background: rgba(255, 59, 48, 0.15); color: #FF3B30; }
-        .badge.gray { background: rgba(142, 142, 147, 0.15); color: #8E8E93; }
-
-        .pagination {
-            flex-shrink: 0;
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            margin-top: 15px;
-            gap: 15px;
-            font-size: 13px;
-            color: #666;
-            padding-top: 10px;
-            border-top: 1px solid rgba(0,0,0,0.05);
-        }
-        
-        .page-btn {
-            background: white;
-            border: 1px solid #ddd;
-            padding: 5px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-        .page-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .loading-overlay {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(255,255,255,0.7);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 10;
-            border-radius: 16px;
+        /* Animation */
+        .fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
+<body class="bg-ios-bg text-gray-900 h-screen overflow-hidden flex flex-col font-sans antialiased" x-data="app()">
 
-<body>
-
-<div class="liquid-bg">
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
-</div>
-
-<div class="container">
-    <div class="header-section">
-        <h1>加班申请查询</h1>
-    </div>
-
-    <div class="glass-card">
-        <div class="card-header">
-            <div class="card-title"><i class="fas fa-search"></i> 查询条件</div>
-            <div class="filter-row">
-                <div class="input-group">
-                    <label>开始日期</label>
-                    <input type="date" id="startDate" class="ios-input">
-                </div>
-                <div class="input-group">
-                    <label>结束日期</label>
-                    <input type="date" id="endDate" class="ios-input">
-                </div>
-                <div class="input-group">
-                    <label>部门名称</label>
-                    <input type="text" id="orgName" class="ios-input" value="管网产品组" placeholder="例如: 管网产品组">
-                </div>
-                <div class="input-group">
-                    <label>申请人</label>
-                    <input type="text" id="applicant" class="ios-input" placeholder="姓名">
-                </div>
-                <button class="ios-btn" onclick="search()"><i class="fas fa-search"></i> 查询</button>
-            </div>
-        </div>
+    <!-- Main Container -->
+    <div class="flex-1 flex flex-col max-w-[1600px] mx-auto w-full h-full p-4 sm:p-6 overflow-hidden">
         
-        <div style="position: relative; flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
-            <div id="loading" class="loading-overlay" style="display: none;">
-                <i class="fas fa-spinner fa-spin fa-2x" style="color: var(--ios-blue)"></i>
+        <!-- Header & Filter -->
+        <header class="flex-shrink-0 mb-5 flex flex-col gap-4">
+            <div class="flex justify-between items-end">
+                <div>
+                    <h1 class="text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-3">
+                        加班申请
+                        <span class="px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 text-sm font-semibold tracking-wide" x-text="pagination.total">0</span>
+                    </h1>
+                    <p class="text-sm text-gray-500 mt-1 font-medium">Overtime Application Management</p>
+                </div>
             </div>
 
-            <div class="table-container">
-                <table>
-                    <thead>
+            <!-- Filter Bar -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200/60 p-1.5 flex flex-wrap items-center gap-2">
+                
+                <!-- Date Range -->
+                <div class="flex items-center bg-gray-100/50 rounded-lg p-1 border border-transparent focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500/50 transition-all">
+                    <div class="flex items-center px-2 text-gray-400">
+                        <i class="far fa-calendar-alt"></i>
+                    </div>
+                    <input type="date" x-model="params.startDate" class="bg-transparent border-none text-sm p-1.5 focus:ring-0 text-gray-700 w-32 font-medium">
+                    <span class="text-gray-400 px-1">-</span>
+                    <input type="date" x-model="params.endDate" class="bg-transparent border-none text-sm p-1.5 focus:ring-0 text-gray-700 w-32 font-medium">
+                </div>
+
+                <div class="h-6 w-px bg-gray-200 mx-1"></div>
+
+                <!-- Dept -->
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                        <i class="fas fa-building text-xs"></i>
+                    </div>
+                    <input type="text" x-model="params.orgName" placeholder="部门名称" 
+                           class="pl-8 w-32 sm:w-40 bg-gray-100/50 border-transparent rounded-lg py-2 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all placeholder-gray-400 font-medium">
+                </div>
+
+                <!-- Applicant -->
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                        <i class="fas fa-user text-xs"></i>
+                    </div>
+                    <input type="text" x-model="params.applicant" placeholder="姓名" 
+                           class="pl-8 w-24 sm:w-32 bg-gray-100/50 border-transparent rounded-lg py-2 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all placeholder-gray-400 font-medium">
+                </div>
+
+                <!-- Status Filter -->
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                        <i class="fas fa-filter text-xs"></i>
+                    </div>
+                    <select x-model="params.status" 
+                            class="pl-8 w-32 sm:w-40 bg-gray-100/50 border-transparent rounded-lg py-2 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all text-gray-700 font-medium appearance-none cursor-pointer">
+                        <option value="">所有状态</option>
+                        <optgroup label="计划状态">
+                            <option value="plan_is_pass:1">计划已通过</option>
+                            <option value="plan_is_pass:0">计划已拒绝</option>
+                        </optgroup>
+                        <optgroup label="实际状态">
+                            <option value="is_pass:1">实际已通过</option>
+                            <option value="is_pass:0">实际已拒绝</option>
+                        </optgroup>
+                    </select>
+                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
+                        <i class="fas fa-chevron-down text-[10px]"></i>
+                    </div>
+                </div>
+
+                <div class="flex-1"></div>
+
+                <!-- Search Button -->
+                <button @click="search" 
+                        class="bg-black hover:bg-gray-800 text-white px-6 py-2 rounded-lg text-sm font-medium shadow-md transition-all active:scale-95 flex items-center gap-2">
+                    <i class="fas fa-search" :class="{'fa-spin': loading}"></i>
+                    <span x-text="loading ? '搜索中' : '搜索'"></span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Card -->
+        <main class="flex-1 bg-white border border-gray-200 shadow-sm rounded-xl overflow-hidden flex flex-col relative">
+            
+            <!-- Loading Overlay -->
+            <div x-show="loading" class="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-50 flex justify-center items-center transition-opacity"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100"
+                 x-transition:leave-end="opacity-0">
+                <div class="bg-white p-4 rounded-2xl shadow-xl flex flex-col items-center border border-gray-100">
+                    <i class="fas fa-circle-notch fa-spin text-blue-500 text-3xl mb-3"></i>
+                    <span class="text-sm font-medium text-gray-600">加载数据...</span>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <template x-if="!loading && items.length === 0">
+                <div class="flex-1 flex flex-col justify-center items-center text-gray-400 bg-gray-50/50">
+                    <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-gray-100">
+                        <i class="fas fa-inbox text-3xl opacity-30 text-gray-400"></i>
+                    </div>
+                    <p class="text-base font-medium text-gray-500">暂无数据</p>
+                    <p class="text-sm text-gray-400 mt-1">请尝试调整筛选条件</p>
+                </div>
+            </template>
+
+            <!-- Data Table -->
+            <div class="flex-1 overflow-auto" x-show="items.length > 0">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 sticky top-0 z-10 shadow-sm">
                         <tr>
-                            <th colspan="5" style="text-align: center; background: rgba(240,240,245,0.95);">基本信息</th>
-                            <th colspan="6" style="text-align: center; background: rgba(220,230,250,0.95);">计划加班</th>
-                            <th colspan="8" style="text-align: center; background: rgba(220,250,230,0.95);">实际加班</th>
-                        </tr>
-                        <tr>
-                            <!-- Basic -->
-                            <th class="sticky-col">申请人</th>
-                            <th>部门</th>
-                            <th>工单号</th>
-                            <th>类型</th>
-                            <th>地点</th>
-                            
-                            <!-- Plan -->
-                            <th>开始时间</th>
-                            <th>结束时间</th>
-                            <th>时长</th>
-                            <th>事由</th>
-                            <th>审批</th>
-                            <th>审批人</th>
-                            
-                            <!-- Actual -->
-                            <th>开始时间</th>
-                            <th>结束时间</th>
-                            <th>时长</th>
-                            <th>核减</th>
-                            <th>内容</th>
-                            <th>审批</th>
-                            <th>意见</th>
-                            <th>审批人</th>
+                            <th class="py-3.5 pl-6 pr-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">申请人</th>
+                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">部门</th>
+                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">工单号</th>
+                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">类型/地点</th>
+                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">计划时间</th>
+                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200 text-center">计划</th>
+                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">实际时间</th>
+                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200 text-center">实际</th>
+                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200 text-center">状态</th>
+                            <th class="py-3.5 pl-3 pr-6 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200 text-right">审批人</th>
                         </tr>
                     </thead>
-                    <tbody id="tableBody">
-                        <!-- Rows rendered here -->
+                    <tbody class="divide-y divide-gray-100">
+                        <template x-for="(item, idx) in items" :key="item.id || idx">
+                            <tr class="hover:bg-blue-50/40 transition-colors duration-150 cursor-pointer group" @click="openDetail(item)">
+                                <!-- User -->
+                                <td class="py-3 pl-6 pr-3 whitespace-nowrap">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 text-sm font-bold border border-gray-200 group-hover:bg-white group-hover:border-blue-200 group-hover:text-blue-600 transition-colors">
+                                            <span x-text="(item.user_id$$text || '?')[0]"></span>
+                                        </div>
+                                        <div>
+                                            <div class="font-semibold text-gray-900 text-sm" x-text="item.user_id$$text"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                
+                                <!-- Dept -->
+                                <td class="py-3 px-3 whitespace-nowrap">
+                                    <div class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md inline-block max-w-[140px] truncate" x-text="item.org_id$$text"></div>
+                                </td>
+
+                                <!-- Order No -->
+                                <td class="py-3 px-3 whitespace-nowrap">
+                                    <div class="font-mono text-xs text-gray-400 group-hover:text-gray-600" x-text="item.order_no"></div>
+                                </td>
+
+                                <!-- Type -->
+                                <td class="py-3 px-3 whitespace-nowrap">
+                                    <div class="flex flex-col gap-1">
+                                        <span class="text-sm font-medium text-gray-700" x-text="item.work_overtime_type$$text"></span>
+                                        <div class="flex items-center gap-1 text-[11px] text-gray-400">
+                                            <i class="fas fa-map-marker-alt text-[10px]"></i>
+                                            <span x-text="item.position$$text"></span>
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <!-- Plan Time -->
+                                <td class="py-3 px-3 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900 font-mono" x-text="formatFullTimeRange(item.plan_start_time, item.plan_end_time)"></div>
+                                </td>
+
+                                <!-- Plan Hours -->
+                                <td class="py-3 px-3 whitespace-nowrap text-center">
+                                    <span class="font-mono text-sm font-bold text-gray-700" x-text="(item.plan_work_overtime_hour || 0)"></span>
+                                    <span class="text-xs text-gray-400">h</span>
+                                </td>
+
+                                <!-- Actual Time -->
+                                <td class="py-3 px-3 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900 font-mono" x-text="formatFullTimeRange(item.start_time, item.end_time)"></div>
+                                </td>
+
+                                <!-- Actual Hours -->
+                                <td class="py-3 px-3 whitespace-nowrap text-center">
+                                    <div x-show="item.work_overtime_hour" class="inline-flex flex-col items-center">
+                                        <div>
+                                            <span class="font-mono text-sm font-bold text-green-600" x-text="item.work_overtime_hour"></span>
+                                            <span class="text-xs text-green-600/70">h</span>
+                                        </div>
+                                        <div x-show="item.work_overtime_hour_sub > 0" class="text-[10px] text-red-500 bg-red-50 px-1 rounded leading-tight mt-0.5">
+                                            减<span x-text="item.work_overtime_hour_sub"></span>
+                                        </div>
+                                    </div>
+                                    <span x-show="!item.work_overtime_hour" class="text-gray-300 text-xs">-</span>
+                                </td>
+
+                                <!-- Status -->
+                                <td class="py-3 px-3 whitespace-nowrap">
+                                    <div class="flex flex-col gap-1.5 w-full items-center">
+                                        <!-- Plan Status -->
+                                        <div class="flex items-center justify-end gap-2 w-24">
+                                            <span class="text-[10px] text-gray-400 font-medium">计划</span>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border shadow-sm w-[46px] justify-center"
+                                                  :class="getStatusClass(item.plan_is_pass)">
+                                                <span x-text="getStatusText(item.plan_is_pass)"></span>
+                                            </span>
+                                        </div>
+                                        <!-- Actual Status -->
+                                        <div class="flex items-center justify-end gap-2 w-24">
+                                             <span class="text-[10px] text-gray-400 font-medium" :class="{'opacity-0': !item.start_time}">实际</span>
+                                             
+                                             <span x-show="item.is_pass" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border shadow-sm w-[46px] justify-center"
+                                                  :class="getStatusClass(item.is_pass)">
+                                                <span x-text="getStatusText(item.is_pass)"></span>
+                                            </span>
+                                            
+                                            <span x-show="!item.is_pass && item.start_time" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border border-gray-200 bg-gray-50 text-gray-400 w-[46px] justify-center">
+                                                <span>审批中</span>
+                                            </span>
+                                            
+                                            <span x-show="!item.start_time" class="w-[46px] h-[18px]"></span>
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <!-- Approver -->
+                                <td class="py-3 pl-3 pr-6 whitespace-nowrap text-right">
+                                    <span class="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-1 rounded border border-gray-100" x-text="item.approval_user_id$$text || '-'"></span>
+                                </td>
+                            </tr>
+                        </template>
                     </tbody>
                 </table>
             </div>
-        </div>
 
-        <div class="pagination">
-            <span id="pageInfo">第 1 页</span>
-            <div>
-                <button class="page-btn" id="prevBtn" onclick="changePage(-1)">上一页</button>
-                <button class="page-btn" id="nextBtn" onclick="changePage(1)">下一页</button>
+            <!-- Pagination -->
+            <div class="flex-shrink-0 px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+                <span class="text-xs text-gray-500 font-medium">
+                    第 <span x-text="pagination.current"></span> 页，共 <span x-text="Math.ceil(pagination.total / pagination.size)"></span> 页
+                </span>
+                
+                <div class="flex items-center gap-2">
+                    <button @click="changePage(-1)" :disabled="pagination.current <= 1"
+                            class="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-blue-600 disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-gray-600 transition-all shadow-sm">
+                        <i class="fas fa-chevron-left text-xs"></i>
+                    </button>
+                    <button @click="changePage(1)" :disabled="pagination.current * pagination.size >= pagination.total"
+                            class="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-blue-600 disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-gray-600 transition-all shadow-sm">
+                        <i class="fas fa-chevron-right text-xs"></i>
+                    </button>
+                </div>
             </div>
+        </main>
+    </div>
+
+    <!-- Detail Modal -->
+    <div x-show="selectedItem" x-cloak 
+         class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
+         style="background: rgba(0,0,0,0.2); backdrop-filter: blur(4px);">
+        
+        <!-- Backdrop Click -->
+        <div class="absolute inset-0" @click="selectedItem = null"></div>
+
+        <!-- Modal Content -->
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col transform transition-all"
+             x-show="selectedItem"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-8"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+             x-transition:leave-end="opacity-0 scale-95 translate-y-8">
+            
+            <template x-if="selectedItem">
+                <div>
+                    <!-- Modal Header -->
+                    <div class="px-8 py-6 border-b border-gray-100 flex justify-between items-start bg-gray-50/50">
+                        <div class="flex items-center gap-5">
+                            <div class="w-16 h-16 rounded-full bg-white border-2 border-white shadow-md flex items-center justify-center text-blue-600 text-2xl font-bold">
+                                <span x-text="(selectedItem.user_id$$text || '?')[0]"></span>
+                            </div>
+                            <div>
+                                <h2 class="text-2xl font-bold text-gray-900" x-text="selectedItem.user_id$$text"></h2>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <span class="px-2 py-0.5 rounded bg-gray-200 text-gray-600 text-xs font-semibold" x-text="selectedItem.org_id$$text"></span>
+                                    <span class="text-gray-400 text-xs">•</span>
+                                    <span class="text-gray-500 text-sm" x-text="selectedItem.work_overtime_type$$text"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <button @click="selectedItem = null" class="w-8 h-8 rounded-full bg-gray-200 text-gray-500 hover:bg-gray-300 flex items-center justify-center transition-colors">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+
+                    <!-- Modal Body -->
+                    <div class="p-8">
+                        <div class="flex flex-col md:flex-row gap-8">
+                            
+                            <!-- Left: Plan -->
+                            <div class="flex-1 flex flex-col space-y-4">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <div class="w-1.5 h-6 rounded-full bg-blue-500"></div>
+                                    <h3 class="text-lg font-bold text-gray-900">计划信息</h3>
+                                </div>
+                                
+                                <div class="bg-gray-50 rounded-xl p-5 border border-gray-100 space-y-4 hover:shadow-sm transition-shadow flex-1">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <div class="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">时间范围</div>
+                                            <div class="text-sm font-medium text-gray-900 font-mono" x-text="formatFullTimeRange(selectedItem.plan_start_time, selectedItem.plan_end_time)"></div>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">计划时长</div>
+                                            <div class="text-2xl font-bold text-gray-900 font-mono" x-text="(selectedItem.plan_work_overtime_hour || 0) + 'h'"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="h-px bg-gray-200 w-full"></div>
+
+                                    <div>
+                                        <div class="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">加班事由</div>
+                                        <p class="text-sm text-gray-700 leading-relaxed bg-white p-3 rounded-lg border border-gray-100" 
+                                           x-text="selectedItem.subject_matter || '无'"></p>
+                                    </div>
+                                    
+                                    <div x-show="selectedItem.plan_approval_opinion">
+                                        <div class="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">审批意见</div>
+                                        <p class="text-sm text-gray-700 leading-relaxed bg-orange-50 p-3 rounded-lg border border-orange-100 text-orange-800" 
+                                           x-text="selectedItem.plan_approval_opinion"></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right: Actual -->
+                            <div class="flex-1 flex flex-col space-y-4">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <div class="w-1.5 h-6 rounded-full bg-green-500"></div>
+                                    <h3 class="text-lg font-bold text-gray-900">实际执行</h3>
+                                </div>
+
+                                <template x-if="selectedItem.start_time">
+                                    <div class="bg-green-50/30 rounded-xl p-5 border border-green-100 space-y-4 hover:shadow-sm transition-shadow flex-1">
+                                        <div class="flex justify-between items-start">
+                                            <div>
+                                                <div class="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">实际时间</div>
+                                                <div class="text-sm font-medium text-gray-900 font-mono" x-text="formatFullTimeRange(selectedItem.start_time, selectedItem.end_time)"></div>
+                                            </div>
+                                            <div class="text-right">
+                                                <div class="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">实际时长</div>
+                                                <div class="text-2xl font-bold text-green-600 font-mono" x-text="(selectedItem.work_overtime_hour || 0) + 'h'"></div>
+                                                <div x-show="selectedItem.work_overtime_hour_sub > 0" class="text-xs text-red-500 font-medium mt-1">
+                                                    (核减 <span x-text="selectedItem.work_overtime_hour_sub"></span>h)
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="h-px bg-green-200/50 w-full"></div>
+
+                                        <div>
+                                            <div class="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">实际工作内容</div>
+                                            <p class="text-sm text-gray-700 leading-relaxed bg-white p-3 rounded-lg border border-green-100" 
+                                               x-text="selectedItem.real_subject_matter || '无'"></p>
+                                        </div>
+
+                                        <div x-show="selectedItem.approval_opinion">
+                                            <div class="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">审批意见</div>
+                                            <p class="text-sm text-gray-700 leading-relaxed bg-orange-50 p-3 rounded-lg border border-orange-100 text-orange-800" 
+                                               x-text="selectedItem.approval_opinion"></p>
+                                        </div>
+                                    </div>
+                                </template>
+                                
+                                <template x-if="!selectedItem.start_time">
+                                    <div class="flex-1 flex flex-col items-center justify-center text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-xl min-h-[200px]">
+                                        <i class="far fa-clock text-4xl mb-3 opacity-20"></i>
+                                        <span class="text-sm font-medium">尚未填报实际加班</span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal Footer -->
+                    <div class="px-8 py-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center text-xs text-gray-500">
+                        <div class="flex items-center gap-4">
+                            <span class="font-mono text-gray-400">ID: <span x-text="selectedItem.order_no"></span></span>
+                        </div>
+                        <div class="flex items-center gap-6">
+                            <div class="flex items-center gap-2">
+                                <span class="uppercase tracking-wider font-semibold text-[10px] text-gray-400">计划审批</span>
+                                <span class="font-medium text-gray-700 bg-white px-2 py-0.5 rounded border border-gray-200" x-text="selectedItem.approval_user_id$$text || '-'"></span>
+                                <span x-html="getStatusBadgeHtml(selectedItem.plan_is_pass)"></span>
+                            </div>
+                            <div class="flex items-center gap-2" x-show="selectedItem.is_pass">
+                                <span class="uppercase tracking-wider font-semibold text-[10px] text-gray-400">实际审批</span>
+                                <span class="font-medium text-gray-700 bg-white px-2 py-0.5 rounded border border-gray-200" x-text="selectedItem.approval_user_id$$text || '-'"></span>
+                                <span x-html="getStatusBadgeHtml(selectedItem.is_pass)"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
         </div>
     </div>
-</div>
 
-<script>
-    let currentPage = 1;
-    const pageSize = 30;
-    let totalItems = 0;
+    <script>
+        function app() {
+            return {
+                loading: false,
+                items: [],
+                selectedItem: null,
+                params: {
+                    startDate: '',
+                    endDate: '',
+                    orgName: '管网产品组',
+                    applicant: '',
+                    status: ''
+                },
+                pagination: {
+                    current: 1,
+                    size: 30,
+                    total: 0
+                },
 
-    // 初始化日期为最近7天
-    function initDates() {
-        const end = new Date();
-        const start = new Date();
-        start.setDate(end.getDate() - 6);
-        
-        document.getElementById('endDate').valueAsDate = end;
-        document.getElementById('startDate').valueAsDate = start;
-    }
+                init() {
+                    this.initDates();
+                    this.loadData();
+                    window.addEventListener('keydown', (e) => {
+                        if (e.key === 'Escape') this.selectedItem = null;
+                    });
+                },
 
-    function formatDateTime(str) {
-        if (!str) return '-';
-        return str.replace('T', ' ');
-    }
+                initDates() {
+                    const end = new Date();
+                    const start = new Date();
+                    start.setDate(end.getDate() - 6);
+                    this.params.endDate = end.toISOString().split('T')[0];
+                    this.params.startDate = start.toISOString().split('T')[0];
+                },
 
-    function search() {
-        currentPage = 1;
-        loadData();
-    }
+                search() {
+                    this.pagination.current = 1;
+                    this.loadData();
+                },
 
-    function changePage(delta) {
-        const newPage = currentPage + delta;
-        if (newPage < 1) return;
-        // if (newPage > Math.ceil(totalItems / pageSize)) return; // Optional check
-        currentPage = newPage;
-        loadData();
-    }
+                changePage(delta) {
+                    this.pagination.current += delta;
+                    this.loadData();
+                },
 
-    async function loadData() {
-        const loading = document.getElementById('loading');
-        loading.style.display = 'flex';
-        
-        const startDate = document.getElementById('startDate').value;
-        const endDate = document.getElementById('endDate').value;
-        const orgName = document.getElementById('orgName').value;
-        const applicant = document.getElementById('applicant').value;
+                openDetail(item) {
+                    this.selectedItem = item;
+                },
 
-        // Simplified payload matching the new backend DTO
-        const payload = {
-            index: currentPage,
-            size: pageSize,
-            startDate: startDate ? new Date(startDate) : null,
-            endDate: endDate ? new Date(endDate) : null,
-            departmentName: orgName || null,
-            applicantName: applicant || null
-        };
+                async loadData() {
+                    this.loading = true;
+                    try {
+                        const payload = {
+                            index: this.pagination.current,
+                            size: this.pagination.size,
+                            startDate: this.params.startDate ? new Date(this.params.startDate) : null,
+                            endDate: this.params.endDate ? new Date(this.params.endDate) : null,
+                            departmentName: this.params.orgName || null,
+                            applicantName: this.params.applicant || null,
+                            status: this.params.status || null
+                        };
 
-        try {
-            const resp = await fetch('/api/Overtime/QueryOvertimePlan', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+                        const resp = await fetch('/api/Overtime/QueryOvertimePlan', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
 
-            if (!resp.ok) {
-                const txt = await resp.text();
-                alert('查询失败: ' + txt);
-                return;
+                        if (!resp.ok) throw new Error(await resp.text());
+
+                        const data = await resp.json();
+                        if (data.Code === 0 && data.Response) {
+                            this.items = data.Response.rows;
+                            this.pagination.total = data.Response.total;
+                        }
+                    } catch (e) {
+                        console.error(e);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                formatFullTimeRange(start, end) {
+                    if (!start || !end) return '-';
+                    try {
+                        // Normalize separators to space
+                        const s = start.replace('T', ' ').trim();
+                        const e = end.replace('T', ' ').trim();
+                        
+                        const startDate = s.split(' ')[0];
+                        const endDate = e.split(' ')[0];
+                        
+                        // Extract time HH:mm safely
+                        const startTime = (s.split(' ')[1] || '00:00').substring(0, 5);
+                        const endTime = (e.split(' ')[1] || '00:00').substring(0, 5);
+
+                        if (startDate === endDate) {
+                            return `${startDate} ${startTime} - ${endTime}`;
+                        } else {
+                            return `${startDate} ${startTime} - ${endDate} ${endTime}`;
+                        }
+                    } catch (err) {
+                        return '-';
+                    }
+                },
+
+                getStatusText(status) {
+                    if (status === "1") return '通过';
+                    if (status === "0") return '拒绝';
+                    return '待定';
+                },
+
+                getStatusClass(status) {
+                    if (status === "1") return 'bg-green-50 text-green-600 border-green-200';
+                    if (status === "0") return 'bg-red-50 text-red-600 border-red-200';
+                    return 'bg-gray-100 text-gray-500 border-gray-200';
+                },
+
+                getStatusBadgeHtml(status) {
+                    const text = this.getStatusText(status);
+                    let colorClass = 'bg-gray-100 text-gray-500';
+                    if (status === "1") colorClass = 'bg-green-100 text-green-700';
+                    if (status === "0") colorClass = 'bg-red-100 text-red-700';
+                    return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${colorClass}">${text}</span>`;
+                }
             }
-
-            const data = await resp.json();
-            if (data.Code === 0 && data.Response) {
-                renderTable(data.Response.rows);
-                totalItems = data.Response.total;
-                updatePagination();
-            } else {
-                alert('API错误: ' + (data.Message || '未知错误'));
-            }
-
-        } catch (e) {
-            console.error(e);
-            alert('请求异常: ' + e.message);
-        } finally {
-            loading.style.display = 'none';
         }
-    }
-
-    function renderTable(rows) {
-        const tbody = document.getElementById('tableBody');
-        tbody.innerHTML = '';
-        
-        if (!rows || rows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="19" style="text-align:center; padding: 20px; color:#999;">无数据</td></tr>';
-            return;
-        }
-
-        rows.forEach(row => {
-            const tr = document.createElement('tr');
-            
-            // Helper for approval status
-            const getStatusBadge = (status) => {
-                if (status === "1") return '<span class="badge green">通过</span>';
-                if (status === "0") return '<span class="badge red">拒绝</span>';
-                return '<span class="badge gray">待定</span>';
-            };
-
-            tr.innerHTML = `
-                <td class="sticky-col">${row.user_id$$text || '-'}</td>
-                <td>${row.org_id$$text || '-'}</td>
-                <td>${row.order_no || '-'}</td>
-                <td>${row.work_overtime_type$$text || '-'}</td>
-                <td>${row.position$$text || '-'}</td>
-
-                <td>${formatDateTime(row.plan_start_time)}</td>
-                <td>${formatDateTime(row.plan_end_time)}</td>
-                <td>${row.plan_work_overtime_hour ?? '-'}</td>
-                <td><div class="text-wrap">${row.subject_matter || '-'}</div></td>
-                <td>${getStatusBadge(row.plan_is_pass)}</td>
-                <td>${row.approval_user_id$$text || '-'}</td>
-
-                <td>${formatDateTime(row.start_time)}</td>
-                <td>${formatDateTime(row.end_time)}</td>
-                <td>${row.work_overtime_hour ?? '-'}</td>
-                <td>${row.work_overtime_hour_sub ?? 0}</td>
-                <td><div class="text-wrap">${row.real_subject_matter || '-'}</div></td>
-                <td>${getStatusBadge(row.is_pass)}</td>
-                <td><div class="text-wrap">${row.approval_opinion || '-'}</div></td>
-                <td>${row.approval_user_id$$text || '-'}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    function updatePagination() {
-        const totalPages = Math.ceil(totalItems / pageSize);
-        document.getElementById('pageInfo').innerText = `第 ${currentPage} 页 / 共 ${totalPages || 1} 页 (总数: ${totalItems})`;
-        
-        document.getElementById('prevBtn').disabled = currentPage <= 1;
-        document.getElementById('nextBtn').disabled = currentPage >= totalPages;
-    }
-
-    // Init
-    initDates();
-    search();
-    initResize(); // Call directly as DOM is ready
-    
-    // Column Resizing Logic
-    function initResize() {
-        const table = document.querySelector('table');
-        const headerCells = table.querySelectorAll('thead tr:last-child th');
-
-        headerCells.forEach(th => {
-            const resizer = document.createElement('div');
-            resizer.classList.add('resizer');
-            th.appendChild(resizer);
-            
-            let x = 0;
-            let w = 0;
-
-            const mouseDownHandler = (e) => {
-                x = e.clientX;
-                const styles = window.getComputedStyle(th);
-                w = parseInt(styles.width, 10);
-                
-                resizer.classList.add('resizing');
-                document.addEventListener('mousemove', mouseMoveHandler);
-                document.addEventListener('mouseup', mouseUpHandler);
-            };
-
-            const mouseMoveHandler = (e) => {
-                const dx = e.clientX - x;
-                th.style.width = `${w + dx}px`;
-                th.style.minWidth = `${w + dx}px`; // Force min-width to respect resize
-            };
-
-            const mouseUpHandler = () => {
-                resizer.classList.remove('resizing');
-                document.removeEventListener('mousemove', mouseMoveHandler);
-                document.removeEventListener('mouseup', mouseUpHandler);
-            };
-
-            resizer.addEventListener('mousedown', mouseDownHandler);
-        });
-    }
-</script>
+    </script>
 </body>
 </html>

@@ -88,6 +88,21 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
             });
         }
 
+        if (!string.IsNullOrEmpty(query.Status))
+        {
+            var parts = query.Status.Split(':');
+            if (parts.Length == 2)
+            {
+                conditions.Add(new
+                {
+                    Field = parts[0],
+                    Value = parts[1],
+                    Operate = "=",
+                    Relation = "and"
+                });
+            }
+        }
+
         var payload = new
         {
             index = query.Index,

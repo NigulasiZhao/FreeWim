@@ -6,6 +6,7 @@ public class OvertimeQueryRequest
     public DateTime? EndDate { get; set; }
     public string? DepartmentName { get; set; }
     public string? ApplicantName { get; set; }
+    public string? Status { get; set; }
     public int Index { get; set; } = 1;
     public int Size { get; set; } = 30;
 }
