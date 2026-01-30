@@ -571,43 +571,48 @@ limit 10;";
     {
         using IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
         var offset = (input.Page - 1) * input.Rows;
-        return Json(dbConnection.Query<RankingOfWorkingHoursOutput>($@"WITH user_stats AS (
-                                   SELECT 
-                                       user_name,user_id,GROUP_CONCAT(DISTINCT org_name) as org_name,
-                                       SUM(work_hours) as total_work_hours,
-                                       SUM(work_overtime/60) as total_overtime,
-                                       -- 工作工时排名
-                                       RANK() OVER (ORDER BY SUM(work_hours) DESC) as work_rank,
-                                       -- 加班排名
-                                       RANK() OVER (ORDER BY SUM(work_overtime) DESC) as overtime_rank,
-                                       COUNT(*) OVER () as total_users
-                                   FROM hd_oa.oa_user_clock_in_record
-                                   where clock_in_date BETWEEN @starttime AND @endtime
-                                   GROUP BY user_name,user_id
-                               )
-                               SELECT 
-                                   user_name as UserName,user_id as UserId,org_name as OrgName,
-                                   total_work_hours as TotalWorkHours,
-                                   total_overtime as TotalOvertime,
-                                   -- 工作工时相关统计
-                                   work_rank as WorkRank,
-                                   total_users - work_rank as WorkSurpassedCount,
-                                   ROUND((total_users - work_rank) * 100.0 / GREATEST(total_users - 1, 1), 2) as WorkSurpassedPercent,
-                                   
-                                   -- 加班相关统计
-                                   overtime_rank as OvertimeRank,
-                                   total_users - overtime_rank as OvertimeSurpassedCount,
-                                   ROUND((total_users - overtime_rank) * 100.0 / GREATEST(total_users - 1, 1), 2) as OvertimeSurpassedPercent,
-                                   
-                                   -- 综合描述
-                                   CONCAT('工时排名第', work_rank, '名，超越了', total_users - work_rank, '人(', 
-                                          ROUND((total_users - work_rank) * 100.0 / GREATEST(total_users - 1, 1), 2), '%)；',
-                                          '加班排名第', overtime_rank, '名，超越了', total_users - overtime_rank, '人(', 
-                                          ROUND((total_users - overtime_rank) * 100.0 / GREATEST(total_users - 1, 1), 2), '%)') as RankDescription
-                               FROM user_stats
-                               where 1=1  {(string.IsNullOrEmpty(input.OrgName) ? "" : " AND org_name like @orgname ")} {(string.IsNullOrEmpty(input.UserName) ? "" : " AND user_name like @username ")}
-                               order by  {input.Order} {input.Sort}
-                                LIMIT {input.Rows} OFFSET {offset};",
+        return Json(dbConnection.Query<RankingOfWorkingHoursOutput>($@"WITH base_summary AS (
+    -- 第一层：聚合基础数据，处理精度问题
+    SELECT 
+        user_name,
+        user_id,
+        GROUP_CONCAT(DISTINCT org_name) as org_name,
+        SUM(work_hours) as total_work_hours,
+        SUM(work_overtime) as raw_overtime_sum, -- 保持原始分钟数用于排名，避免精度丢失
+        SUM(work_overtime / 60.0) as total_overtime -- 转换为小时
+    FROM hd_oa.oa_user_clock_in_record
+    WHERE clock_in_date BETWEEN @starttime AND @endtime 
+    {(string.IsNullOrEmpty(input.OrgName) ? "" : " AND org_name LIKE @orgname ")} 
+    {(string.IsNullOrEmpty(input.UserName) ? "" : " AND user_name LIKE @username ")}
+    GROUP BY user_id, user_name
+),
+ranked_stats AS (
+    -- 第二层：执行窗口函数排名
+    SELECT 
+        *,
+        RANK() OVER (ORDER BY total_work_hours DESC) as work_rank,
+        RANK() OVER (ORDER BY raw_overtime_sum DESC) as overtime_rank,
+        COUNT(*) OVER () as total_users
+    FROM base_summary
+)
+SELECT 
+    user_name as UserName,
+    user_id as UserId,
+    org_name as OrgName,
+    total_work_hours as TotalWorkHours,
+    total_overtime as TotalOvertime,
+    work_rank as WorkRank,
+    (total_users - work_rank) as WorkSurpassedCount,
+    ROUND((total_users - work_rank) * 100.0 / GREATEST(total_users - 1, 1), 2) as WorkSurpassedPercent,
+    overtime_rank as OvertimeRank,
+    (total_users - overtime_rank) as OvertimeSurpassedCount,
+    ROUND((total_users - overtime_rank) * 100.0 / GREATEST(total_users - 1, 1), 2) as OvertimeSurpassedPercent,
+    -- 使用格式化模板简化描述生成
+    CONCAT('工时排名第', work_rank, '名，超越了', total_users - work_rank, '人(', 
+           ROUND((total_users - work_rank) * 100.0 / GREATEST(total_users - 1, 1), 2), '%)；',
+           '加班排名第', overtime_rank, '名，超越了', total_users - overtime_rank, '人(', 
+           ROUND((total_users - overtime_rank) * 100.0 / GREATEST(total_users - 1, 1), 2), '%)') as RankDescription
+FROM ranked_stats ORDER BY {input.Order} {input.Sort} LIMIT {input.Rows} OFFSET {offset};",
             new
             {
                 starttime = input.StartTime,
@@ -934,5 +939,48 @@ limit 10;";
         {
             return Json(new { success = false, message = $"执行失败: {ex.Message}" });
         }
+    }
+
+    [Tags("考勤")]
+    [EndpointSummary("用户打卡明细")]
+    [HttpPost]
+    public ActionResult GetUserClockInDetails(UserClockInDetailsInput input)
+    {
+        using IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
+        
+        // 构建查询SQL
+        string sql = @"
+            SELECT 
+                id as Id,
+                user_id as UserId,
+                user_name as UserName,
+                org_name as OrgName,
+                DATE_FORMAT(clock_in_date, '%Y-%m-%d') as ClockInDate,
+                day_of_week as DayOfWeek,
+                check_in_rule as CheckInRule,
+                work_hours as WorkHours,
+                work_minutes as WorkMinutes,
+                clock_in_number as ClockInNumber,
+                is_late as IsLate,
+                is_early as IsEarly,
+                is_absenteeism as IsAbsenteeism,
+                is_rest as IsRest,
+                is_out as IsOut,
+                work_overtime as WorkOvertime,
+                leave_hours as LeaveHours,
+                leave_type as LeaveType
+            FROM hd_oa.oa_user_clock_in_record
+            WHERE clock_in_date BETWEEN @starttime AND @endtime
+            AND (@userid IS NULL OR user_id = @userid)
+            AND (@username IS NULL OR user_name = @username)
+            ORDER BY clock_in_date DESC";
+
+        return Json(dbConnection.Query<UserClockInDetailsOutput>(sql, new
+        {
+            starttime = input.StartTime,
+            endtime = input.EndTime,
+            userid = input.UserId,
+            username = input.UserName
+        }).ToList());
     }
 }

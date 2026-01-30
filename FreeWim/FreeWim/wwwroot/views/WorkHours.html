@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>工时排行榜</title>
+    <script src="/lib/echarts/echarts.min.js"></script>
     <style>
         :root {
             --ios-blue: #007AFF;
@@ -241,6 +242,171 @@
             .search-btn { grid-column: span 2; }
             h1 { display: none; } /* 移动端为了省空间隐藏标题 */
         }
+        /* --- 详情弹窗 --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.5); /* 加深遮罩 */
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .modal-overlay.active { display: flex; opacity: 1; }
+        
+        .modal-content {
+            background: #fff; /* 纯白背景，去除毛玻璃 */
+            width: 90%;
+            max-width: 1200px;
+            height: 90vh;
+            border-radius: 12px; /* 减小圆角 */
+            box-shadow: 0 24px 48px rgba(0,0,0,0.15); /* 更柔和的阴影 */
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transform: scale(0.98);
+            transition: transform 0.2s;
+            position: relative;
+        }
+        .modal-overlay.active .modal-content { transform: scale(1); }
+
+        .modal-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid #e5e5ea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fff;
+            z-index: 10;
+        }
+        .modal-title { font-size: 18px; font-weight: 600; color: #1c1c1e; }
+        .close-btn {
+            background: transparent;
+            border: none;
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; color: #8e8e93;
+            transition: color 0.2s;
+        }
+        .close-btn:hover { color: #1c1c1e; background: #f2f2f7; }
+
+        .modal-body {
+            flex: 1;
+            overflow-y: auto; /* 统一滚动 */
+            padding: 24px;
+            background: #f5f5f7; /* 浅灰底色区分内容 */
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            position: relative; /* 为 loading 定位 */
+        }
+
+        .modal-loading {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            backdrop-filter: blur(2px);
+        }
+        .modal-loading.active { opacity: 1; pointer-events: all; }
+
+        .chart-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #e5e5ea; /* 边框替代阴影 */
+            box-shadow: none;
+        }
+        
+        .chart-container {
+            width: 100%;
+            height: 350px;
+        }
+
+        .detail-table-container {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #e5e5ea;
+            box-shadow: none;
+        }
+
+        .table-scroll-area {
+            width: 100%;
+            overflow-x: hidden; /* 禁止横向滚动 */
+        }
+        
+        .detail-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+        }
+        .detail-table th { 
+            background: #f9f9f9; 
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 13px;
+            color: #8e8e93;
+            font-weight: 600;
+            border-bottom: 1px solid #e5e5ea;
+            position: sticky; /* 表头固定 */
+            top: 0;
+            z-index: 10;
+        }
+        .detail-table td { 
+            padding: 12px 16px; 
+            font-size: 14px; 
+            color: #1c1c1e;
+            border-bottom: 1px solid #f2f2f7;
+            white-space: normal; /* 允许换行 */
+            word-break: break-word; /* 防止长单词撑开 */
+            vertical-align: top;
+        }
+        .detail-table tr:last-child td { border-bottom: none; }
+
+        /* 统计卡片样式 - 简化 */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+        .stat-card {
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid #e5e5ea;
+            box-shadow: none; /* 去除阴影 */
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start; /* 左对齐更像Admin风格 */
+        }
+        .stat-value { font-size: 22px; font-weight: 700; color: #1C1C1E; margin: 4px 0; font-family: "SF Pro Display", sans-serif; }
+        .stat-label { font-size: 12px; color: #8e8e93; display: flex; align-items: center; gap: 4px; }
+        .stat-icon { font-size: 16px; }
+
+        @media (max-width: 768px) {
+            .stat-grid { grid-template-columns: 1fr 1fr; }
+        }
+        .tag {
+            padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 500;
+        }
+        .tag-normal { background: #e8f5e9; color: #2e7d32; }
+        .tag-late { background: #ffebee; color: #c62828; }
+        .tag-overtime { background: #fff3e0; color: #ef6c00; }
+
+        tr.cursor-pointer { cursor: pointer; transition: background 0.2s; }
+        tr.cursor-pointer:hover { background: rgba(0, 122, 255, 0.05); }
+
     </style>
 </head>
 <body>
@@ -311,6 +477,56 @@
         </div>
         
         <div style="height: 40px;"></div>
+    </div>
+
+    <!-- 详情弹窗 -->
+    <div id="detailModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">用户打卡详情</div>
+                <button class="close-btn" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <!-- Loading 遮罩 -->
+                <div id="modalLoading" class="modal-loading">
+                    <div class="spinner" style="width: 40px; height: 40px; border-width: 4px; border-top-color: var(--ios-blue);"></div>
+                    <span style="margin-top: 10px; color: #666; font-size: 14px; font-weight: 500;">正在分析考勤数据...</span>
+                </div>
+
+                <!-- 统计卡片 -->
+                <div class="stat-grid" id="statGrid">
+                    <!-- JS 填充 -->
+                </div>
+
+                <!-- 图表区域 -->
+                <div class="chart-section">
+                    <h3 style="margin-bottom: 15px; font-size: 16px; font-weight: 600;">每日工时趋势</h3>
+                    <div id="trendChart" class="chart-container"></div>
+                </div>
+
+                <!-- 详细数据表格 -->
+                <div class="detail-table-container">
+                    <div style="padding: 16px 20px; font-size: 15px; font-weight: 600; border-bottom: 1px solid #e5e5ea;">每日明细</div>
+                    <div class="table-scroll-area">
+                        <table class="detail-table">
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>星期</th>
+                                    <th>班次/规则</th>
+                                    <th>工时</th>
+                                    <th>加班(小时)</th>
+                                    <th>状态</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detailTableBody">
+                                <!-- JS 填充 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
 <script>
@@ -424,7 +640,10 @@
 
         list.forEach(item => {
             const tr = document.createElement('tr');
-            tr.className = `rank-${item.workRank}`;
+            tr.className = `rank-${item.workRank} cursor-pointer`;
+            // 点击查看详情
+            tr.addEventListener('click', () => showUserDetail(item.userId, item.userName));
+
             tr.innerHTML = `
                 <td class="col-rank"><span class="rank-badge">${item.workRank}</span></td>
                 <td>${item.userName}</td>
@@ -476,6 +695,212 @@
         });
 
         observer.observe(sentinel);
+    }
+
+    // --- 详情弹窗逻辑 ---
+    let trendChart = null;
+
+    async function showUserDetail(userId, userName) {
+        // 显示Loading或打开弹窗
+        const modal = document.getElementById('detailModal');
+        const title = document.getElementById('modalTitle');
+        const tbody = document.getElementById('detailTableBody');
+        const statGrid = document.getElementById('statGrid');
+        const loading = document.getElementById('modalLoading');
+        
+        title.innerText = `${userName} - 考勤详情`;
+        // tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px;">加载中...</td></tr>'; // 移除旧Loading
+        // statGrid.innerHTML = ''; // 可选：保留旧数据直到新数据加载完成，或者清空。为了避免误导，清空较好。
+        statGrid.innerHTML = ''; 
+        tbody.innerHTML = '';
+        
+        modal.classList.add('active');
+        loading.classList.add('active'); // 显示新Loading
+        
+        // 销毁旧图表
+        if(trendChart) { trendChart.dispose(); trendChart = null; }
+
+        try {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            // 模拟延迟，让Loading展示一会
+            await new Promise(r => setTimeout(r, 500));
+
+            const res = await fetch('/api/AttendanceRecord/GetUserClockInDetails', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                    userId: userId,
+                    userName: userName,
+                    startTime: startDate,
+                    endTime: endDate
+                })
+            });
+            
+            if(!res.ok) throw new Error("Fetch Error");
+            const data = await res.json();
+            
+            renderStats(data);
+            renderDetailTable(data);
+            initCharts(data);
+            
+        } catch(e) {
+            console.error(e);
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: red; padding: 20px;">加载失败</td></tr>';
+        } finally {
+            loading.classList.remove('active'); // 隐藏Loading
+        }
+    }
+
+    function closeModal() {
+        document.getElementById('detailModal').classList.remove('active');
+    }
+
+    // 点击遮罩关闭
+    document.getElementById('detailModal').addEventListener('click', (e) => {
+        if(e.target.id === 'detailModal') closeModal();
+    });
+
+    function renderStats(data) {
+        if(!data || data.length === 0) return;
+
+        // 计算统计数据
+        let totalHours = 0;
+        let totalOvertime = 0; // 分钟
+        let clockInDays = 0;
+
+        data.forEach(d => {
+            // 只要有工时就计入（包含周末加班、正常工作日）
+            const hours = d.workHours || 0;
+            
+            if(hours > 0) {
+                clockInDays++;
+                totalHours += hours;
+                totalOvertime += (d.workOvertime || 0);
+            }
+        });
+
+        // 日均工时 = 总工时 / 打卡天数
+        const avgHours = clockInDays > 0 ? (totalHours / clockInDays).toFixed(1) : 0;
+        const totalOvertimeHours = (totalOvertime / 60).toFixed(1);
+
+        const stats = [
+            { label: '打卡天数', value: clockInDays + '天', icon: '📅', color: '#007AFF' },
+            { label: '总工时', value: totalHours.toFixed(1) + 'h', icon: '⏱️', color: '#34C759' },
+            { label: '日均工时', value: avgHours + 'h', icon: '📊', color: '#5856D6' },
+            { label: '总加班', value: totalOvertimeHours + 'h', icon: '🌙', color: '#FF9500' }
+        ];
+
+        const html = stats.map(s => `
+            <div class="stat-card">
+                <div class="stat-icon">${s.icon}</div>
+                <div class="stat-value" style="color: ${s.color}">${s.value}</div>
+                <div class="stat-label">${s.label}</div>
+            </div>
+        `).join('');
+
+        document.getElementById('statGrid').innerHTML = html;
+    }
+
+    function renderDetailTable(data) {
+        const tbody = document.getElementById('detailTableBody');
+        if(!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px;">无数据</td></tr>';
+            return;
+        }
+
+        let html = '';
+        data.forEach(row => {
+            // 状态标签
+            let statusHtml = '';
+            if(row.isRest === '1') statusHtml += '<span class="tag tag-normal" style="background:#f2f2f7; color:#8e8e93;">休息</span> ';
+            else if(row.isAbsenteeism === '1') statusHtml += '<span class="tag tag-late">旷工</span> ';
+            else {
+                if(row.isLate === '1') statusHtml += '<span class="tag tag-late">迟到</span> ';
+                if(row.isEarly === '1') statusHtml += '<span class="tag tag-late">早退</span> ';
+                if(row.isOut === '1') statusHtml += '<span class="tag tag-normal">出差</span> ';
+                if(!statusHtml) statusHtml = '<span class="tag tag-normal">正常</span>';
+            }
+
+            // 加班工时换算
+            const overtimeHours = row.workOvertime ? (row.workOvertime / 60).toFixed(1) : '-';
+            const hasOvertime = row.workOvertime > 0;
+
+            html += `
+                <tr>
+                    <td style="color:#8e8e93;">${row.clockInDate}</td>
+                    <td>${row.dayOfWeek}</td>
+                    <td title="${row.checkInRule || '-'}">${row.checkInRule || '-'}</td>
+                    <td style="font-weight:600; color: #007AFF;">${row.workHours?.toFixed(1) || '-'}</td>
+                    <td style="${hasOvertime ? 'color:#ff9500; font-weight:600;' : ''}">${overtimeHours}</td>
+                    <td>${statusHtml}</td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+    }
+
+    function initCharts(data) {
+        // 工时趋势图
+        const trendDom = document.getElementById('trendChart');
+        trendChart = echarts.init(trendDom);
+        
+        // 倒序数据用于图表显示（左旧右新符合直觉），表格是降序（上新下旧）
+        // 这里深拷贝一份并反转
+        const chartData = [...data].reverse();
+        
+        const dates = chartData.map(d => d.clockInDate.slice(5)); // MM-dd
+        const hours = chartData.map(d => d.workHours || 0);
+        const overtimes = chartData.map(d => (d.workOvertime / 60).toFixed(1) || 0);
+
+        trendChart.setOption({
+            tooltip: { trigger: 'axis' },
+            legend: { data: ['工时', '加班(小时)'], bottom: 0 },
+            grid: { left: '2%', right: '2%', bottom: '10%', containLabel: true, top: '5%' },
+            xAxis: { 
+                type: 'category', 
+                data: dates,
+                axisTick: { alignWithLabel: true }
+            },
+            yAxis: { type: 'value' },
+            series: [
+                {
+                    name: '工时',
+                    type: 'bar',
+                    data: hours,
+                    barMaxWidth: 30,
+                    itemStyle: { 
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#007AFF' },
+                            { offset: 1, color: '#5AC8FA' }
+                        ]),
+                        borderRadius: [4, 4, 0, 0] 
+                    }
+                },
+                {
+                    name: '加班(小时)',
+                    type: 'line',
+                    data: overtimes,
+                    smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 6,
+                    itemStyle: { color: '#FF9500' },
+                    lineStyle: { width: 3, shadowColor: 'rgba(255, 149, 0, 0.5)', shadowBlur: 10 },
+                    areaStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: 'rgba(255, 149, 0, 0.2)' },
+                            { offset: 1, color: 'rgba(255, 149, 0, 0)' }
+                        ])
+                    }
+                }
+            ]
+        });
+
+        // Resize
+        window.addEventListener('resize', () => {
+            trendChart && trendChart.resize();
+        });
     }
 
     // --- 启动 ---
