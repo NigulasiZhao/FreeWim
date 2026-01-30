@@ -191,5 +191,11 @@ app.MapGet("/overtime", async context =>
     context.Response.ContentType = "text/html";
     await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "OvertimePlanApply.html"));
 });
+app.MapGet("/leaveapply", async context =>
+{
+    context.Response.ContentType = "text/html";
+    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"),
+        "LeaveApply.html"));
+});
 app.MapGet("/", () => Results.Redirect("/scalar"));
 app.Run();

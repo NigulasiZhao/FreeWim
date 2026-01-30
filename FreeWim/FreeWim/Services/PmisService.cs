@@ -1316,4 +1316,88 @@ public class PmisService(IConfiguration configuration, ILogger<ZentaoService> lo
                 "元餐补。请尽快填写餐补,不然这点钱也没了。",
                 PushMessageService.PushIcon.Amount);
     }
+
+    /// <summary>
+    /// 查询调休申请
+    /// </summary>
+    /// <param name="query"></param>
+    /// <returns></returns>
+    public async Task<JObject> QueryLeaveApply(LeaveQueryRequest query)
+    {
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
+        var token = tokenService.GetTokenAsync();
+
+        var conditions = new List<object>
+        {
+            new
+            {
+                Field = "leave_start_time",
+                Value = new[]
+                {
+                    query.StartDate?.ToString("yyyy-MM-dd 00:00:00") ?? "2020-01-01 00:00:00",
+                    query.EndDate?.ToString("yyyy-MM-dd 23:59:59") ?? "2099-12-31 23:59:59"
+                },
+                Operate = "between",
+                Relation = "and"
+            }
+        };
+
+        if (!string.IsNullOrEmpty(query.DepartmentName))
+        {
+            conditions.Add(new
+            {
+                Field = "org_name",
+                Value = query.DepartmentName,
+                Operate = "like",
+                Relation = "and"
+            });
+        }
+
+        if (!string.IsNullOrEmpty(query.ApplicantName))
+        {
+            conditions.Add(new
+            {
+                Field = "user_name",
+                Value = query.ApplicantName,
+                Operate = "like",
+                Relation = "and"
+            });
+        }
+
+        if (!string.IsNullOrEmpty(query.Status))
+        {
+            conditions.Add(new
+            {
+                Field = "hddev_proc_status",
+                Value = query.Status,
+                Operate = "=",
+                Relation = "and"
+            });
+        }
+
+        var payload = new
+        {
+            index = query.Index,
+            size = query.Size,
+            conditions,
+            order = new[]
+            {
+                new { Field = "leave_start_time", Type = -1 },new { Field = "start_time", Type = -1 }
+            }
+        };
+
+        var httpHelper = new HttpRequestHelper();
+        var response = await httpHelper.PostAsync(
+            $"{pmisInfo.Url}/hddev/form/formobjectdata/oa_leave:47/query.json",
+            payload,
+            new Dictionary<string, string>
+            {
+                { "token", token ?? string.Empty },
+                { "uniwaterUtoken", token ?? string.Empty }
+            }
+        );
+
+        var content = await response.Content.ReadAsStringAsync();
+        return JObject.Parse(content);
+    }
 }
