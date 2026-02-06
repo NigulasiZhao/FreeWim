@@ -25,53 +25,57 @@ public class AttendanceService(
     /// <returns></returns>
     public double GetWorkHoursByDate(DateTime date)
     {
-        double hours = 0;
+        // 这里的 date.Date 确保了即使传入的 date 带有时分秒，也会被重置为零点
+        var queryDate = date.Date;
         using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
-        var isSignout = dbConnection
-            .Query<string>(
-                $@"select checkinrule from public.attendancerecordday where to_char(attendancedate,'yyyy-MM-dd') = '{date:yyyy-MM-dd}' and workhours > 0 ")
-            .ToList();
-        if (isSignout.Count <= 0) return hours;
-        var attendanceList = dbConnection.Query<WorkHoursInOutTime>($@"select
-                                            	clockintype,
-                                            	max(clockintime) as clockintime
-                                            from
-                                            	public.attendancerecorddaydetail
-                                            where
-                                            	to_char(attendancedate,'yyyy-MM-dd') = '{date:yyyy-MM-dd}'
-                                            group by
-                                            	clockintype").ToList();
-        DateTime? signInDate = null;
-        DateTime? signOutDate = null;
-        if (attendanceList.FirstOrDefault(e => e.ClockInType == 0) != null)
-            signInDate = attendanceList.FirstOrDefault(e => e.ClockInType == 0)?.ClockInTime;
-        if (attendanceList.FirstOrDefault(e => e.ClockInType == 1) != null)
-            signOutDate = attendanceList.FirstOrDefault(e => e.ClockInType == 1)?.ClockInTime;
-        if (signInDate == null || signOutDate == null) return hours;
-        if (isSignout.First() == "休息")
-        {
-            hours = Math.Floor((signOutDate.Value - signInDate.Value).TotalHours * 2) / 2;
-        }
-        else
-        {
-            signInDate = RoundToHalfHour(signInDate.Value, RoundDirection.Up);
-            signOutDate = RoundToHalfHour(signOutDate.Value, RoundDirection.Down);
-            hours = (signOutDate.Value - signInDate.Value).TotalHours;
+        string sql = @"
+    SELECT workhours 
+    FROM public.attendancerecordday 
+    WHERE attendancedate = @TargetDate 
+      AND workhours > 0 
+    LIMIT 1";
+        double hours = dbConnection.QueryFirstOrDefault<double>(sql, new { TargetDate = queryDate });
+        return hours;
+        // var attendanceList = dbConnection.Query<WorkHoursInOutTime>($@"select
+        //                                     	clockintype,
+        //                                     	max(clockintime) as clockintime
+        //                                     from
+        //                                     	public.attendancerecorddaydetail
+        //                                     where
+        //                                     	to_char(attendancedate,'yyyy-MM-dd') = '{date:yyyy-MM-dd}'
+        //                                     group by
+        //                                     	clockintype").ToList();
+        // DateTime? signInDate = null;
+        // DateTime? signOutDate = null;
+        // if (attendanceList.FirstOrDefault(e => e.ClockInType == 0) != null)
+        //     signInDate = attendanceList.FirstOrDefault(e => e.ClockInType == 0)?.ClockInTime;
+        // if (attendanceList.FirstOrDefault(e => e.ClockInType == 1) != null)
+        //     signOutDate = attendanceList.FirstOrDefault(e => e.ClockInType == 1)?.ClockInTime;
+        // if (signInDate == null || signOutDate == null) return hours;
+        // if (isSignout.First() == "休息")
+        // {
+        //     hours = Math.Floor((signOutDate.Value - signInDate.Value).TotalHours * 2) / 2;
+        // }
+        // else
+        // {
+        //     signInDate = RoundToHalfHour(signInDate.Value, RoundDirection.Up);
+        //     signOutDate = RoundToHalfHour(signOutDate.Value, RoundDirection.Down);
+        //     hours = (signOutDate.Value - signInDate.Value).TotalHours;
 
-            var noonStart = new DateTime(signInDate.Value.Year, signInDate.Value.Month, signInDate.Value.Day, 12, 0, 0);
-            var noonEnd = new DateTime(signInDate.Value.Year, signInDate.Value.Month, signInDate.Value.Day, 13, 0, 0);
+        //     var noonStart = new DateTime(signInDate.Value.Year, signInDate.Value.Month, signInDate.Value.Day, 12, 0, 0);
+        //     var noonEnd = new DateTime(signInDate.Value.Year, signInDate.Value.Month, signInDate.Value.Day, 13, 0, 0);
 
-            // 计算时间段与午休时间的重叠
-            var overlapStart = signInDate > noonStart ? signInDate : noonStart;
-            var overlapEnd = signOutDate < noonEnd ? signOutDate : noonEnd;
+        //     // 计算时间段与午休时间的重叠
+        //     var overlapStart = signInDate > noonStart ? signInDate : noonStart;
+        //     var overlapEnd = signOutDate < noonEnd ? signOutDate : noonEnd;
 
-            double overlapHours = 0;
-            if (overlapStart < overlapEnd) overlapHours = (overlapEnd.Value - overlapStart.Value).TotalHours;
-            hours = hours - overlapHours;
-        }
+        //     double overlapHours = 0;
+        //     if (overlapStart < overlapEnd) overlapHours = (overlapEnd.Value - overlapStart.Value).TotalHours;
+        //     hours = hours - overlapHours;
+        // }
 
         // return hours - overlapHours;
-        return hours;
+        //return hours;
     }
 
     /// <summary>
