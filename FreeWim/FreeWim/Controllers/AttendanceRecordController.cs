@@ -858,22 +858,32 @@ FROM ranked_stats ORDER BY {input.Order} {input.Sort} LIMIT {input.Rows} OFFSET 
             {
                 // 3. 工时大于0，调用关机接口
                 if (!string.IsNullOrEmpty(pmisInfo.ShutDownUrl))
-                {
-                    pushMessageService.Push("关机提醒", "您的电脑即将关机", PushMessageService.PushIcon.Close);
-                    _ = Task.Run(async () =>
                     {
-                        try
+                        _ = Task.Run(async () =>
                         {
-                            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-                            await client.GetAsync(pmisInfo.ShutDownUrl);
-                        }
-                        catch (Exception ex)
-                        {
-                            // 忽略关机接口调用失败，可能是机器已关机
-                            Console.WriteLine($"调用关机接口失败: {ex.Message}");
-                        }
-                    });
-                }
+                            try
+                            {
+                                var uri = new Uri(pmisInfo.ShutDownUrl);
+                                using var tcpClient = new System.Net.Sockets.TcpClient();
+                                var connectTask = tcpClient.ConnectAsync(uri.Host, uri.Port);
+                                if (await Task.WhenAny(connectTask, Task.Delay(2000)) == connectTask)
+                                {
+                                    await connectTask;
+                                    if (tcpClient.Connected)
+                                    {
+                                        pushMessageService.Push("关机提醒", "您的电脑即将关机", PushMessageService.PushIcon.Close);
+                                        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                                        await client.GetAsync(pmisInfo.ShutDownUrl);
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                // 忽略关机接口调用失败，可能是机器已关机
+                                Console.WriteLine($"调用关机接口失败: {ex.Message}");
+                            }
+                        });
+                    }
 
                 return Json(new { success = true });
             }
@@ -909,13 +919,23 @@ FROM ranked_stats ORDER BY {input.Order} {input.Sort} LIMIT {input.Rows} OFFSET 
                 {
                     if (!string.IsNullOrEmpty(pmisInfo.ShutDownUrl))
                     {
-                        pushMessageService.Push("关机提醒", "您的电脑即将关机,已为您触发考勤同步", PushMessageService.PushIcon.Close);
                         _ = Task.Run(async () =>
                         {
                             try
                             {
-                                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-                                await client.GetAsync(pmisInfo.ShutDownUrl);
+                                var uri = new Uri(pmisInfo.ShutDownUrl);
+                                using var tcpClient = new System.Net.Sockets.TcpClient();
+                                var connectTask = tcpClient.ConnectAsync(uri.Host, uri.Port);
+                                if (await Task.WhenAny(connectTask, Task.Delay(2000)) == connectTask)
+                                {
+                                    await connectTask;
+                                    if (tcpClient.Connected)
+                                    {
+                                        pushMessageService.Push("关机提醒", "您的电脑即将关机,已为您触发考勤同步", PushMessageService.PushIcon.Close);
+                                        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                                        await client.GetAsync(pmisInfo.ShutDownUrl);
+                                    }
+                                }
                             }
                             catch (Exception ex)
                             {
