@@ -573,7 +573,7 @@ limit 10;";
         var offset = (input.Page - 1) * input.Rows;
         return Json(dbConnection.Query<RankingOfWorkingHoursOutput>($@"WITH base_summary AS (
     -- 第一层：聚合基础数据，处理精度问题
-    SELECT 
+    SELECT
         user_name,
         user_id,
         GROUP_CONCAT(DISTINCT org_name) as org_name,
@@ -581,21 +581,21 @@ limit 10;";
         SUM(work_overtime) as raw_overtime_sum, -- 保持原始分钟数用于排名，避免精度丢失
         SUM(work_overtime / 60.0) as total_overtime -- 转换为小时
     FROM hd_oa.oa_user_clock_in_record
-    WHERE clock_in_date BETWEEN @starttime AND @endtime 
-    {(string.IsNullOrEmpty(input.OrgName) ? "" : " AND org_name LIKE @orgname ")} 
+    WHERE clock_in_date BETWEEN @starttime AND @endtime
+    {(string.IsNullOrEmpty(input.OrgName) ? "" : " AND org_name LIKE @orgname ")}
     {(string.IsNullOrEmpty(input.UserName) ? "" : " AND user_name LIKE @username ")}
     GROUP BY user_id, user_name
 ),
 ranked_stats AS (
     -- 第二层：执行窗口函数排名
-    SELECT 
+    SELECT
         *,
         RANK() OVER (ORDER BY total_work_hours DESC) as work_rank,
         RANK() OVER (ORDER BY raw_overtime_sum DESC) as overtime_rank,
         COUNT(*) OVER () as total_users
     FROM base_summary
 )
-SELECT 
+SELECT
     user_name as UserName,
     user_id as UserId,
     org_name as OrgName,
@@ -608,11 +608,133 @@ SELECT
     (total_users - overtime_rank) as OvertimeSurpassedCount,
     ROUND((total_users - overtime_rank) * 100.0 / GREATEST(total_users - 1, 1), 2) as OvertimeSurpassedPercent,
     -- 使用格式化模板简化描述生成
-    CONCAT('工时排名第', work_rank, '名，超越了', total_users - work_rank, '人(', 
+    CONCAT('工时排名第', work_rank, '名，超越了', total_users - work_rank, '人(',
            ROUND((total_users - work_rank) * 100.0 / GREATEST(total_users - 1, 1), 2), '%)；',
-           '加班排名第', overtime_rank, '名，超越了', total_users - overtime_rank, '人(', 
+           '加班排名第', overtime_rank, '名，超越了', total_users - overtime_rank, '人(',
            ROUND((total_users - overtime_rank) * 100.0 / GREATEST(total_users - 1, 1), 2), '%)') as RankDescription
 FROM ranked_stats ORDER BY {input.Order} {input.Sort} LIMIT {input.Rows} OFFSET {offset};",
+            new
+            {
+                starttime = input.StartTime,
+                endtime = input.EndTime,
+                orgname = $"%{input.OrgName}%",
+                username = $"%{input.UserName}%"
+            }).ToList());
+    }
+
+    [Tags("考勤")]
+    [EndpointSummary("高级工时统计")]
+    [HttpPost]
+    public ActionResult AdvancedWorkHoursStatistics(RankingOfWorkingHoursInput input)
+    {
+        using IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
+        var offset = (input.Page - 1) * input.Rows;
+
+        // 为高级统计映射排序字段
+        string mappedOrderField = input.Order?.ToLower() switch
+        {
+            "user_name" or "username" => "r.username",
+            "org_name" or "orgname" => "r.orgname",
+            "out_days" or "outdays" => "outdays",
+            "offset_leave_days" or "offsetleavedays" => "offsetleavedays",
+            "general_leave_days" or "generalleavedays" => "generalleavedays",
+            "base_working_days" or "baseworkingdays" => "baseworkingdays",
+            "actual_attendance_days" or "actualattendancedays" => "actualattendancedays",
+            "delay_overtime_hours" or "delayovertimehours" => "delayovertimehours",
+            "weekend_overtime_hours" or "weekendovertimehours" => "weekendovertimehours",
+            "total_overtime_hours" or "totalovertimehours" => "totalovertimehours",
+            "total_actual_work_hours" or "totalactualworkhours" or "total_work_hours" => "totalactualworkhours",
+            "daily_avg_work_hours" or "dailyavgworkhours" => "dailyavgworkhours",
+            _ => "totalactualworkhours" // 默认按实际工作工时排序
+        };
+
+        return Json(dbConnection.Query<AdvancedWorkHoursStatisticsOutput>($@"
+WITH RECURSIVE calendar AS (
+    -- 1. 设定起始日期范围（与查询条件保持一致）
+    SELECT CAST(@starttime AS DATE) AS t_date
+    UNION ALL
+    SELECT DATE_ADD(t_date, INTERVAL 1 DAY)
+    FROM calendar
+    WHERE t_date < @endtime
+),
+working_days_count AS (
+    -- 2. 计算该时段内总的法定应出勤天数
+    SELECT COUNT(*) AS total_working_days
+    FROM calendar c
+    LEFT JOIN hd_oa.oa_holiday h ON c.t_date = h.date
+    WHERE (h.holiday = 0) OR (h.date IS NULL AND WEEKDAY(c.t_date) < 5)
+),
+user_overtime AS (
+    -- 3. 预统计加班数据
+    SELECT
+        user_id,
+        SUM(CASE WHEN work_overtime_type = '1' THEN CAST(IFNULL(realtime, 0) AS DECIMAL(10,2)) ELSE 0 END) AS delay_overtime_hours,
+        SUM(CASE WHEN work_overtime_type != '1' THEN CAST(IFNULL(realtime, 0) AS DECIMAL(10,2)) ELSE 0 END) AS weekend_overtime_hours
+    FROM
+        oa_work_overtime
+    WHERE
+        is_pass = '1'
+        AND hddev_proc_status = 'COMPLETED'
+        AND work_date BETWEEN @starttime AND @endtime
+    GROUP BY user_id
+)
+
+SELECT
+    r.user_id AS UserId,
+    r.user_name AS UserName,
+    r.org_name AS OrgName,
+    r.sn AS UserSn,
+    w.total_working_days AS BaseWorkingDays,
+
+    -- 请假与出差天数统计
+    COUNT(CASE WHEN r.is_out = '1' THEN 1 END) AS OutDays,
+    ROUND(SUM(CASE WHEN r.leave_type = '1' THEN r.leave_hours ELSE 0 END) / 7.5, 2) AS OffsetLeaveDays,
+    ROUND(SUM(CASE WHEN r.leave_type IN ('2','3','4','5','6','7','8','9','14') THEN r.leave_hours ELSE 0 END) / 7.5, 2) AS GeneralLeaveDays,
+    -- 实际考勤天数 = 应出勤 - 调休天数 - 请假天数
+    (w.total_working_days
+     - ROUND(SUM(CASE WHEN r.leave_type IN ('1','2','3','4','5','6','7','8','9','14') THEN r.leave_hours ELSE 0 END) / 7.5, 2)
+    ) AS ActualAttendanceDays,
+    -- 加班小时数统计
+    IFNULL(ot.delay_overtime_hours, 0) AS DelayOvertimeHours,
+    IFNULL(ot.weekend_overtime_hours, 0) AS WeekendOvertimeHours,
+    (IFNULL(ot.delay_overtime_hours, 0) + IFNULL(ot.weekend_overtime_hours, 0)) AS TotalOvertimeHours,
+
+    -- 实际工时 = (实际考勤天数 * 7.5) + 加班小时数
+    ROUND(
+        ((w.total_working_days
+          - (SUM(CASE WHEN r.leave_type IN ('1','2','3','4','5','6','7','8','9','14') THEN r.leave_hours ELSE 0 END) / 7.5)
+        ) * 7.5)
+        + (IFNULL(ot.delay_overtime_hours, 0) + IFNULL(ot.weekend_overtime_hours, 0)), 1
+    ) AS TotalActualWorkHours,
+
+    -- 日均实际工时 = 实际工时 / 应出勤天数
+    ROUND(
+        (
+            ((w.total_working_days
+              - (SUM(CASE WHEN r.leave_type IN ('1','2','3','4','5','6','7','8','9','14') THEN r.leave_hours ELSE 0 END) / 7.5)
+            ) * 7.5)
+            + (IFNULL(ot.delay_overtime_hours, 0) + IFNULL(ot.weekend_overtime_hours, 0))
+        ) / w.total_working_days, 1
+    ) AS DailyAvgWorkHours
+
+FROM
+    oa_user_clock_in_record r
+CROSS JOIN
+    working_days_count w
+LEFT JOIN
+    user_overtime ot ON r.user_id = ot.user_id
+WHERE
+    r.clock_in_date BETWEEN @starttime AND @endtime
+    {(string.IsNullOrEmpty(input.OrgName) ? "" : " AND r.org_name LIKE @orgname ")}
+    {(string.IsNullOrEmpty(input.UserName) ? "" : " AND r.user_name LIKE @username ")}
+GROUP BY
+    r.user_id,
+    r.user_name,
+    r.sn,
+    w.total_working_days,
+    ot.delay_overtime_hours,
+    ot.weekend_overtime_hours
+ORDER BY {mappedOrderField} {input.Sort} LIMIT {input.Rows} OFFSET {offset};",
             new
             {
                 starttime = input.StartTime,

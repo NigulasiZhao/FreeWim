@@ -16,14 +16,66 @@
             --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.08);
         }
 
+        /* 开关样式 */
+        .switch-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--ios-blue);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
             background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             /* 更加细腻的深色动态背景 */
-            background-image: 
-                radial-gradient(at 10% 10%, hsla(253,16%,7%,0.05) 0, transparent 50%), 
+            background-image:
+                radial-gradient(at 10% 10%, hsla(253,16%,7%,0.05) 0, transparent 50%),
                 radial-gradient(at 90% 90%, hsla(220,39%,30%,0.05) 0, transparent 50%);
             min-height: 100vh;
             color: var(--text-primary);
@@ -72,7 +124,7 @@
         }
 
         h1 { font-size: 22px; font-weight: 700; margin: 0; }
-        
+
         /* 统计小字 */
         .data-summary { font-size: 13px; color: var(--text-secondary); }
 
@@ -191,10 +243,10 @@
         .col-num { font-family: "SF Mono", monospace; font-weight: 600; }
         .col-blue { color: var(--ios-blue); }
         .col-orange { color: #FF9500; }
-        
+
         /* 关键修改：描述列允许换行，并给足宽度 */
-        .col-desc { 
-            min-width: 350px; 
+        .col-desc {
+            min-width: 350px;
             white-space: normal; /* 允许换行 */
             color: #555;
             font-size: 13px;
@@ -256,7 +308,7 @@
             transition: opacity 0.3s;
         }
         .modal-overlay.active { display: flex; opacity: 1; }
-        
+
         .modal-content {
             background: #fff; /* 纯白背景，去除毛玻璃 */
             width: 90%;
@@ -329,7 +381,7 @@
             border: 1px solid #e5e5ea; /* 边框替代阴影 */
             box-shadow: none;
         }
-        
+
         .chart-container {
             width: 100%;
             height: 350px;
@@ -346,13 +398,13 @@
             width: 100%;
             overflow-x: hidden; /* 禁止横向滚动 */
         }
-        
-        .detail-table { 
-            width: 100%; 
-            border-collapse: collapse; 
+
+        .detail-table {
+            width: 100%;
+            border-collapse: collapse;
         }
-        .detail-table th { 
-            background: #f9f9f9; 
+        .detail-table th {
+            background: #f9f9f9;
             text-align: left;
             padding: 12px 16px;
             font-size: 13px;
@@ -363,9 +415,9 @@
             top: 0;
             z-index: 10;
         }
-        .detail-table td { 
-            padding: 12px 16px; 
-            font-size: 14px; 
+        .detail-table td {
+            padding: 12px 16px;
+            font-size: 14px;
             color: #1c1c1e;
             border-bottom: 1px solid #f2f2f7;
             white-space: normal; /* 允许换行 */
@@ -406,7 +458,6 @@
 
         tr.cursor-pointer { cursor: pointer; transition: background 0.2s; }
         tr.cursor-pointer:hover { background: rgba(0, 122, 255, 0.05); }
-
     </style>
 </head>
 <body>
@@ -418,7 +469,17 @@
         
         <div class="control-panel">
             <div class="filter-header">
-                <h1>工时排行榜</h1>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <h1>工时排行榜</h1>
+                    <div class="switch-container" style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 12px; color: var(--text-secondary);">普通统计</span>
+                        <label class="switch">
+                            <input type="checkbox" id="advancedStatsSwitch">
+                            <span class="slider"></span>
+                        </label>
+                        <span style="font-size: 12px; color: var(--text-secondary);">高级统计</span>
+                    </div>
+                </div>
                 <span class="data-summary" id="dataSummary">加载中...</span>
             </div>
             <div class="filter-grid">
@@ -538,7 +599,8 @@
         hasMore: true,
         sortField: 'total_work_hours',
         sortOrder: 'desc',
-        totalCount: 0
+        totalCount: 0,
+        useAdvancedStats: false // 新增：是否使用高级统计
     };
 
     // --- 初始化日期 ---
@@ -546,10 +608,34 @@
         const now = new Date();
         const start = new Date(now.getFullYear(), 0, 1);
         const end = new Date(now.getFullYear(), 11, 31);
-        
+
         const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
         document.getElementById('startDate').value = fmt(start);
         document.getElementById('endDate').value = fmt(end);
+    }
+
+    // --- 统计方式切换 ---
+    function setupStatsToggle() {
+        const switchElement = document.getElementById('advancedStatsSwitch');
+        switchElement.addEventListener('change', function() {
+            state.useAdvancedStats = this.checked;
+
+            // 如果切换到高级统计，将结束日期设置为昨天
+            if (this.checked) {
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                document.getElementById('endDate').value = fmt(yesterday);
+            } else {
+                // 切换回普通统计时，恢复为年底
+                const now = new Date();
+                const end = new Date(now.getFullYear(), 11, 31);
+                const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                document.getElementById('endDate').value = fmt(end);
+            }
+
+            resetSearch(); // 切换统计方式时重新查询
+        });
     }
 
     // --- 核心数据获取 ---
@@ -557,11 +643,11 @@
         if (state.loading || (!isReset && !state.hasMore)) return;
 
         state.loading = true;
-        
+
         // UI 状态控制
         const fullLoading = document.getElementById('fullLoading');
         const bottomSentinel = document.getElementById('bottomSentinel');
-        
+
         if (isReset) {
             state.page = 1;
             state.hasMore = true;
@@ -584,14 +670,18 @@
         };
 
         try {
-            // 模拟网络延迟 600ms，体验“丝滑”
+            // 模拟网络延迟 600ms，体验”丝滑”
             await new Promise(r => setTimeout(r, 600));
 
             let dataList = [];
-            
+
             // 尝试真实请求
             try {
-                const res = await fetch('/api/AttendanceRecord/RankingOfWorkingHours', {
+                const apiUrl = state.useAdvancedStats
+                    ? '/api/AttendanceRecord/AdvancedWorkHoursStatistics'
+                    : '/api/AttendanceRecord/RankingOfWorkingHours';
+
+                const res = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'content-type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -605,18 +695,23 @@
                 console.log("使用Mock数据演示分页");
             }
 
-            renderTable(dataList);
-            
+            // 根据统计方式渲染不同的表格
+            if (state.useAdvancedStats) {
+                renderAdvancedStatsTable(dataList);
+            } else {
+                renderTable(dataList);
+            }
+
             // 更新状态
             if (dataList.length < state.rows) {
                 state.hasMore = false;
-                bottomSentinel.innerHTML = "<span>没有更多数据了</span>";
+                bottomSentinel.innerHTML = '<span>没有更多数据了</span>';
             } else {
                 state.page++;
                 // 恢复 Sentinel 原始状态
                 bottomSentinel.innerHTML = '<div class="spinner"></div><span>加载更多数据...</span>';
             }
-            
+
             // 更新总数显示 (模拟)
             document.getElementById('dataSummary').innerText = `当前展示前 ${(state.page-1) * state.rows} 名`;
 
@@ -626,17 +721,20 @@
             state.loading = false;
             fullLoading.classList.remove('active'); // 隐藏全屏Loading
             if (!state.hasMore) {
-                 bottomSentinel.classList.add('show'); // 保持显示"没有更多"
+                 bottomSentinel.classList.add('show'); // 保持显示”没有更多”
             } else {
                  bottomSentinel.classList.remove('show'); // 隐藏Loading条，等待下次滚动
             }
         }
     }
 
-    // --- 渲染逻辑 ---
+    // --- 渲染普通统计表格 ---
     function renderTable(list) {
         const tbody = document.getElementById('tableBody');
         const fragment = document.createDocumentFragment();
+
+        // 更新表头
+        updateTableHeader(false);
 
         list.forEach(item => {
             const tr = document.createElement('tr');
@@ -644,23 +742,95 @@
             // 点击查看详情
             tr.addEventListener('click', () => showUserDetail(item.userId, item.userName));
 
-            tr.innerHTML = `
-                <td class="col-rank"><span class="rank-badge">${item.workRank}</span></td>
-                <td>${item.userName}</td>
-                <td style="font-size:13px; color:#666;">${item.orgName || '-'}</td>
-                <td class="col-num col-blue">${item.totalWorkHours.toFixed(1)}</td>
-                <td>${item.workSurpassedCount}</td>
-                <td>${item.workSurpassedPercent}%</td>
-                <td class="col-num col-orange">${Number(item.totalOvertime).toFixed(1)}</td>
-                <td style="text-align:center">${item.overtimeRank}</td>
-                <td>${item.overtimeSurpassedCount}</td>
-                <td>${item.overtimeSurpassedPercent}%</td>
-                <td class="col-desc">${item.rankDescription}</td>
-            `;
+            const rowHTML = '<td class="col-rank"><span class="rank-badge">' + (item.workRank || '') + '</span></td>' +
+                '<td>' + (item.userName || '') + '</td>' +
+                '<td style="font-size:13px; color:#666;">' + (item.orgName || '-') + '</td>' +
+                '<td class="col-num col-blue">' + (item.totalWorkHours ? item.totalWorkHours.toFixed(1) : '0.0') + '</td>' +
+                '<td>' + (item.workSurpassedCount || 0) + '</td>' +
+                '<td>' + (item.workSurpassedPercent || 0) + '%</td>' +
+                '<td class="col-num col-orange">' + (item.totalOvertime ? Number(item.totalOvertime).toFixed(1) : '0.0') + '</td>' +
+                '<td style="text-align:center">' + (item.overtimeRank || 0) + '</td>' +
+                '<td>' + (item.overtimeSurpassedCount || 0) + '</td>' +
+                '<td>' + (item.overtimeSurpassedPercent || 0) + '%</td>' +
+                '<td class="col-desc">' + (item.rankDescription || '') + '</td>';
+
+            tr.innerHTML = rowHTML;
             fragment.appendChild(tr);
         });
 
         tbody.appendChild(fragment);
+    }
+
+    // --- 渲染高级统计表格 ---
+    function renderAdvancedStatsTable(list) {
+        const tbody = document.getElementById('tableBody');
+        const fragment = document.createDocumentFragment();
+
+        // 更新表头
+        updateTableHeader(true);
+
+        list.forEach((item, index) => {
+            // 计算序号：(当前页-1) * 每页条数 + 当前索引 + 1
+            const rowNumber = (state.page - 1) * state.rows + index + 1;
+
+            const tr = document.createElement('tr');
+            // 为前三名添加特殊样式类，与普通统计保持一致
+            tr.className = 'rank-' + rowNumber + ' cursor-pointer';
+            // 点击查看详情
+            tr.addEventListener('click', () => showUserDetail(item.userId, item.userName));
+
+            const rowHTML = '<td class="col-rank"><span class="rank-badge">' + rowNumber + '</span></td>' +
+                '<td>' + (item.userName || '-') + '</td>' +
+                '<td style="font-size:13px; color:#666;">' + (item.orgName || '-') + '</td>' +
+                '<td>' + (item.outDays || 0) + '</td>' +
+                '<td>' + (item.generalLeaveDays || 0) + '</td>' +
+                '<td>' + (item.offsetLeaveDays || 0) + '</td>' +
+                '<td>' + (item.baseWorkingDays || 0) + '</td>' +
+                '<td>' + (item.actualAttendanceDays || 0) + '</td>' +
+                '<td>' + (item.delayOvertimeHours ? Number(item.delayOvertimeHours).toFixed(1) : 0) + '</td>' +
+                '<td>' + (item.weekendOvertimeHours ? Number(item.weekendOvertimeHours).toFixed(1) : 0) + '</td>' +
+                '<td>' + (item.totalOvertimeHours ? Number(item.totalOvertimeHours).toFixed(1) : 0) + '</td>' +
+                '<td class="col-num col-blue">' + (item.totalActualWorkHours ? Number(item.totalActualWorkHours).toFixed(1) : 0) + '</td>' +
+                '<td class="col-num">' + (item.dailyAvgWorkHours ? Number(item.dailyAvgWorkHours).toFixed(1) : 0) + '</td>';
+
+            tr.innerHTML = rowHTML;
+            fragment.appendChild(tr);
+        });
+
+        tbody.appendChild(fragment);
+    }
+
+    // --- 更新表头 ---
+    function updateTableHeader(isAdvanced) {
+        const thead = document.querySelector('thead tr');
+        if (isAdvanced) {
+            thead.innerHTML =
+                '<th class="col-rank" onclick="changeSort(\'total_actual_work_hours\')">排名</th>' +
+                '<th onclick="changeSort(\'user_name\')">姓名 ↕</th>' +
+                '<th onclick="changeSort(\'org_name\')">部门 ↕</th>' +
+                '<th onclick="changeSort(\'out_days\')">出差天数 ↕</th>' +
+                '<th onclick="changeSort(\'general_leave_days\')">请假天数 ↕</th>' +
+                '<th onclick="changeSort(\'offset_leave_days\')">调休天数 ↕</th>' +
+                '<th onclick="changeSort(\'base_working_days\')">实际出勤天数 ↕</th>' +
+                '<th onclick="changeSort(\'actual_attendance_days\')">实际工作天数 ↕</th>' +
+                '<th onclick="changeSort(\'delay_overtime_hours\')">非周末加班 ↕</th>' +
+                '<th onclick="changeSort(\'weekend_overtime_hours\')">周末加班 ↕</th>' +
+                '<th onclick="changeSort(\'total_overtime_hours\')">加班时长 ↕</th>' +
+                '<th onclick="changeSort(\'total_actual_work_hours\')">实际工作工时 ↕</th>' +
+                '<th onclick="changeSort(\'daily_avg_work_hours\')">日均实际工时 ↕</th>';
+        } else {
+            thead.innerHTML = '<th class="col-rank" onclick="changeSort(\'total_work_hours\')">排名 ↕</th>' +
+                '<th onclick="changeSort(\'user_name\')">姓名 ↕</th>' +
+                '<th onclick="changeSort(\'org_name\')">部门 ↕</th>' +
+                '<th onclick="changeSort(\'total_work_hours\')">总工时 ↕</th>' +
+                '<th>超越人数</th>' +
+                '<th>超越比例</th>' +
+                '<th onclick=”changeSort(\'total_overtime\')”>加班工时 ↕</th>' +
+                '<th onclick=”changeSort(\'overtime_rank\')”>加班排名 ↕</th>' +
+                '<th>加班超越人数</th>' +
+                '<th>加班超越比例</th>' +
+                '<th class=”col-desc”>详细描述</th>';
+        }
     }
 
     // --- 排序逻辑 ---
@@ -683,7 +853,7 @@
     // --- Infinite Scroll 监听器 ---
     function initInfiniteScroll() {
         const sentinel = document.getElementById('bottomSentinel');
-        
+
         const observer = new IntersectionObserver((entries) => {
             // 当底部元素进入视口，且没有正在加载，且还有更多数据时
             if (entries[0].isIntersecting && !state.loading && state.hasMore) {
@@ -707,23 +877,23 @@
         const tbody = document.getElementById('detailTableBody');
         const statGrid = document.getElementById('statGrid');
         const loading = document.getElementById('modalLoading');
-        
-        title.innerText = `${userName} - 考勤详情`;
-        // tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px;">加载中...</td></tr>'; // 移除旧Loading
+
+        title.innerText = userName + ' - 考勤详情';
+        // tbody.innerHTML = '<tr><td colspan=”6” style=”text-align:center; padding: 20px;”>加载中...</td></tr>'; // 移除旧Loading
         // statGrid.innerHTML = ''; // 可选：保留旧数据直到新数据加载完成，或者清空。为了避免误导，清空较好。
-        statGrid.innerHTML = ''; 
+        statGrid.innerHTML = '';
         tbody.innerHTML = '';
-        
+
         modal.classList.add('active');
         loading.classList.add('active'); // 显示新Loading
-        
+
         // 销毁旧图表
         if(trendChart) { trendChart.dispose(); trendChart = null; }
 
         try {
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
-            
+
             // 模拟延迟，让Loading展示一会
             await new Promise(r => setTimeout(r, 500));
 
@@ -737,14 +907,14 @@
                     endTime: endDate
                 })
             });
-            
+
             if(!res.ok) throw new Error("Fetch Error");
             const data = await res.json();
-            
+
             renderStats(data);
             renderDetailTable(data);
             initCharts(data);
-            
+
         } catch(e) {
             console.error(e);
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: red; padding: 20px;">加载失败</td></tr>';
@@ -773,7 +943,7 @@
         data.forEach(d => {
             // 只要有工时就计入（包含周末加班、正常工作日）
             const hours = d.workHours || 0;
-            
+
             if(hours > 0) {
                 clockInDays++;
                 totalHours += hours;
@@ -827,16 +997,15 @@
             const overtimeHours = row.workOvertime ? (row.workOvertime / 60).toFixed(1) : '-';
             const hasOvertime = row.workOvertime > 0;
 
-            html += `
-                <tr>
-                    <td style="color:#8e8e93;">${row.clockInDate}</td>
-                    <td>${row.dayOfWeek}</td>
-                    <td title="${row.checkInRule || '-'}">${row.checkInRule || '-'}</td>
-                    <td style="font-weight:600; color: #007AFF;">${row.workHours?.toFixed(1) || '-'}</td>
-                    <td style="${hasOvertime ? 'color:#ff9500; font-weight:600;' : ''}">${overtimeHours}</td>
-                    <td>${statusHtml}</td>
-                </tr>
-            `;
+            const rowHTML = '<tr>' +
+                '<td style="color:#8e8e93;">' + (row.clockInDate || '') + '</td>' +
+                '<td>' + (row.dayOfWeek || '') + '</td>' +
+                '<td title="' + (row.checkInRule || '-') + '">' + (row.checkInRule || '-') + '</td>' +
+                '<td style="font-weight:600; color: #007AFF;">' + (row.workHours ? row.workHours.toFixed(1) : '-') + '</td>' +
+                '<td style="' + (hasOvertime ? 'color:#ff9500; font-weight:600;' : '') + '">' + overtimeHours + '</td>' +
+                '<td>' + statusHtml + '</td>' +
+                '</tr>';
+            html += rowHTML;
         });
         tbody.innerHTML = html;
     }
@@ -845,11 +1014,11 @@
         // 工时趋势图
         const trendDom = document.getElementById('trendChart');
         trendChart = echarts.init(trendDom);
-        
+
         // 倒序数据用于图表显示（左旧右新符合直觉），表格是降序（上新下旧）
         // 这里深拷贝一份并反转
         const chartData = [...data].reverse();
-        
+
         const dates = chartData.map(d => d.clockInDate.slice(5)); // MM-dd
         const hours = chartData.map(d => d.workHours || 0);
         const overtimes = chartData.map(d => (d.workOvertime / 60).toFixed(1) || 0);
@@ -858,8 +1027,8 @@
             tooltip: { trigger: 'axis' },
             legend: { data: ['工时', '加班(小时)'], bottom: 0 },
             grid: { left: '2%', right: '2%', bottom: '10%', containLabel: true, top: '5%' },
-            xAxis: { 
-                type: 'category', 
+            xAxis: {
+                type: 'category',
                 data: dates,
                 axisTick: { alignWithLabel: true }
             },
@@ -870,12 +1039,12 @@
                     type: 'bar',
                     data: hours,
                     barMaxWidth: 30,
-                    itemStyle: { 
+                    itemStyle: {
                         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
                             { offset: 0, color: '#007AFF' },
                             { offset: 1, color: '#5AC8FA' }
                         ]),
-                        borderRadius: [4, 4, 0, 0] 
+                        borderRadius: [4, 4, 0, 0]
                     }
                 },
                 {
@@ -905,6 +1074,7 @@
 
     // --- 启动 ---
     initDates();
+    setupStatsToggle(); // 初始化统计方式切换
     initInfiniteScroll();
     resetSearch(); // 首次加载
 
