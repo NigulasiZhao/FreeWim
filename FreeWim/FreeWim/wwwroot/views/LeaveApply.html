@@ -1,119 +1,47 @@
 <!DOCTYPE html>
-<html lang="zh-cn">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>调休申请查询</title>
-    
-    <!-- Libraries -->
-    <link rel="stylesheet" href="/lib/fontawesome/all.min.css"/>
-    <script src="/lib/tailwindcss/tailwindcss.js"></script>
-    <script src="/lib/alpine/alpine.min.js" defer></script>
 
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        ios: {
-                            blue: '#007AFF',
-                            gray: '#8E8E93',
-                            bg: '#F5F5F7',
-                            card: 'rgba(255, 255, 255, 0.72)',
-                            separator: 'rgba(60, 60, 67, 0.36)'
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', '"Inter"', '"Helvetica Neue"', 'sans-serif']
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        [x-cloak] { display: none !important; }
-        
-        body {
-            background-color: #f8fafc;
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.08) 0px, transparent 50%), 
-                radial-gradient(at 100% 0%, rgba(244, 63, 94, 0.08) 0px, transparent 50%), 
-                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.08) 0px, transparent 50%),
-                radial-gradient(at 0% 100%, rgba(139, 92, 246, 0.08) 0px, transparent 50%);
-            background-attachment: fixed;
-        }
-
-        /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
-
-        /* Animation */
-        .fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-    </style>
+    <!-- 统一样式和工具库 -->
+    <link rel="stylesheet" href="/css/dashboard-unified.css">
+    <link rel="stylesheet" href="/lib/fontawesome/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="/js/dashboard-utils.js"></script>
 </head>
-<body class="bg-ios-bg text-gray-900 h-screen overflow-hidden flex flex-col font-sans antialiased" x-data="app()">
-
-    <!-- Main Container -->
-    <div class="flex-1 flex flex-col max-w-[1600px] mx-auto w-full h-full p-4 sm:p-6 overflow-hidden">
-        
-        <!-- Header & Filter -->
-        <header class="flex-shrink-0 mb-5 flex flex-col gap-4">
-            <div class="flex justify-between items-end">
-                <div>
-                    <h1 class="text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-3">
-                        调休申请
-                        <span class="px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 text-sm font-semibold tracking-wide" x-text="pagination.total">0</span>
-                    </h1>
-                    <p class="text-sm text-gray-500 mt-1 font-medium">Leave Application Management</p>
-                </div>
-            </div>
-
-            <!-- Filter Bar -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200/60 p-1.5 flex flex-wrap items-center gap-2">
-                
-                <!-- Date Range -->
-                <div class="flex items-center bg-gray-100/50 rounded-lg p-1 border border-transparent focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500/50 transition-all">
-                    <div class="flex items-center px-2 text-gray-400">
-                        <i class="far fa-calendar-alt"></i>
-                    </div>
-                    <input type="date" x-model="params.startDate" class="bg-transparent border-none text-sm p-1.5 focus:ring-0 text-gray-700 w-32 font-medium">
-                    <span class="text-gray-400 px-1">-</span>
-                    <input type="date" x-model="params.endDate" class="bg-transparent border-none text-sm p-1.5 focus:ring-0 text-gray-700 w-32 font-medium">
+<body>
+    <div class="page-container">
+        <!-- 顶部筛选区 - 固定 -->
+        <div class="filter-section">
+            <div class="filter-row">
+                <!-- 日期范围 -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-calendar-alt" style="color: var(--text-secondary); font-size: 14px;"></i>
+                    <input type="date" id="startDate" class="form-input" style="width: 150px;">
+                    <span style="color: var(--text-secondary);">至</span>
+                    <input type="date" id="endDate" class="form-input" style="width: 150px;">
                 </div>
 
-                <div class="h-6 w-px bg-gray-200 mx-1"></div>
-
-                <!-- Dept -->
-                <div class="relative group">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                        <i class="fas fa-building text-xs"></i>
-                    </div>
-                    <input type="text" x-model="params.orgName" placeholder="部门名称" 
-                           class="pl-8 w-32 sm:w-40 bg-gray-100/50 border-transparent rounded-lg py-2 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all placeholder-gray-400 font-medium">
+                <!-- 部门 -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-building" style="color: var(--text-secondary); font-size: 14px;"></i>
+                    <input type="text" id="orgName" class="form-input" placeholder="部门名称" style="width: 160px;" value="管网产品组">
                 </div>
 
-                <!-- Applicant -->
-                <div class="relative group">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                        <i class="fas fa-user text-xs"></i>
-                    </div>
-                    <input type="text" x-model="params.applicant" placeholder="姓名" 
-                           class="pl-8 w-24 sm:w-32 bg-gray-100/50 border-transparent rounded-lg py-2 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all placeholder-gray-400 font-medium">
+                <!-- 申请人 -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-user" style="color: var(--text-secondary); font-size: 14px;"></i>
+                    <input type="text" id="applicant" class="form-input" placeholder="姓名" style="width: 120px;">
                 </div>
 
-                <!-- Status Filter -->
-                <div class="relative group">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                        <i class="fas fa-filter text-xs"></i>
-                    </div>
-                    <select x-model="params.status" 
-                            class="pl-8 w-32 sm:w-40 bg-gray-100/50 border-transparent rounded-lg py-2 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all text-gray-700 font-medium appearance-none cursor-pointer">
+                <!-- 状态筛选 -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-filter" style="color: var(--text-secondary); font-size: 14px;"></i>
+                    <select id="status" class="form-select" style="width: 140px;">
                         <option value="">所有状态</option>
                         <option value="DRAFT">草稿</option>
                         <option value="PROCESS">审批中</option>
@@ -122,384 +50,391 @@
                         <option value="REJECTED">已拒绝</option>
                         <option value="CANCELED">已取消</option>
                     </select>
-                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
-                        <i class="fas fa-chevron-down text-[10px]"></i>
-                    </div>
                 </div>
 
-                <div class="flex-1"></div>
+                <div style="flex: 1;"></div>
 
-                <!-- Search Button -->
-                <button @click="search" 
-                        class="bg-black hover:bg-gray-800 text-white px-6 py-2 rounded-lg text-sm font-medium shadow-md transition-all active:scale-95 flex items-center gap-2">
-                    <i class="fas fa-search" :class="{'fa-spin': loading}"></i>
-                    <span x-text="loading ? '搜索中' : '搜索'"></span>
+                <!-- 搜索按钮 -->
+                <button class="btn" onclick="search()" id="searchBtn">
+                    <i class="fas fa-search"></i>
+                    <span>搜索</span>
+                </button>
+
+                <!-- 导出按钮 -->
+                <button class="btn btn-secondary" onclick="exportData()" title="导出CSV">
+                    <i class="fas fa-download"></i>
                 </button>
             </div>
-        </header>
+        </div>
 
-        <!-- Main Content Card -->
-        <main class="flex-1 bg-white border border-gray-200 shadow-sm rounded-xl overflow-hidden flex flex-col relative">
-            
-            <!-- Loading Overlay -->
-            <div x-show="loading" class="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-50 flex justify-center items-center transition-opacity"
-                 x-transition:enter="transition ease-out duration-200"
-                 x-transition:enter-start="opacity-0"
-                 x-transition:enter-end="opacity-100"
-                 x-transition:leave="transition ease-in duration-150"
-                 x-transition:leave-start="opacity-100"
-                 x-transition:leave-end="opacity-0">
-                <div class="bg-white p-4 rounded-2xl shadow-xl flex flex-col items-center border border-gray-100">
-                    <i class="fas fa-circle-notch fa-spin text-blue-500 text-3xl mb-3"></i>
-                    <span class="text-sm font-medium text-gray-600">加载数据...</span>
-                </div>
-            </div>
-
-            <!-- Empty State -->
-            <template x-if="!loading && items.length === 0">
-                <div class="flex-1 flex flex-col justify-center items-center text-gray-400 bg-gray-50/50">
-                    <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-gray-100">
-                        <i class="fas fa-inbox text-3xl opacity-30 text-gray-400"></i>
-                    </div>
-                    <p class="text-base font-medium text-gray-500">暂无数据</p>
-                    <p class="text-sm text-gray-400 mt-1">请尝试调整筛选条件</p>
-                </div>
-            </template>
-
-            <!-- Data Table -->
-            <div class="flex-1 overflow-auto" x-show="items.length > 0">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-50 sticky top-0 z-10 shadow-sm">
+        <!-- 内容区 - 可滚动 -->
+        <div class="content-section" style="display: flex; flex-direction: column;">
+            <!-- 数据表格 -->
+            <div class="table-container" style="flex: 1;">
+                <table class="data-table" id="dataTable">
+                    <thead>
                         <tr>
-                            <th class="py-3.5 pl-6 pr-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">申请人</th>
-                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">部门</th>
-                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">工单号</th>
-                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">类型</th>
-                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">时间范围</th>
-                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200 text-center">时长</th>
-                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200 text-center">剩余调休</th>
-                            <th class="py-3.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200 text-center">状态</th>
-                            <th class="py-3.5 pl-3 pr-6 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200 text-right">岗位</th>
+                            <th class="sortable">申请人</th>
+                            <th class="sortable">部门</th>
+                            <th>工单号</th>
+                            <th class="sortable">类型</th>
+                            <th class="sortable">开始时间</th>
+                            <th class="sortable">结束时间</th>
+                            <th class="sortable" style="text-align: center;">时长(h)</th>
+                            <th class="sortable" style="text-align: center;">剩余调休(h)</th>
+                            <th style="text-align: center;">状态</th>
+                            <th>岗位</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        <template x-for="(item, idx) in items" :key="item.id || idx">
-                            <tr class="hover:bg-blue-50/40 transition-colors duration-150 cursor-pointer group" @click="openDetail(item)">
-                                <!-- User -->
-                                <td class="py-3 pl-6 pr-3 whitespace-nowrap">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 text-sm font-bold border border-gray-200 group-hover:bg-white group-hover:border-blue-200 group-hover:text-blue-600 transition-colors">
-                                            <span x-text="(item.user_name || '?')[0]"></span>
-                                        </div>
-                                        <div>
-                                            <div class="font-semibold text-gray-900 text-sm" x-text="item.user_name"></div>
-                                        </div>
-                                    </div>
-                                </td>
-                                
-                                <!-- Dept -->
-                                <td class="py-3 px-3 whitespace-nowrap">
-                                    <div class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md inline-block max-w-[140px] truncate" x-text="item.org_name"></div>
-                                </td>
-
-                                <!-- Order No -->
-                                <td class="py-3 px-3 whitespace-nowrap">
-                                    <div class="font-mono text-xs text-gray-400 group-hover:text-gray-600" x-text="item.sn"></div>
-                                </td>
-
-                                <!-- Type -->
-                                <td class="py-3 px-3 whitespace-nowrap">
-                                    <div class="flex flex-col gap-1">
-                                        <span class="text-sm font-medium text-gray-700" x-text="item.leave_type$$text"></span>
-                                    </div>
-                                </td>
-
-                                <!-- Time -->
-                                <td class="py-3 px-3 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900 font-mono" x-text="formatFullTimeRange(item.leave_start_time, item.leave_end_time)"></div>
-                                </td>
-
-                                <!-- Hours -->
-                                <td class="py-3 px-3 whitespace-nowrap text-center">
-                                    <span class="font-mono text-sm font-bold text-gray-700" x-text="(item.leave_hours || 0)"></span>
-                                    <span class="text-xs text-gray-400">h</span>
-                                </td>
-
-                                <!-- Remaining Time -->
-                                <td class="py-3 px-3 whitespace-nowrap text-center">
-                                    <span class="font-mono text-sm font-medium text-gray-600" x-text="(item.tx_time || 0)"></span>
-                                    <span class="text-xs text-gray-400">h</span>
-                                </td>
-
-                                <!-- Status -->
-                                <td class="py-3 px-3 whitespace-nowrap text-center">
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border shadow-sm w-[60px] justify-center"
-                                            :class="getStatusClass(item.hddev_proc_status)">
-                                        <span x-text="getStatusText(item.hddev_proc_status)"></span>
-                                    </span>
-                                </td>
-
-                                <!-- Job -->
-                                <td class="py-3 pl-3 pr-6 whitespace-nowrap text-right">
-                                    <span class="text-xs font-medium text-gray-500" x-text="item.job || '-'"></span>
-                                </td>
-                            </tr>
-                        </template>
+                    <tbody id="tableBody">
+                        <!-- 数据行将通过 JS 插入 -->
                     </tbody>
                 </table>
+
+                <!-- 空状态 -->
+                <div id="emptyState" style="display: none; padding: 60px 20px; text-align: center; color: var(--text-secondary);">
+                    <i class="fas fa-inbox" style="font-size: 48px; opacity: 0.3; margin-bottom: 16px;"></i>
+                    <p style="font-size: 16px; font-weight: 500;">暂无数据</p>
+                    <p style="font-size: 14px; margin-top: 8px; opacity: 0.7;">请尝试调整筛选条件</p>
+                </div>
             </div>
 
-            <!-- Pagination -->
-            <div class="flex-shrink-0 px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
-                <span class="text-xs text-gray-500 font-medium">
-                    第 <span x-text="pagination.current"></span> 页，共 <span x-text="Math.ceil(pagination.total / pagination.size)"></span> 页
+            <!-- 分页 -->
+            <div class="pagination" id="pagination" style="display: none;">
+                <button onclick="changePage(-1)" id="prevBtn">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <span id="pageInfo" style="font-size: 14px; color: var(--text-secondary); margin: 0 16px;">
+                    第 <span id="currentPage">1</span> 页，共 <span id="totalPages">1</span> 页
                 </span>
-                
-                <div class="flex items-center gap-2">
-                    <button @click="changePage(-1)" :disabled="pagination.current <= 1"
-                            class="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-blue-600 disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-gray-600 transition-all shadow-sm">
-                        <i class="fas fa-chevron-left text-xs"></i>
-                    </button>
-                    <button @click="changePage(1)" :disabled="pagination.current * pagination.size >= pagination.total"
-                            class="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-blue-600 disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-gray-600 transition-all shadow-sm">
-                        <i class="fas fa-chevron-right text-xs"></i>
-                    </button>
-                </div>
+                <button onclick="changePage(1)" id="nextBtn">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
             </div>
-        </main>
-    </div>
-
-    <!-- Detail Modal -->
-    <div x-show="selectedItem" x-cloak 
-         class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
-         style="background: rgba(0,0,0,0.2); backdrop-filter: blur(4px);">
-        
-        <!-- Backdrop Click -->
-        <div class="absolute inset-0" @click="selectedItem = null"></div>
-
-        <!-- Modal Content -->
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col transform transition-all"
-             x-show="selectedItem"
-             x-transition:enter="transition ease-out duration-300"
-             x-transition:enter-start="opacity-0 scale-95 translate-y-8"
-             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-             x-transition:leave="transition ease-in duration-200"
-             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
-             x-transition:leave-end="opacity-0 scale-95 translate-y-8">
-            
-            <template x-if="selectedItem">
-                <div>
-                    <!-- Modal Header -->
-                    <div class="px-8 py-6 border-b border-gray-100 flex justify-between items-start bg-gray-50/50">
-                        <div class="flex items-center gap-5">
-                            <div class="w-16 h-16 rounded-full bg-white border-2 border-white shadow-md flex items-center justify-center text-blue-600 text-2xl font-bold">
-                                <span x-text="(selectedItem.user_name || '?')[0]"></span>
-                            </div>
-                            <div>
-                                <h2 class="text-2xl font-bold text-gray-900" x-text="selectedItem.user_name"></h2>
-                                <div class="flex items-center gap-2 mt-1">
-                                    <span class="px-2 py-0.5 rounded bg-gray-200 text-gray-600 text-xs font-semibold" x-text="selectedItem.org_name"></span>
-                                    <span class="text-gray-400 text-xs">•</span>
-                                    <span class="text-gray-500 text-sm" x-text="selectedItem.job"></span>
-                                </div>
-                            </div>
-                        </div>
-                        <button @click="selectedItem = null" class="w-8 h-8 rounded-full bg-gray-200 text-gray-500 hover:bg-gray-300 flex items-center justify-center transition-colors">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-
-                    <!-- Modal Body -->
-                    <div class="p-8">
-                        <div class="flex flex-col gap-6">
-                            
-                            <!-- Info -->
-                            <div class="bg-gray-50 rounded-xl p-5 border border-gray-100 space-y-4 hover:shadow-sm transition-shadow">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <div class="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">时间范围</div>
-                                        <div class="text-sm font-medium text-gray-900 font-mono" x-text="formatFullTimeRange(selectedItem.leave_start_time, selectedItem.leave_end_time)"></div>
-                                    </div>
-                                    <div class="text-right">
-                                        <div class="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">时长</div>
-                                        <div class="text-2xl font-bold text-gray-900 font-mono" x-text="(selectedItem.leave_hours || 0) + 'h'"></div>
-                                    </div>
-                                </div>
-                                
-                                <div class="flex justify-between items-center bg-blue-50/50 p-3 rounded-lg border border-blue-100/50">
-                                    <span class="text-xs text-blue-600 font-medium uppercase tracking-wider">剩余调休时间</span>
-                                    <span class="text-lg font-bold text-blue-700 font-mono" x-text="(selectedItem.tx_time || 0) + 'h'"></span>
-                                </div>
-
-                                <div class="h-px bg-gray-200 w-full"></div>
-
-                                <div>
-                                    <div class="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">类型</div>
-                                    <span class="px-2 py-1 rounded bg-blue-50 text-blue-700 text-xs font-bold" x-text="selectedItem.leave_type$$text"></span>
-                                </div>
-
-                                <div>
-                                    <div class="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">事由</div>
-                                    <p class="text-sm text-gray-700 leading-relaxed bg-white p-3 rounded-lg border border-gray-100" 
-                                       x-text="selectedItem.leave_reason || '无'"></p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Modal Footer -->
-                    <div class="px-8 py-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center text-xs text-gray-500">
-                        <div class="flex items-center gap-4">
-                            <span class="font-mono text-gray-400">SN: <span x-text="selectedItem.sn"></span></span>
-                            <span class="font-mono text-gray-400">Key: <span x-text="selectedItem.hddev_business_key"></span></span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <span class="uppercase tracking-wider font-semibold text-[10px] text-gray-400">状态</span>
-                            <span x-html="getStatusBadgeHtml(selectedItem.hddev_proc_status)"></span>
-                        </div>
-                    </div>
-                </div>
-            </template>
         </div>
     </div>
 
     <script>
-        function app() {
-            return {
-                loading: false,
-                items: [],
-                selectedItem: null,
-                params: {
-                    startDate: '',
-                    endDate: '',
-                    orgName: '管网产品组',
-                    applicant: '',
-                    status: ''
-                },
-                pagination: {
-                    current: 1,
-                    size: 30,
-                    total: 0
-                },
+        // ==================== 全局状态 ====================
+        let currentData = [];
+        let pagination = {
+            current: 1,
+            size: 50,
+            total: 0
+        };
 
-                init() {
-                    this.initDates();
-                    this.loadData();
-                    window.addEventListener('keydown', (e) => {
-                        if (e.key === 'Escape') this.selectedItem = null;
-                    });
-                },
+        // ==================== 初始化 ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            initDates();
+            loadData();
 
-                initDates() {
-                    const now = new Date();
-                    
-                    const start = new Date(now);
-                    start.setDate(now.getDate() - 7);
-                    
-                    const end = new Date(now);
-                    end.setDate(now.getDate() + 7);
-                    
-                    this.params.startDate = start.toISOString().split('T')[0];
-                    this.params.endDate = end.toISOString().split('T')[0];
-                },
+            // 初始化表格排序
+            new TableSorter('dataTable');
 
-                search() {
-                    this.pagination.current = 1;
-                    this.loadData();
-                },
+            // 回车搜索
+            document.querySelectorAll('.form-input, .form-select').forEach(input => {
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') search();
+                });
+            });
+        });
 
-                changePage(delta) {
-                    this.pagination.current += delta;
-                    this.loadData();
-                },
+        // ==================== 初始化日期 ====================
+        function initDates() {
+            const now = new Date();
+            const start = new Date(now);
+            start.setDate(now.getDate() - 7);
+            const end = new Date(now);
+            end.setDate(now.getDate() + 7);
 
-                openDetail(item) {
-                    this.selectedItem = item;
-                },
+            document.getElementById('startDate').value = DateFormatter.format(start);
+            document.getElementById('endDate').value = DateFormatter.format(end);
+        }
 
-                async loadData() {
-                    this.loading = true;
-                    try {
-                        const payload = {
-                            index: this.pagination.current,
-                            size: this.pagination.size,
-                            startDate: this.params.startDate ? new Date(this.params.startDate) : null,
-                            endDate: this.params.endDate ? new Date(this.params.endDate) : null,
-                            departmentName: this.params.orgName || null,
-                            applicantName: this.params.applicant || null,
-                            status: this.params.status || null
-                        };
+        // ==================== 搜索 ====================
+        function search() {
+            pagination.current = 1;
+            loadData();
+        }
 
-                        const resp = await fetch('/api/Leave/QueryLeaveApply', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
+        // ==================== 翻页 ====================
+        function changePage(delta) {
+            const maxPage = Math.ceil(pagination.total / pagination.size);
+            const newPage = pagination.current + delta;
 
-                        if (!resp.ok) throw new Error(await resp.text());
+            if (newPage < 1 || newPage > maxPage) return;
 
-                        const data = await resp.json();
-                        if (data.Code === 0 && data.Response) {
-                            this.items = data.Response.rows;
-                            this.pagination.total = data.Response.total;
-                        }
-                    } catch (e) {
-                        console.error(e);
-                    } finally {
-                        this.loading = false;
-                    }
-                },
+            pagination.current = newPage;
+            loadData();
+        }
 
-                formatFullTimeRange(start, end) {
-                    if (!start || !end) return '-';
-                    try {
-                        const s = start.replace('T', ' ').trim();
-                        const e = end.replace('T', ' ').trim();
-                        
-                        const startDate = s.split(' ')[0];
-                        const endDate = e.split(' ')[0];
-                        
-                        const startTime = (s.split(' ')[1] || '00:00').substring(0, 5);
-                        const endTime = (e.split(' ')[1] || '00:00').substring(0, 5);
+        // ==================== 加载数据 ====================
+        async function loadData() {
+            LoadingOverlay.show(document.querySelector('.content-section'));
 
-                        if (startDate === endDate) {
-                            return `${startDate} ${startTime} - ${endTime}`;
-                        } else {
-                            return `${startDate} ${startTime} - ${endDate} ${endTime}`;
-                        }
-                    } catch (err) {
-                        return '-';
-                    }
-                },
+            try {
+                const payload = {
+                    index: pagination.current,
+                    size: pagination.size,
+                    startDate: document.getElementById('startDate').value || null,
+                    endDate: document.getElementById('endDate').value || null,
+                    departmentName: document.getElementById('orgName').value || null,
+                    applicantName: document.getElementById('applicant').value || null,
+                    status: document.getElementById('status').value || null
+                };
 
-                getStatusText(status) {
-                    if (status === 'APPROVED') return '已通过';
-                    if (status === 'COMPLETED') return '已完成';
-                    if (status === 'REJECTED') return '已拒绝';
-                    if (status === 'DRAFT') return '草稿';
-                    if (status === 'PROCESS') return '审批中';
-                    if (status === 'CANCELED') return '已取消';
-                    return status || '待定';
-                },
+                const response = await fetch('/api/Leave/QueryLeaveApply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
 
-                getStatusClass(status) {
-                    if (status === 'APPROVED' || status === 'COMPLETED') return 'bg-green-50 text-green-600 border-green-200';
-                    if (status === 'REJECTED') return 'bg-red-50 text-red-600 border-red-200';
-                    if (status === 'PROCESS') return 'bg-blue-50 text-blue-600 border-blue-200';
-                    if (status === 'CANCELED') return 'bg-gray-100 text-gray-400 border-gray-200 line-through';
-                    return 'bg-gray-100 text-gray-500 border-gray-200';
-                },
+                if (!response.ok) throw new Error('请求失败');
 
-                getStatusBadgeHtml(status) {
-                    const text = this.getStatusText(status);
-                    let colorClass = 'bg-gray-100 text-gray-500';
-                    if (status === 'APPROVED' || status === 'COMPLETED') colorClass = 'bg-green-100 text-green-700';
-                    if (status === 'REJECTED') colorClass = 'bg-red-100 text-red-700';
-                    if (status === 'PROCESS') colorClass = 'bg-blue-100 text-blue-700';
-                    if (status === 'CANCELED') colorClass = 'bg-gray-200 text-gray-400 line-through';
-                    return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${colorClass}">${text}</span>`;
+                const data = await response.json();
+                if (data.Code === 0 && data.Response) {
+                    currentData = data.Response.rows || [];
+                    pagination.total = data.Response.total || 0;
+                    renderTable();
+                    updateStats();
+                    updatePagination();
+                } else {
+                    throw new Error(data.Message || '数据加载失败');
                 }
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                Toast.error('数据加载失败: ' + error.message);
+                currentData = [];
+                renderTable();
+            } finally {
+                LoadingOverlay.hide();
             }
+        }
+
+        // ==================== 渲染表格 ====================
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            const emptyState = document.getElementById('emptyState');
+
+            if (currentData.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+
+            tbody.innerHTML = currentData.map(item => `
+                <tr onclick="showDetail(${JSON.stringify(item).replace(/"/g, '&quot;')})">
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--hover-bg); display: flex; align-items: center; justify-content: center; font-weight: 600; color: var(--primary-color); font-size: 14px;">
+                                ${(item.user_name || '?')[0]}
+                            </div>
+                            <span style="font-weight: 600;">${item.user_name || '-'}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge badge-gray">${item.org_name || '-'}</span>
+                    </td>
+                    <td>
+                        <span class="font-mono" style="font-size: 12px; color: var(--text-secondary);">${item.sn || '-'}</span>
+                    </td>
+                    <td>${item.leave_type$$text || '-'}</td>
+                    <td class="font-mono" style="font-size: 13px;">${formatDateTime(item.leave_start_time)}</td>
+                    <td class="font-mono" style="font-size: 13px;">${formatDateTime(item.leave_end_time)}</td>
+                    <td style="text-align: center;">
+                        <span class="font-mono" style="font-weight: 600;">${NumberFormatter.format(item.leave_hours || 0, 1)}</span>
+                    </td>
+                    <td style="text-align: center;">
+                        <span class="font-mono" style="font-weight: 600; color: var(--secondary-color);">${NumberFormatter.format(item.tx_time || 0, 1)}</span>
+                    </td>
+                    <td style="text-align: center;">
+                        ${getStatusBadge(item.hddev_proc_status)}
+                    </td>
+                    <td style="font-size: 13px; color: var(--text-secondary);">${item.job || '-'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // ==================== 更新统计 ====================
+        function updateStats() {
+            // 统计卡片已移除,此函数不再需要
+            // 保留函数定义以避免调用错误
+        }
+
+        // ==================== 更新分页 ====================
+        function updatePagination() {
+            const paginationEl = document.getElementById('pagination');
+            const totalPages = Math.ceil(pagination.total / pagination.size);
+
+            if (totalPages <= 1) {
+                paginationEl.style.display = 'none';
+                return;
+            }
+
+            paginationEl.style.display = 'flex';
+            document.getElementById('currentPage').textContent = pagination.current;
+            document.getElementById('totalPages').textContent = totalPages;
+
+            document.getElementById('prevBtn').disabled = pagination.current <= 1;
+            document.getElementById('nextBtn').disabled = pagination.current >= totalPages;
+        }
+
+        // ==================== 格式化日期时间 ====================
+        function formatDateTime(dateStr) {
+            if (!dateStr) return '-';
+            try {
+                const date = new Date(dateStr);
+                return DateFormatter.format(date, 'YYYY-MM-DD HH:mm');
+            } catch {
+                return dateStr;
+            }
+        }
+
+        // ==================== 状态徽章 ====================
+        function getStatusBadge(status) {
+            const statusMap = {
+                'APPROVED': { text: '已通过', class: 'badge-success' },
+                'COMPLETED': { text: '已完成', class: 'badge-success' },
+                'REJECTED': { text: '已拒绝', class: 'badge-danger' },
+                'PROCESS': { text: '审批中', class: 'badge-info' },
+                'DRAFT': { text: '草稿', class: 'badge-gray' },
+                'CANCELED': { text: '已取消', class: 'badge-gray' }
+            };
+
+            const config = statusMap[status] || { text: status || '未知', class: 'badge-gray' };
+            return `<span class="badge ${config.class}">${config.text}</span>`;
+        }
+
+        // ==================== 显示详情 ====================
+        function showDetail(item) {
+            const details = `
+                <div style="padding: 20px;">
+                    <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: var(--text-primary);">
+                        ${item.user_name} - 调休申请详情
+                    </h3>
+
+                    <div style="display: grid; gap: 16px;">
+                        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 12px; background: var(--bg-color); border-radius: 8px;">
+                            <span style="color: var(--text-secondary); font-weight: 600;">部门:</span>
+                            <span>${item.org_name || '-'}</span>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 12px; background: var(--bg-color); border-radius: 8px;">
+                            <span style="color: var(--text-secondary); font-weight: 600;">岗位:</span>
+                            <span>${item.job || '-'}</span>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 12px; background: var(--bg-color); border-radius: 8px;">
+                            <span style="color: var(--text-secondary); font-weight: 600;">类型:</span>
+                            <span>${item.leave_type$$text || '-'}</span>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 12px; background: var(--bg-color); border-radius: 8px;">
+                            <span style="color: var(--text-secondary); font-weight: 600;">时间范围:</span>
+                            <span class="font-mono">${formatDateTime(item.leave_start_time)} 至 ${formatDateTime(item.leave_end_time)}</span>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 12px; background: var(--bg-color); border-radius: 8px;">
+                            <span style="color: var(--text-secondary); font-weight: 600;">时长:</span>
+                            <span class="font-mono" style="font-weight: 700; color: var(--primary-color);">${NumberFormatter.format(item.leave_hours || 0, 1)} 小时</span>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 12px; background: var(--bg-color); border-radius: 8px;">
+                            <span style="color: var(--text-secondary); font-weight: 600;">剩余调休:</span>
+                            <span class="font-mono" style="font-weight: 700; color: var(--secondary-color);">${NumberFormatter.format(item.tx_time || 0, 1)} 小时</span>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 12px; background: var(--bg-color); border-radius: 8px;">
+                            <span style="color: var(--text-secondary); font-weight: 600;">事由:</span>
+                            <span>${item.leave_reason || '无'}</span>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 12px; background: var(--bg-color); border-radius: 8px;">
+                            <span style="color: var(--text-secondary); font-weight: 600;">状态:</span>
+                            <span>${getStatusBadge(item.hddev_proc_status)}</span>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 12px; background: var(--bg-color); border-radius: 8px;">
+                            <span style="color: var(--text-secondary); font-weight: 600;">工单号:</span>
+                            <span class="font-mono" style="font-size: 12px;">${item.sn || '-'}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 创建模态框
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                backdrop-filter: blur(4px);
+                z-index: 1000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            `;
+
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = `
+                background: white;
+                border-radius: 12px;
+                max-width: 600px;
+                width: 100%;
+                max-height: 90vh;
+                overflow-y: auto;
+                box-shadow: var(--shadow-lg);
+                position: relative;
+            `;
+
+            const closeBtn = document.createElement('button');
+            closeBtn.innerHTML = '<i class="fas fa-times"></i>';
+            closeBtn.className = 'btn';
+            closeBtn.style.cssText = `
+                position: absolute;
+                top: 20px;
+                right: 20px;
+                width: 36px;
+                height: 36px;
+                padding: 0;
+                border-radius: 50%;
+            `;
+            closeBtn.onclick = () => modal.remove();
+
+            modalContent.innerHTML = details;
+            modalContent.appendChild(closeBtn);
+            modal.appendChild(modalContent);
+            document.body.appendChild(modal);
+
+            // 点击背景关闭
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.remove();
+            });
+
+            // ESC 关闭
+            const escHandler = (e) => {
+                if (e.key === 'Escape') {
+                    modal.remove();
+                    document.removeEventListener('keydown', escHandler);
+                }
+            };
+            document.addEventListener('keydown', escHandler);
+        }
+
+        // ==================== 导出数据 ====================
+        function exportData() {
+            if (currentData.length === 0) {
+                Toast.warning('没有数据可导出');
+                return;
+            }
+
+            TableExporter.toCSV('dataTable', `调休申请_${DateFormatter.today()}.csv`);
         }
     </script>
 </body>

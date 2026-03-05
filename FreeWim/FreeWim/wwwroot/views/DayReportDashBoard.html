@@ -1,335 +1,140 @@
 <!DOCTYPE html>
-<html lang="zh-cn">
-
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>工作报告统计看</title>
-    <link rel="stylesheet" href="/lib/fontawesome/all.min.css"/>
-    <link href="/lib/mermaid/mermaid.min.css" rel="stylesheet"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作报告统计</title>
+    <script src="/js/dashboard-adapter.js"></script>
+    <link rel="stylesheet" href="/css/dashboard-unified.css">
+    <link rel="stylesheet" href="/lib/fontawesome/all.min.css">
+    <script src="/js/dashboard-utils.js"></script>
     <script src="/lib/gridjs/gridjs.umd.js"></script>
-
     <style>
-        /* --- 1. 核心变量与背景动画 --- */
-        :root {
-            --glass-bg: rgba(255, 255, 255, 0.65);
-            --glass-border: rgba(255, 255, 255, 0.5);
-            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
-            --ios-blue: #007AFF;
-            --ios-green: #34C759;
-            --ios-gray: #8E8E93;
-            --text-main: #1d1d1f;
-            --font-stack: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
-        }
-
-        body {
-            font-family: var(--font-stack);
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
-            color: var(--text-main);
-            overflow-x: hidden;
-            background-color: #f0f4f8;
-            /* 动态背景容器 */
-            position: relative;
-        }
-
-        /* 液态流动背景球 */
-        .liquid-bg {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: -1;
-            overflow: hidden;
-            background: #f2f6ff;
-        }
-
-        .blob {
-            position: absolute;
-            filter: blur(60px);
-            opacity: 0.8;
-            animation: move 20s infinite alternate;
-            border-radius: 50%;
-        }
-
-        .blob-1 {
-            top: -10%;
-            left: -10%;
-            width: 50vw;
-            height: 50vw;
-            background: #a9d2fe;
-            animation-duration: 25s;
-        }
-
-        .blob-2 {
-            bottom: -10%;
-            right: -10%;
-            width: 50vw;
-            height: 50vw;
-            background: #d4fcff;
-            animation-duration: 30s;
-            animation-direction: reverse;
-        }
-
-        .blob-3 {
-            top: 30%;
-            left: 40%;
-            width: 30vw;
-            height: 30vw;
-            background: #e4d4ff;
-            animation-duration: 22s;
-        }
-
-        @keyframes move {
-            from {
-                transform: translate(0, 0) rotate(0deg);
-            }
-            to {
-                transform: translate(100px, 50px) rotate(20deg);
-            }
-        }
-
-        /* --- 2. 布局容器 --- */
-        .container {
-            width: 94%;
-            max-width: 1400px;
-            margin: 40px auto;
-            position: relative;
-            z-index: 1;
-        }
-
-        .header-section {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-
-        .header-section h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: #1d1d1f;
-            margin: 0;
-            letter-spacing: -0.02em;
-        }
-
-        /* --- 3. iOS 分段控制器 (Segmented Control) --- */
-        .ios-segmented-control {
-            display: inline-flex;
-            background: rgba(118, 118, 128, 0.12);
-            padding: 4px;
-            border-radius: 12px;
-            margin-top: 20px;
-            position: relative;
-        }
-
-        .tab-btn {
-            padding: 8px 30px;
-            font-size: 15px;
-            font-weight: 600;
-            color: #1d1d1f;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            border-radius: 9px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            z-index: 2;
-        }
-
-        .tab-btn.active {
-            background: #fff;
-            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12), 0 3px 1px rgba(0, 0, 0, 0.04);
-        }
-
-        /* --- 4. 玻璃拟态卡片 --- */
-        .glass-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            box-shadow: var(--glass-shadow);
-            padding: 30px;
-            margin-bottom: 30px;
-            transition: transform 0.3s ease;
-        }
-
-        .card-title {
-            font-size: 1.2rem;
-            font-weight: 700;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: #333;
-        }
-
-        .card-title i {
-            color: var(--ios-blue);
-        }
-
-        /* --- 5. 筛选与按钮 --- */
-        .filter-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            align-items: center;
-        }
-
-        .input-group {
-            display: flex;
-            align-items: center;
-            background: rgba(255, 255, 255, 0.6);
-            border-radius: 12px;
-            padding: 4px 12px;
-            border: 1px solid rgba(0, 0, 0, 0.05);
-            transition: all 0.2s;
-        }
-
-        .input-group:focus-within {
-            background: #fff;
-            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
-        }
-
-        .input-group label {
-            font-size: 13px;
-            font-weight: 600;
-            color: #666;
-            margin-right: 8px;
-            white-space: nowrap;
-        }
-
-        .ios-date {
-            border: none;
-            background: transparent;
-            font-family: var(--font-stack);
-            font-size: 14px;
-            color: #333;
-            outline: none;
-            padding: 6px 0;
-        }
-
-        .ios-btn {
-            background: var(--ios-blue);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 20px; /* Pill shape */
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.1s, box-shadow 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            box-shadow: 0 4px 10px rgba(0, 122, 255, 0.3);
-        }
-
-        .ios-btn:active {
-            transform: scale(0.96);
-        }
-
-        .ios-btn.green {
-            background: var(--ios-green);
-            box-shadow: 0 4px 10px rgba(52, 199, 89, 0.3);
-        }
-
-        /* 分隔线 */
-        .divider {
-            width: 1px;
-            height: 24px;
-            background: rgba(0, 0, 0, 0.1);
-            margin: 0 10px;
-        }
-
-        /* --- 6. Grid.js 透明化定制 --- */
-        /* 强制覆盖 Grid.js 默认样式以适应毛玻璃 */
+        /* Grid.js 样式覆盖 - 适配统一设计 */
         .gridjs-container {
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
-            color: #333;
         }
 
         .gridjs-wrapper {
-            border-radius: 16px;
-            background: rgba(255, 255, 255, 0.4);
-            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.5);
+            overflow: hidden;
         }
 
         .gridjs-table {
             width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
         }
 
         th.gridjs-th {
-            background: rgba(255, 255, 255, 0.5) !important;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
-            color: #666;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #F9FAFB !important;
+            border-bottom: 2px solid #E5E7EB !important;
+            color: #6B7280;
             font-weight: 600;
             text-transform: uppercase;
-            font-size: 12px;
-            padding: 16px !important;
+            font-size: 11px;
+            padding: 12px 16px !important;
+            white-space: nowrap;
+            letter-spacing: 0.05em;
         }
 
         td.gridjs-td {
             background: transparent !important;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.03) !important;
+            border-bottom: 1px solid #F3F4F6 !important;
             font-size: 14px;
-            padding: 14px 16px !important;
+            padding: 12px 16px !important;
+            color: #1F2937;
         }
 
         tr:last-child td.gridjs-td {
             border-bottom: none !important;
         }
 
-        tr:hover td.gridjs-td {
-            background: rgba(255, 255, 255, 0.3) !important;
+        tbody tr:hover td.gridjs-td {
+            background: rgba(30, 64, 175, 0.05) !important;
         }
 
-        /* 链接和徽章 */
         .grid-link {
-            color: var(--ios-blue);
+            color: #1E40AF;
             text-decoration: none;
             font-weight: 600;
             cursor: pointer;
+            transition: color 0.2s;
         }
 
-        .badge {
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
+        .grid-link:hover {
+            color: #1E3A8A;
+            text-decoration: underline;
+        }
+
+        /* 报表类型切换开关 */
+        .switch-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            background: var(--bg-color);
+            border-radius: 8px;
+        }
+
+        .switch {
+            position: relative;
             display: inline-block;
+            width: 50px;
+            height: 24px;
         }
 
-        .badge.green {
-            background: rgba(52, 199, 89, 0.15);
-            color: #248a3d;
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
         }
 
-        .badge.red {
-            background: rgba(255, 59, 48, 0.15);
-            color: #c92a2a;
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .3s;
+            border-radius: 24px;
         }
 
-        .badge.yellow {
-            background: rgba(255, 204, 0, 0.2);
-            color: #b58d00;
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
         }
 
-        .badge.gray {
-            background: rgba(142, 142, 147, 0.2);
-            color: #666;
+        input:checked + .slider {
+            background-color: var(--primary-color);
         }
 
-        /* 状态 Tab 内容切换 */
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
         .tab-content {
-            display: none;
-            animation: fadeIn 0.4s ease;
+            display: none !important;
         }
 
         .tab-content.active {
-            display: block;
+            display: flex !important;
+            animation: fadeIn 0.3s ease;
         }
 
         @keyframes fadeIn {
@@ -342,461 +147,570 @@
                 transform: translateY(0);
             }
         }
+
+        /* 卡片样式 */
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1F2937;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title i {
+            color: #1E40AF;
+        }
+
+        .card-subtitle {
+            font-size: 13px;
+            color: #6B7280;
+            margin-left: 8px;
+            font-weight: 400;
+        }
+
+        /* Grid.js 排序 - 简洁样式 */
+        th.gridjs-th-sort {
+            cursor: pointer !important;
+            user-select: none !important;
+            white-space: nowrap !important;
+        }
+
+        th.gridjs-th-sort:hover {
+            color: var(--primary-color) !important;
+        }
+
+        /* 完全隐藏 Grid.js 默认按钮和排序图标 */
+        .gridjs-th-sort button {
+            display: none !important;
+        }
     </style>
 </head>
-
 <body>
-
-<div class="liquid-bg">
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
-    <div class="blob blob-3"></div>
-</div>
-
-<div class="container">
-    <div class="header-section">
-        <h1>工作报告看板</h1>
-        <div class="ios-segmented-control">
-            <button class="tab-btn active" onclick="switchTab('daily')">日报统计</button>
-            <button class="tab-btn" onclick="switchTab('weekly')">周报统计</button>
-        </div>
-    </div>
-
-    <div id="tab-daily" class="tab-content active">
-        <div class="glass-card">
-            <div class="card-title"><i class="fas fa-sliders-h"></i> 筛选与操作</div>
+    <div class="page-container">
+        <!-- 筛选区 - 固定顶部 -->
+        <div class="filter-section">
             <div class="filter-row">
-                <div class="input-group">
-                    <label>开始</label>
-                    <input type="date" id="startDate" class="ios-date">
+                <!-- 日期范围 -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-calendar-alt" style="color: var(--text-secondary); font-size: 14px;"></i>
+                    <input type="date" id="startDate" class="form-input" style="width: 150px;">
+                    <span style="color: var(--text-secondary);">至</span>
+                    <input type="date" id="endDate" class="form-input" style="width: 150px;">
                 </div>
-                <div class="input-group">
-                    <label>结束</label>
-                    <input type="date" id="endDate" class="ios-date">
-                </div>
-                <button class="ios-btn" onclick="onDateFilter()"><i class="fas fa-search"></i> 查询</button>
 
-                <div class="divider"></div>
+                <!-- 报表类型切换 -->
+                <div class="switch-container">
+                    <span style="font-size: 13px; color: var(--text-secondary);">日报统计</span>
+                    <label class="switch">
+                        <input type="checkbox" id="reportTypeSwitch" onchange="switchReportType()">
+                        <span class="slider"></span>
+                    </label>
+                    <span style="font-size: 13px; color: var(--text-secondary);">周报统计</span>
+                </div>
 
-                <div class="input-group">
-                    <label>餐补开始</label>
-                    <input type="date" id="oaWorkoverStartDate" class="ios-date">
+                <div style="flex: 1;"></div>
+
+                <!-- 日报专用：餐补导出 -->
+                <div id="dailyExport" style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 13px; color: var(--text-secondary); font-weight: 500;">餐补导出:</span>
+                    <input type="date" id="oaWorkoverStartDate" class="form-input" style="width: 150px;">
+                    <span style="color: var(--text-secondary);">至</span>
+                    <input type="date" id="oaWorkoverEndDate" class="form-input" style="width: 150px;">
+                    <button class="btn btn-success" onclick="ExportOaWorkoverTime()">
+                        <i class="fas fa-file-export"></i> 导出
+                    </button>
                 </div>
-                <div class="input-group">
-                    <label>餐补结束</label>
-                    <input type="date" id="oaWorkoverEndDate" class="ios-date">
-                </div>
-                <button class="ios-btn green" onclick="ExportOaWorkoverTime()"><i class="fas fa-file-export"></i> 导出
+
+                <!-- 查询按钮 -->
+                <button class="btn btn-primary" onclick="onQueryClick()">
+                    <i class="fas fa-search"></i> 查询
                 </button>
             </div>
         </div>
 
-        <div class="glass-card">
-            <div class="card-title"><i class="fas fa-layer-group"></i> 日报总览</div>
-            <div id="main-table"></div>
-        </div>
+        <!-- 内容区 - 可滚动 -->
+        <div class="content-section" style="display: flex; flex-direction: column;">
+            <!-- 日报统计 -->
+            <div id="tabDaily" class="tab-content active" style="flex: 1; display: flex; flex-direction: column;">
+                <div class="card">
+                    <div class="card-title">
+                        <i class="fas fa-layer-group"></i>
+                        日报总览
+                    </div>
+                    <div id="mainTable"></div>
+                </div>
 
-        <div class="glass-card">
-            <div class="card-title">
-                <i class="fas fa-list"></i> 详细数据
-                <span id="detail-title-daily" style="font-size: 14px; color:#666; margin-left: 10px; font-weight: 400;">(请点击表格数据查看)</span>
+                <div class="card">
+                    <div class="card-title">
+                        <i class="fas fa-list"></i>
+                        详细数据
+                        <span class="card-subtitle" id="detailTitleDaily">(请点击表格数据查看)</span>
+                    </div>
+                    <div id="detailTable"></div>
+                </div>
             </div>
-            <div id="detail-table"></div>
+
+            <!-- 周报统计 -->
+            <div id="tabWeekly" class="tab-content" style="flex: 1; display: flex; flex-direction: column;">
+                <div class="card">
+                    <div class="card-title">
+                        <i class="fas fa-layer-group"></i>
+                        周报总览
+                    </div>
+                    <div id="weekMainTable"></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">
+                        <i class="fas fa-list"></i>
+                        详细数据
+                        <span class="card-subtitle" id="detailTitleWeekly">(请点击表格数据查看)</span>
+                    </div>
+                    <div id="weekDetailTable"></div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div id="tab-weekly" class="tab-content">
-        <div class="glass-card">
-            <div class="card-title"><i class="fas fa-sliders-h"></i> 周报筛选</div>
-            <div class="filter-row">
-                <div class="input-group">
-                    <label>开始</label>
-                    <input type="date" id="weekstartDate" class="ios-date">
-                </div>
-                <div class="input-group">
-                    <label>结束</label>
-                    <input type="date" id="weekendDate" class="ios-date">
-                </div>
-                <button class="ios-btn" onclick="weekonDateFilter()"><i class="fas fa-search"></i> 查询</button>
-            </div>
-        </div>
+    <script>
+        // ==================== 全局变量 ====================
+        let MainGrid = null;
+        let detailGrid = null;
+        let weekMainGrid = null;
+        let weekDetailGrid = null;
 
-        <div class="glass-card">
-            <div class="card-title"><i class="fas fa-layer-group"></i> 周报总览</div>
-            <div id="weekmain-table"></div>
-        </div>
-
-        <div class="glass-card">
-            <div class="card-title">
-                <i class="fas fa-list"></i> 详细数据
-                <span id="detail-title-weekly"
-                      style="font-size: 14px; color:#666; margin-left: 10px; font-weight: 400;">(请点击表格数据查看)</span>
-            </div>
-            <div id="weekdetail-table"></div>
-        </div>
-    </div>
-</div>
-
-<script>
-    let MainGrid = null;
-    let detailGrid = null;
-    let weekMainGrid = null;
-    let weekdetailGrid = null;
-
-    function formatToMonthDay(dateString) {
-        if (!dateString) return '';
-        const parts = dateString.split('-');
-        if (parts.length === 3) {
-            return `${parts[1]}-${parts[2]}`;
-        }
-        return dateString;
-    }
-
-    function getRecentDates(n) {
-        const dates = [];
-        const today = new Date();
-        for (let i = 0; i < n; i++) {
-            const d = new Date(today);
-            d.setDate(today.getDate() - i);
-            dates.push(d.toISOString().split("T")[0]);
-        }
-        dates.reverse();
-        const start = dates[0];
-        const end = dates[dates.length - 1];
-
-        document.getElementById('startDate').value = start;
-        document.getElementById('endDate').value = end;
-        document.getElementById('weekstartDate').value = start;
-        document.getElementById('weekendDate').value = end;
-        // document.getElementById('oaWorkoverStartDate').value = start;
-        // document.getElementById('oaWorkoverEndDate').value = end;
-    }
-
-    function switchTab(tab) {
-        // UI Update
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        event.target.classList.add('active');
-
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-
-        if (tab === 'daily') {
-            document.getElementById('tab-daily').classList.add('active');
-        } else {
-            document.getElementById('tab-weekly').classList.add('active');
-        }
-    }
-
-    /* --- 业务逻辑：保留原版接口调用 --- */
-
-    async function loadMainTable() {
-        const body = {
-            StartDate: document.getElementById('startDate').value,
-            EndDate: document.getElementById('endDate').value
-        };
-
-        // 使用真实接口
-        const res = await fetch("/api/PmisAndZentao/QueryJobUserWorkSum", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(body)
-        });
-
-        if (MainGrid) {
-            MainGrid.destroy();
+        // ==================== 工具函数 ====================
+        function formatToMonthDay(dateString) {
+            if (!dateString) return '';
+            const parts = dateString.split('-');
+            if (parts.length === 3) {
+                return `${parts[1]}-${parts[2]}`;
+            }
+            return dateString;
         }
 
-        const json = await res.json();
-        if (!json.Success) {
-            alert("加载主表失败");
-            return;
+        function getRecentDates(n) {
+            const dates = [];
+            const today = new Date();
+            for (let i = 0; i < n; i++) {
+                const d = new Date(today);
+                d.setDate(today.getDate() - i);
+                dates.push(d.toISOString().split("T")[0]);
+            }
+            dates.reverse();
+            const start = dates[0];
+            const end = dates[dates.length - 1];
+
+            document.getElementById('startDate').value = start;
+            document.getElementById('endDate').value = end;
+            // 餐补导出日期默认为空
+            document.getElementById('oaWorkoverStartDate').value = '';
+            document.getElementById('oaWorkoverEndDate').value = '';
         }
 
-        const {columns, rows} = json.Response;
-        const rowData = rows.rows;
+        // ==================== 报表类型切换 ====================
+        function switchReportType() {
+            const isWeekly = document.getElementById('reportTypeSwitch').checked;
 
-        const mainColumns = [
-            {id: "systemName", name: "体系", width: "90px", sort: true},
-            {id: "groupName", name: "部门", width: "90px", sort: true},
-            {id: "className", name: "小组", width: "90px", sort: true},
-            {id: "personTotal", name: "总数", width: "60px", sort: true},
-            {id: "reportRate", name: "上报率", width: "70px", sort: true},
-            ...columns.map(date => ({
-                id: date,
-                name: formatToMonthDay(date),
-                width: "70px",
-                sort: false,
-                formatter: (cell, row) => {
-                    if (!cell) return "-";
-                    const {alreadyNumberReport, shouldNumberReport} = cell;
-                    const isFull = alreadyNumberReport === shouldNumberReport && shouldNumberReport > 0;
-                    const style = isFull ? 'color: var(--ios-green);' : 'color: var(--ios-blue);';
+            // 切换显示内容
+            if (isWeekly) {
+                document.getElementById('tabDaily').classList.remove('active');
+                document.getElementById('tabWeekly').classList.add('active');
+                document.getElementById('dailyExport').style.display = 'none';
 
-                    return gridjs.html(
-                        `<span class="grid-link" style="${style}" onclick="loadDetail('${row.cells[0].data}','${row.cells[1].data}','${row.cells[2].data}','${date}')">
-                                ${alreadyNumberReport}/${shouldNumberReport}
-                            </span>`
-                    );
-                }
-            }))
-        ];
+           // 加载周报数据
+                loadWeekMainTable();
+            } else {
+                document.getElementById('tabWeekly').classList.remove('active');
+                document.getElementById('tabDaily').classList.add('active');
+                document.getElementById('dailyExport').style.display = 'flex';
 
-        const mainData = rowData.map(r => {
-            const row = [r.systemName, r.groupName, r.className, r.personTotal, r.reportRate + "%"];
-            for (const date of columns) row.push(r[date] || null);
-            return row;
-        });
-
-        MainGrid = new gridjs.Grid({
-            columns: mainColumns,
-            data: mainData,
-            sort: true,
-            style: {table: {'white-space': 'nowrap'}}
-        }).render(document.getElementById("main-table"));
-
-        if (rowData.length > 0 && columns.length > 0) {
-            loadDetail(rowData[0].systemName, rowData[0].groupName, rowData[0].className, columns[0]);
-        }
-    }
-
-    async function loadDetail(systemName, groupName, className, createDate) {
-        document.getElementById('detail-title-daily').textContent = `${systemName} - ${groupName} - ${createDate}`;
-        document.getElementById("detail-table").innerHTML = '<div style="padding:20px; text-align:center; color:#666;"><i class="fas fa-spinner fa-spin"></i> 加载中...</div>';
-
-        const body = {CreateDate: createDate};
-        const res = await fetch("/api/PmisAndZentao/QueryUserWorkSumDetail", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(body)
-        });
-
-        const json = await res.json();
-        if (!json.Success) {
-            document.getElementById("detail-table").innerHTML = '加载失败';
-            return;
-        }
-
-        const detailRows = json.Response.rows.map(r => [
-            r.systemName, r.groupName, r.className, r.userName,
-            r.status === "1" ? "已上报" : "未上报",
-            r.goWorks?.[0]?.time || "--:--", r.goWorks?.[0]?.clockInStatusName || "",
-            r.offWorks?.[0]?.time || "--:--", r.offWorks?.[0]?.clockInStatusName || "",
-            r.overtime?.overTime > 0 ? r.overtime.overTime : "",
-            r.leaderStatus === "1" ? "已读" : "未读",
-            r.submitTime == null ? "-" : new Date(r.submitTime * 1000).toLocaleTimeString('zh-CN', {hour12: false})
-        ]);
-
-        if (detailGrid) {
-            detailGrid.destroy();
-        }
-        document.getElementById("detail-table").innerHTML = "";
-        detailGrid = new gridjs.Grid({
-            columns: [
-                "体系", "部门", "小组", {name: "姓名", sort: true},
-                {
-                    name: "状态", sort: true,
-                    formatter: (cell) => gridjs.html(
-                        cell === "已上报" ? `<span class="badge green">已上报</span>` : `<span class="badge red">未上报</span>`
-                    )
-                },
-                {
-                    name: "上班",
-                    formatter: (_, row) => {
-                        const time = row.cells[5].data;
-                        const status = row.cells[6].data;
-                        let badge = "";
-                        if (status !== "正常") badge = `<span class="badge yellow" style="margin-left:4px; font-size:10px;">${status}</span>`;
-                        return gridjs.html(`${time}${badge}`);
-                    }
-                },
-                {id: "hidden1", hidden: true},
-                {
-                    name: "下班",
-                    formatter: (_, row) => {
-                        const time = row.cells[7].data;
-                        const status = row.cells[8].data;
-                        let badge = "";
-                        if (status !== "正常") badge = `<span class="badge yellow" style="margin-left:4px; font-size:10px;">${status}</span>`;
-                        return gridjs.html(`${time}${badge}`);
-                    }
-                },
-                {id: "hidden2", hidden: true},
-                {name: "加班", sort: true},
-                {
-                    name: "查看", sort: true,
-                    formatter: (cell) => gridjs.html(
-                        cell === "已读" ? `<span class="badge green">已读</span>` : `<span class="badge gray">未读</span>`
-                    )
-                },
-                {name: "提交时间", sort: true}
-            ],
-            data: detailRows,
-            sort: true
-        }).render(document.getElementById("detail-table"));
-    }
-
-    function onDateFilter() {
-        loadMainTable();
-    }
-
-    /* --- 周报逻辑 --- */
-    async function loadWeekMainTable() {
-        const body = {
-            StartDate: document.getElementById('weekstartDate').value,
-            EndDate: document.getElementById('weekendDate').value
-        };
-        const res = await fetch("/api/PmisAndZentao/QueryJobUserWorkWeekSum", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(body)
-        });
-
-        if (weekMainGrid) {
-            weekMainGrid.destroy();
-        }
-
-        const json = await res.json();
-        if (!json.Success) {
-            alert("加载失败");
-            return;
-        }
-
-        const {columns, rows} = json.Response;
-        const rowData = rows.rows;
-
-        const mainColumns = [
-            {id: "systemName", name: "体系", width: "90px"},
-            {id: "groupName", name: "部门", width: "90px"},
-            {id: "className", name: "小组", width: "90px"},
-            {id: "personTotal", name: "总数", width: "60px"},
-            {id: "reportRate", name: "上报率", width: "70px"},
-            {id: "weekStart", hidden: true},
-            ...columns.map(date => ({
-                id: date,
-                name: formatToMonthDay(date),
-                width: "80px",
-                formatter: (cell, row) => {
-                    if (!cell) return "-";
-                    const {alreadyNumberReport, shouldNumberReport, weekStart} = cell;
-                    const isFull = alreadyNumberReport === shouldNumberReport && shouldNumberReport > 0;
-                    const style = isFull ? 'color: var(--ios-green);' : 'color: var(--ios-blue);';
-
-                    return gridjs.html(
-                        `<span class="grid-link" style="${style}" onclick="loadweekDetail('${row.cells[0].data}','${row.cells[1].data}','${row.cells[2].data}','${weekStart}')">
-                                ${alreadyNumberReport}/${shouldNumberReport}
-                            </span>`
-                    );
-                }
-            }))
-        ];
-
-        const mainData = rowData.map(r => {
-            const row = [r.systemName, r.groupName, r.className, r.personTotal, r.reportRate + "%", r.weekStart];
-            for (const date of columns) row.push(r[date] || null);
-            return row;
-        });
-
-        weekMainGrid = new gridjs.Grid({
-            columns: mainColumns,
-            data: mainData,
-            sort: true
-        }).render(document.getElementById("weekmain-table"));
-
-        if (rowData.length > 0 && columns.length > 0) {
-            // 取第一行第一周的数据作为默认详情
-            const firstWeekKey = columns[0];
-            const weekData = rowData[0][firstWeekKey];
-            if (weekData && weekData.weekStart) {
-                loadweekDetail(rowData[0].systemName, rowData[0].groupName, rowData[0].className, weekData.weekStart);
+                // 加载日报数据
+                loadMainTable();
             }
         }
-    }
 
-    async function loadweekDetail(systemId, groupId, classId, weekStart) {
-        document.getElementById('detail-title-weekly').textContent = `周报详情 (始于 ${weekStart})`;
-        document.getElementById("weekdetail-table").innerHTML = '<div style="padding:20px; text-align:center; color:#666;"><i class="fas fa-spinner fa-spin"></i> 加载中...</div>';
-
-        const body = {WeekStart: weekStart};
-        const res = await fetch("/api/PmisAndZentao/QueryUserWorkWeekSumDetail", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(body)
-        });
-
-        const json = await res.json();
-        if (!json.Success) {
-            document.getElementById("weekdetail-table").innerHTML = '加载失败';
-            return;
+        // ==================== 查询按钮点击 ====================
+        function onQueryClick() {
+            const isWeekly = document.getElementById('reportTypeSwitch').checked;
+            if (isWeekly) {
+                loadWeekMainTable();
+            } else {
+                loadMainTable();
+            }
         }
 
-        const detailRows = json.Response.rows.map(r => [
-            r.systemName, r.groupName, r.className, r.userName,
-            r.status === 1 ? "已上报" : "未上报",
-            r.goWorkDays + "天", r.outDays + "天", r.leaveDays + "天", r.overtime + "小时",
-            r.leaderStatus === "1" ? "已读" : "未读",
-            r.submitTime == null ? "-" : new Date(r.submitTime * 1000).toLocaleTimeString('zh-CN', {hour12: false})
-        ]);
+        // ==================== 日报逻辑 ====================
+        async function loadMainTable() {
+            const body = {
+                StartDate: document.getElementById('startDate').value,
+                EndDate: document.getElementById('endDate').value
+            };
 
-        if (weekdetailGrid) {
-            weekdetailGrid.destroy();
+            LoadingOverlay.show(document.getElementById('mainTable'));
+
+            try {
+                const res = await fetch("/api/PmisAndZentao/QueryJobUserWorkSum", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body)
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                const json = await res.json();
+                if (!json.Success) {
+                    Toast.error("加载主表失败");
+                    return;
+                }
+
+                // 先销毁旧实例并清空容器
+                if (MainGrid) {
+                    MainGrid.destroy();
+                    MainGrid = null;
+                }
+                document.getElementById('mainTable').innerHTML = '';
+
+                const { columns, rows } = json.Response;
+                const rowData = rows.rows;
+
+                const mainColumns = [
+                    { id: "systemName", name: "体系", width: "90px", sort: true },
+                    { id: "groupName", name: "部门", width: "90px", sort: true },
+                    { id: "className", name: "小组", width: "90px", sort: true },
+                    { id: "personTotal", name: "总数", width: "60px", sort: true },
+                    { id: "reportRate", name: "上报率", width: "70px", sort: true },
+                    ...columns.map(date => ({
+                        id: date,
+                        name: formatToMonthDay(date),
+                        width: "70px",
+                        sort: false,
+                        formatter: (cell, row) => {
+                            if (!cell) return "-";
+                            const { alreadyNumberReport, shouldNumberReport } = cell;
+                            const isFull = alreadyNumberReport === shouldNumberReport && shouldNumberReport > 0;
+                            const style = isFull ? 'color: #10B981;' : 'color: #1E40AF;';
+
+                            return gridjs.html(
+                                `<span class="grid-link" style="${style}" onclick="loadDetail('${row.cells[0].data}','${row.cells[1].data}','${row.cells[2].data}','${date}')">
+                                    ${alreadyNumberReport}/${shouldNumberReport}
+                                </span>`
+                            );
+                        }
+                    }))
+                ];
+
+                const mainData = rowData.map(r => {
+                    const row = [r.systemName, r.groupName, r.className, r.personTotal, r.reportRate + "%"];
+                    for (const date of columns) row.push(r[date] || null);
+                    return row;
+                });
+
+                MainGrid = new gridjs.Grid({
+                    columns: mainColumns,
+                    data: mainData,
+                    sort: true,
+                    style: { table: { 'white-space': 'nowrap' } }
+                }).render(document.getElementById("mainTable"));
+
+                if (rowData.length > 0 && columns.length > 0) {
+                    loadDetail(rowData[0].systemName, rowData[0].groupName, rowData[0].className, columns[0]);
+                }
+
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                Toast.error('数据加载失败: ' + error.message);
+            } finally {
+                LoadingOverlay.hide();
+            }
         }
-        document.getElementById("weekdetail-table").innerHTML = "";
-        weekdetailGrid = new gridjs.Grid({
-            columns: [
-                "体系", "部门", "小组", {name: "姓名", sort: true},
-                {
-                    name: "状态", sort: true,
-                    formatter: (cell) => gridjs.html(
-                        cell === "已上报" ? `<span class="badge green">已上报</span>` : `<span class="badge red">未上报</span>`
-                    )
-                },
-                {name: "上班", sort: true}, {name: "出差", sort: true}, {name: "请假", sort: true}, {
-                    name: "加班",
+
+        async function loadDetail(systemName, groupName, className, createDate) {
+            document.getElementById('detailTitleDaily').textContent = `${systemName} - ${groupName} - ${createDate}`;
+
+            LoadingOverlay.show(document.getElementById('detailTable'));
+
+            try {
+                const body = { CreateDate: createDate };
+                const res = await fetch("/api/PmisAndZentao/QueryUserWorkSumDetail", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body)
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                const json = await res.json();
+                if (!json.Success) {
+                    Toast.error('加载详情失败');
+                    return;
+                }
+
+                const detailRows = json.Response.rows.map(r => [
+                    r.systemName, r.groupName, r.className, r.userName,
+                    r.status === "1" ? "已上报" : "未上报",
+                    r.goWorks?.[0]?.time || "--:--", r.goWorks?.[0]?.clockInStatusName || "",
+                    r.offWorks?.[0]?.time || "--:--", r.offWorks?.[0]?.clockInStatusName || "",
+                    r.overtime?.overTime > 0 ? r.overtime.overTime : "",
+                    r.leaderStatus === "1" ? "已读" : "未读",
+                    r.submitTime == null ? "-" : new Date(r.submitTime * 1000).toLocaleTimeString('zh-CN', { hour12: false })
+                ]);
+
+                // 先销毁旧实例并清空容器
+                if (detailGrid) {
+                    detailGrid.destroy();
+                    detailGrid = null;
+                }
+                document.getElementById('detailTable').innerHTML = '';
+
+                detailGrid = new gridjs.Grid({
+                    columns: [
+                        "体系", "部门", "小组", { name: "姓名", sort: true },
+                        {
+                            name: "状态", sort: true,
+                            formatter: (cell) => gridjs.html(
+                                cell === "已上报" ? `<span class="badge badge-success">已上报</span>` : `<span class="badge badge-danger">未上报</span>`
+                            )
+                        },
+                        {
+                            name: "上班",
+                            formatter: (_, row) => {
+                                const time = row.cells[5].data;
+                                const status = row.cells[6].data;
+                                let badge = "";
+                                if (status !== "正常") badge = `<span class="badge badge-warning" style="margin-left:4px; font-size:10px;">${status}</span>`;
+                                return gridjs.html(`${time}${badge}`);
+                            }
+                        },
+                        { id: "hidden1", hidden: true },
+                        {
+                            name: "下班",
+                            formatter: (_, row) => {
+                                const time = row.cells[7].data;
+                                const status = row.cells[8].data;
+                                let badge = "";
+                                if (status !== "正常") badge = `<span class="badge badge-warning" style="margin-left:4px; font-size:10px;">${status}</span>`;
+                                return gridjs.html(`${time}${badge}`);
+                            }
+                        },
+                        { id: "hidden2", hidden: true },
+                        { name: "加班", sort: true },
+                        {
+                            name: "查看", sort: true,
+                            formatter: (cell) => gridjs.html(
+                                cell === "已读" ? `<span class="badge badge-success">已读</span>` : `<span class="badge badge-secondary">未读</span>`
+                            )
+                        },
+                        { name: "提交时间", sort: true }
+                    ],
+                    data: detailRows,
                     sort: true
-                },
-                {
-                    name: "查看", sort: true,
-                    formatter: (cell) => gridjs.html(
-                        cell === "已读" ? `<span class="badge green">已读</span>` : `<span class="badge gray">未读</span>`
-                    )
-                },
-                {name: "提交时间", sort: true}
-            ],
-            data: detailRows,
-            sort: true
-        }).render(document.getElementById("weekdetail-table"));
-    }
+                }).render(document.getElementById("detailTable"));
 
-    function weekonDateFilter() {
-        loadWeekMainTable();
-    }
-
-    async function ExportOaWorkoverTime() {
-        const start = document.getElementById("oaWorkoverStartDate").value;
-        const end = document.getElementById("oaWorkoverEndDate").value;
-        // if (!start || !end) {
-        //     alert("请选择日期");
-        //     return;
-        // }
-
-        try {
-            const excelRes = await fetch(`/api/PmisAndZentao/ExportOaWorkoverTime?startTime=${start}&endTime=${end}`, {method: 'POST'});
-            const blob = await excelRes.blob();
-            const link = document.createElement('a');
-            link.href = window.URL.createObjectURL(blob);
-            link.download = '加班餐补记录.xlsx';
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-        } catch (err) {
-            alert("导出失败");
+            } catch (error) {
+                console.error('加载详情失败:', error);
+                Toast.error('数据加载失败: ' + error.message);
+            } finally {
+                LoadingOverlay.hide();
+            }
         }
-    }
 
-    // 初始化
-    getRecentDates(10);
-    loadMainTable();
-    loadWeekMainTable();
+        function onDateFilter() {
+            loadMainTable();
+        }
 
-</script>
+        // ==================== 周报逻辑 ====================
+        async function loadWeekMainTable() {
+            const body = {
+                StartDate: document.getElementById('startDate').value,
+                EndDate: document.getElementById('endDate').value
+            };
+
+            LoadingOverlay.show(document.getElementById('weekMainTable'));
+
+            try {
+                const res = await fetch("/api/PmisAndZentao/QueryJobUserWorkWeekSum", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body)
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                const json = await res.json();
+                if (!json.Success) {
+                    Toast.error("加载失败");
+                    return;
+                }
+
+                // 先销毁旧实例并清空容器
+                if (weekMainGrid) {
+                    weekMainGrid.destroy();
+                    weekMainGrid = null;
+                }
+                document.getElementById('weekMainTable').innerHTML = '';
+
+                const { columns, rows } = json.Response;
+                const rowData = rows.rows;
+
+                const mainColumns = [
+                    { id: "systemName", name: "体系", width: "90px" },
+                    { id: "groupName", name: "部门", width: "90px" },
+                    { id: "className", name: "小组", width: "90px" },
+                    { id: "personTotal", name: "总数", width: "60px" },
+                    { id: "reportRate", name: "上报率", width: "70px" },
+                    { id: "weekStart", hidden: true },
+                    ...columns.map(date => ({
+                        id: date,
+                        name: formatToMonthDay(date),
+                        width: "80px",
+                        formatter: (cell, row) => {
+                            if (!cell) return "-";
+                            const { alreadyNumberReport, shouldNumberReport, weekStart } = cell;
+                            const isFull = alreadyNumberReport === shouldNumberReport && shouldNumberReport > 0;
+                            const style = isFull ? 'color: #10B981;' : 'color: #1E40AF;';
+
+                            return gridjs.html(
+                                `<span class="grid-link" style="${style}" onclick="loadWeekDetail('${row.cells[0].data}','${row.cells[1].data}','${row.cells[2].data}','${weekStart}')">
+                                    ${alreadyNumberReport}/${shouldNumberReport}
+                                </span>`
+                            );
+                        }
+                    }))
+                ];
+
+                const mainData = rowData.map(r => {
+                    const row = [r.systemName, r.groupName, r.className, r.personTotal, r.reportRate + "%", r.weekStart];
+                    for (const date of columns) row.push(r[date] || null);
+                    return row;
+                });
+
+                weekMainGrid = new gridjs.Grid({
+                    columns: mainColumns,
+                    data: mainData,
+                    sort: true
+                }).render(document.getElementById("weekMainTable"));
+
+                if (rowData.length > 0 && columns.length > 0) {
+                    const firstWeekKey = columns[0];
+                    const weekData = rowData[0][firstWeekKey];
+                    if (weekData && weekData.weekStart) {
+                        loadWeekDetail(rowData[0].systemName, rowData[0].groupName, rowData[0].className, weekData.weekStart);
+                    }
+                }
+
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                Toast.error('数据加载失败: ' + error.message);
+            } finally {
+                LoadingOverlay.hide();
+            }
+        }
+
+        async function loadWeekDetail(systemId, groupId, classId, weekStart) {
+            document.getElementById('detailTitleWeekly').textContent = `周报详情 (始于 ${weekStart})`;
+
+            LoadingOverlay.show(document.getElementById('weekDetailTable'));
+
+            try {
+                const body = { WeekStart: weekStart };
+                const res = await fetch("/api/PmisAndZentao/QueryUserWorkWeekSumDetail", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body)
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                const json = await res.json();
+                if (!json.Success) {
+                    Toast.error('加载失败');
+                    return;
+                }
+
+                const detailRows = json.Response.rows.map(r => [
+                    r.systemName, r.groupName, r.className, r.userName,
+                    r.status === 1 ? "已上报" : "未上报",
+                    r.goWorkDays + "天", r.outDays + "天", r.leaveDays + "天", r.overtime + "小时",
+                    r.leaderStatus === "1" ? "已读" : "未读",
+                    r.submitTime == null ? "-" : new Date(r.submitTime * 1000).toLocaleTimeString('zh-CN', { hour12: false })
+                ]);
+
+                // 先销毁旧实例并清空容器
+                if (weekDetailGrid) {
+                    weekDetailGrid.destroy();
+                    weekDetailGrid = null;
+                }
+                document.getElementById('weekDetailTable').innerHTML = '';
+
+                weekDetailGrid = new gridjs.Grid({
+                    columns: [
+                        "体系", "部门", "小组", { name: "姓名", sort: true },
+                        {
+                            name: "状态", sort: true,
+                            formatter: (cell) => gridjs.html(
+                                cell === "已上报" ? `<span class="badge badge-success">已上报</span>` : `<span class="badge badge-danger">未上报</span>`
+                            )
+                        },
+                        { name: "上班", sort: true }, { name: "出差", sort: true }, { name: "请假", sort: true }, { name: "加班", sort: true },
+                        {
+                            name: "查看", sort: true,
+                            formatter: (cell) => gridjs.html(
+                                cell === "已读" ? `<span class="badge badge-success">已读</span>` : `<span class="badge badge-secondary">未读</span>`
+                            )
+                        },
+                        { name: "提交时间", sort: true }
+                    ],
+                    data: detailRows,
+                    sort: true
+                }).render(document.getElementById("weekDetailTable"));
+
+            } catch (error) {
+                console.error('加载详情失败:', error);
+                Toast.error('数据加载失败: ' + error.message);
+            } finally {
+                LoadingOverlay.hide();
+            }
+        }
+
+        function weekOnDateFilter() {
+            loadWeekMainTable();
+        }
+
+        // ==================== 导出功能 ====================
+        async function ExportOaWorkoverTime() {
+            const start = document.getElementById("oaWorkoverStartDate").value;
+            const end = document.getElementById("oaWorkoverEndDate").value;
+
+            try {
+                const excelRes = await fetch(`/api/PmisAndZentao/ExportOaWorkoverTime?startTime=${start}&endTime=${end}`, { method: 'POST' });
+                const blob = await excelRes.blob();
+                const link = document.createElement('a');
+                link.href = window.URL.createObjectURL(blob);
+                link.download = '加班餐补记录.xlsx';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                Toast.success('导出成功');
+            } catch (err) {
+                console.error('导出失败:', err);
+                Toast.error("导出失败");
+            }
+        }
+
+        // ==================== 初始化 ====================
+        getRecentDates(10);
+        loadMainTable(); // 默认只加载日报
+    </script>
 </body>
 </html>

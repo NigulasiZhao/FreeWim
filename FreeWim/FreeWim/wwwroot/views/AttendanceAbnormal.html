@@ -1,596 +1,501 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>考勤异常汇总</title>
+
+    <!-- 统一样式和工具库 -->
+    <link rel="stylesheet" href="/css/dashboard-unified.css">
+    <link rel="stylesheet" href="/lib/fontawesome/all.min.css">
     <link rel="stylesheet" href="/lib/flatpickr/material_blue.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="/lib/flatpickr/flatpickr.min.js"></script>
+    <script src="/lib/flatpickr/zh.js"></script>
+    <script src="/js/dashboard-utils.js"></script>
+
     <style>
-        :root {
-            --primary-color: #007AFF;
-            --danger-color: #ff3b30;
-            --warning-color: #ff9500;
-            --glass-bg: rgba(255, 255, 255, 0.3);
-            --glass-border: rgba(255, 255, 255, 0.4);
-            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
-            --text-main: #1d1d1f;
-            --text-secondary: #515154;
-            --ios-green: #34C759;
-        }
-
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif;
-            background: linear-gradient(135deg, #ffe4e1 0%, #f3f4f6 100%);
-            background-attachment: fixed;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding: 20px 0;
-            overflow: hidden;
-            position: relative;
-        }
-
-        /* 动态背景球 */
-        .blob {
-            position: fixed;
-            border-radius: 50%;
-            filter: blur(80px);
-            z-index: -1;
-            opacity: 0.6;
-            animation: float 15s infinite ease-in-out;
-        }
-
-        .blob-1 {
-            top: -10%;
-            right: -10%;
-            width: 500px;
-            height: 500px;
-            background: #fecaca;
-        }
-
-        .blob-2 {
-            bottom: -5%;
-            left: -5%;
-            width: 400px;
-            height: 400px;
-            background: #fed7aa;
-            animation-delay: -2s;
-        }
-
-        .blob-3 {
-            top: 20%;
-            left: 10%;
-            width: 300px;
-            height: 300px;
-            background: #fde68a;
-            animation-delay: -5s;
-        }
-
-        @keyframes float {
-            0%, 100% {
-                transform: translate(0, 0) scale(1);
-            }
-            50% {
-                transform: translate(40px, 60px) scale(1.1);
-            }
-        }
-
-        /* 主容器 */
-        .glass-container {
-            width: 95%;
-            max-width: 1600px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-radius: 28px;
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
-            padding: 25px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            height: calc(100vh - 40px);
-            box-sizing: border-box;
-        }
-
-        /* 头部 */
-        .header {
-            display: flex;
-            justify-content: space-between;
+        /* 返回按钮 */
+        .back-btn {
+            display: none;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
+            gap: 6px;
+            padding: 8px 16px;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--primary-color);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.15s;
         }
 
-        .title-area {
+        .back-btn:hover {
+            background: var(--hover-bg);
+        }
+
+        .back-btn:active {
+            transform: scale(0.98);
+        }
+
+        .back-btn.show {
             display: flex;
+        }
+
+        /* 分页样式 */
+        .pagination {
+            display: none;
+            justify-content: center;
             align-items: center;
             gap: 12px;
+            padding: 20px 0;
         }
 
-        h1 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--text-main);
-            letter-spacing: -0.5px;
-        }
-
-        .btn-back {
-            color: var(--primary-color);
-            cursor: pointer;
-            font-weight: 500;
-            display: none;
-            padding: 6px 12px;
-            border-radius: 10px;
-            background: rgba(0, 122, 255, 0.1);
-            transition: 0.2s;
-        }
-
-        .btn-back:active {
-            transform: scale(0.95);
-        }
-
-        /* 筛选器 */
-        .controls {
+        .pagination.show {
             display: flex;
-            background: rgba(255, 255, 255, 0.4);
-            padding: 4px;
-            border-radius: 14px;
-            border: 1px solid var(--glass-border);
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
         }
 
-        .date-picker, .search-input {
-            background: transparent;
-            border: none;
-            padding: 8px 15px;
+        .pagination button {
+            min-width: 36px;
+            height: 36px;
+            padding: 0 16px;
+            background: white;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
             font-size: 14px;
             font-weight: 600;
-            color: var(--primary-color);
-            outline: none;
-            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
         }
 
-        .date-picker {
-            width: 220px;
+        .pagination button:hover:not(:disabled) {
+            background: var(--hover-bg);
+            border-color: var(--primary-color);
         }
 
-        .search-input {
-            width: 150px;
-        }
-
-        .search-input::placeholder {
-            color: rgba(0, 122, 255, 0.5);
-        }
-
-        .btn-query {
+        .pagination button.active {
             background: var(--primary-color);
             color: white;
-            border: none;
-            padding: 8px 20px;
-            border-radius: 11px;
-            font-weight: 600;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2);
+            border-color: var(--primary-color);
         }
 
-        /* 表格样式 */
-        .table-wrapper {
-            overflow: auto;
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            position: relative;
-            flex: 1;
+        .pagination button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
         }
 
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            min-width: 1200px;
-        }
-
-        th {
-            position: sticky;
-            top: 0;
-            z-index: 20;
-            background: rgba(255, 255, 255, 0.7);
-            backdrop-filter: blur(10px);
-            text-align: left;
-            padding: 14px 16px;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-            cursor: pointer;
-        }
-
-        /* 首列锁定 */
-        td:first-child, th:first-child {
-            position: sticky;
-            left: 0;
-            z-index: 10;
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(10px);
-            width: 150px;
-            border-right: 1px solid rgba(0, 0, 0, 0.03);
-        }
-
-        th:first-child {
-            z-index: 30;
-        }
-
-        td {
-            padding: 16px;
-            font-size: 14px;
-            color: var(--text-main);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        tbody tr {
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        tbody tr:hover td {
-            background: rgba(255, 255, 255, 0.4) !important;
-        }
-
-        /* 数据样式 */
-        .badge {
-            padding: 4px 10px;
-            border-radius: 8px;
-            font-size: 12px;
-            font-weight: 700;
-            display: inline-block;
-        }
-
-        .badge-danger {
-            background: rgba(255, 59, 48, 0.15);
-            color: #d70015;
-        }
-
-        .badge-warning {
-            background: rgba(255, 149, 0, 0.15);
-            color: #c93400;
-        }
-
-        .badge-info {
-            background: rgba(0, 122, 255, 0.15);
-            color: #0051a5;
-        }
-
-        .badge-gray {
-            background: rgba(0, 0, 0, 0.05);
-            color: #666;
-        }
-
-        .loading-mask {
-            padding: 100px 0;
+        /* 空状态 */
+        .empty-state {
+            padding: 60px 20px;
             text-align: center;
             color: var(--text-secondary);
-            font-weight: 500;
         }
 
-        /* 分页 */
-        .pagination {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            padding: 15px 0;
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 14px;
-        }
-
-        .page-btn {
-            padding: 6px 12px;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.5);
-            border: 1px solid var(--glass-border);
-            cursor: pointer;
-            font-weight: 600;
-            color: var(--text-main);
-            transition: 0.2s;
-        }
-
-        .page-btn:hover {
-            background: rgba(255, 255, 255, 0.8);
-        }
-
-        .page-btn.active {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        /* 动画 */
-        @keyframes rowIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .row-anim {
-            animation: rowIn 0.4s ease forwards;
+        .empty-state i {
+            font-size: 48px;
+            opacity: 0.3;
+            margin-bottom: 16px;
         }
     </style>
 </head>
-
 <body>
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
-    <div class="blob blob-3"></div>
+    <div class="page-container">
+        <!-- 顶部筛选区 - 固定 -->
+        <div class="filter-section">
 
-    <div class="glass-container">
-        <header class="header">
-            <div class="title-area">
-                <span class="btn-back" id="btn-back" onclick="backToSummary()">❮ 返回</span>
-                <h1 id="page-title">考勤异常汇总</h1>
-            </div>
-            <div class="controls">
-                <input type="text" id="date-range" class="date-picker" placeholder="选择日期范围">
-                <input type="text" id="search-org" class="search-input" placeholder="部门名称">
-                <input type="text" id="search-user" class="search-input" placeholder="人员姓名">
-                <button class="btn-query" onclick="fetchData()">查询数据</button>
-            </div>
-        </header>
+            <div class="filter-row">
+                <!-- 日期范围 -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-calendar-alt" style="color: var(--text-secondary); font-size: 14px;"></i>
+                    <input type="text" id="dateRange" class="form-input" placeholder="选择日期范围" style="width: 240px;">
+                </div>
 
-        <div class="table-wrapper" id="scroll-box">
-            <div class="loading-mask">请先选择日期范围后查询</div>
+                <!-- 部门 -->
+                <div id="orgFilter" style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-building" style="color: var(--text-secondary); font-size: 14px;"></i>
+                    <input type="text" id="orgName" class="form-input" placeholder="部门名称" style="width: 160px;">
+                </div>
+
+                <!-- 用户姓名 -->
+                <div id="userFilter" style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-user" style="color: var(--text-secondary); font-size: 14px;"></i>
+                    <input type="text" id="userName" class="form-input" placeholder="用户姓名" style="width: 140px;">
+                </div>
+
+                <div style="flex: 1;"></div>
+ <button class="back-btn" id="backBtn" onclick="backToSummary()">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>返回汇总</span>
+                </button>
+                <!-- 查询按钮 -->
+                <button class="btn" onclick="fetchData()" id="searchBtn">
+                    <i class="fas fa-search"></i>
+                    <span>查询数据</span>
+              </button>
+            </div>
         </div>
 
-        <div class="pagination" id="pagination" style="display: none;"></div>
+        <!-- 内容区 - 可滚动 -->
+        <div class="content-section" style="display: flex; flex-direction: column;">
+            <!-- 数据表格 -->
+            <div class="table-container" style="position: relative; flex: 1;">
+                <!-- 全屏加载遮罩 -->
+                <div id="fullLoading" class="loading-overlay">
+                    <div class="spinner" style="width: 40px; height: 40px; border-width: 4px;"></div>
+                    <p style="margin-top: 12px; color: var(--text-secondary); font-size: 14px; font-weight: 500;">正在加载数据...</p>
+                </div>
+
+                <table class="data-table" id="dataTable">
+                    <thead>
+                        <tr id="tableHeader">
+                            <!-- 表头将通过 JS 动态生成 -->
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- 数据行将通过 JS 插入 -->
+                    </tbody>
+                </table>
+
+                <!-- 空状态 -->
+                <div id="emptyState" class="empty-state" style="display: none;">
+                    <i class="fas fa-inbox"></i>
+                    <p style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">暂无数据</p>
+                    <p style="font-size: 14px; opacity: 0.7;">请选择日期范围后查询</p>
+                </div>
+            </div>
+
+            <!-- 分页 -->
+            <div class="pagination" id="pagination">
+                <button onclick="changePage(-1)" id="prevBtn">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <span id="pageInfo" style="font-size: 14px; color: var(--text-secondary); margin: 0 16px;">
+                    第 <span id="currentPage">1</span> 页，共 <span id="dataCount">0</span> 条
+                </span>
+                <button onclick="changePage(1)" id="nextBtn">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
     </div>
 
-    <script src="/lib/flatpickr/flatpickr.min.js"></script>
-    <script src="/lib/flatpickr/zh.js"></script>
     <script>
+        // ==================== 全局状态 ====================
         const URLS = {
             summary: '/api/AttendanceRecord/AttendanceAbnormalSummary',
             detail: '/api/AttendanceRecord/AttendanceAbnormalDetail'
         };
 
-        let fp, currentMode = 'summary', currentUserId = '', currentUserName = '', currentOrgId = '';
-        let currentPage = 1, pageSize = 100;
-        let sortInfo = { key: '', asc: true };
+        let state = {
+            mode: 'summary', // 'summary' | 'detail'
+            userId: '',
+            userName: '',
+            orgId: '',
+            page: 1,
+            pageSize: 100,
+            sortField: 'TotalAbnormalDays',
+            sortOrder: 'desc'
+        };
 
-        window.onload = () => {
-            // 默认查询当年数据
+        let flatpickrInstance = null;
+
+        // ==================== 初始化 ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            initDatePicker();
+            // initDefaultQuery() 将在flatpickr的onReady回调中执行
+        });
+
+        // ==================== 初始化日期选择器 ====================
+        function initDatePicker() {
             const now = new Date();
             const yearStart = new Date(now.getFullYear(), 0, 1);
             const yearEnd = new Date(now.getFullYear(), 11, 31);
-            
-            fp = flatpickr("#date-range", {
+
+            flatpickrInstance = flatpickr("#dateRange", {
                 mode: "range",
                 locale: "zh",
                 dateFormat: "Y-m-d",
-                defaultDate: [yearStart, yearEnd]
+                defaultDate: [yearStart, yearEnd],
+                onReady: function(selectedDates, dateStr, instance) {
+                    // 使用setTimeout确保flatpickr完全初始化后再执行查询
+                    setTimeout(() => {
+                        initDefaultQuery();
+                    }, 100);
+                }
             });
-            
-            // 初始化排序
-            sortInfo = { key: 'TotalAbnormalDays', asc: false };
-            fetchData();
-        };
+        }
 
-        function backToSummary() {
-            currentMode = 'summary';
-            currentUserId = '';
-            currentUserName = '';
-            currentOrgId = '';
-            currentPage = 1;
-            sortInfo = { key: 'TotalAbnormalDays', asc: false };
-            document.getElementById('page-title').innerText = "考勤异常汇总";
-            document.getElementById('btn-back').style.display = "none";
-            document.getElementById('search-org').style.display = "inline-block";
-            document.getElementById('search-user').style.display = "inline-block";
+        // ==================== 初始化默认查询 ====================
+        function initDefaultQuery() {
+            state.sortField = 'TotalAbnormalDays';
+            state.sortOrder = 'desc';
             fetchData();
         }
 
+        // ==================== 返回汇总 ====================
+        function backToSummary() {
+            state.mode = 'summary';
+            state.userId = '';
+            state.userName = '';
+            state.orgId = '';
+            state.page = 1;
+            state.sortField = 'TotalAbnormalDays';
+            state.sortOrder = 'desc';
+
+            document.getElementById('backBtn').classList.remove('show');
+            document.getElementById('orgFilter').style.display = 'flex';
+            document.getElementById('userFilter').style.display = 'flex';
+
+            fetchData();
+        }
+
+        // ==================== 显示用户明细 ====================
+        function showDetail(userId, userName, orgId) {
+            state.mode = 'detail';
+            state.userId = userId;
+            state.userName = userName;
+            state.orgId = orgId || '';
+            state.page = 1;
+            state.sortField = 'ClockInDate';
+            state.sortOrder = 'asc';
+
+            document.getElementById('backBtn').classList.add('show');
+            document.getElementById('orgFilter').style.display = 'none';
+            document.getElementById('userFilter').style.display = 'none';
+
+            fetchData();
+        }
+
+        // ==================== 排序逻辑 ====================
+        function handleSort(field) {
+            if (state.sortField === field) {
+                state.sortOrder = state.sortOrder === 'desc' ? 'asc' : 'desc';
+            } else {
+                state.sortField = field;
+                state.sortOrder = 'desc';
+            }
+            state.page = 1;
+            fetchData();
+        }
+
+        // ==================== 翻页 ====================
+        function changePage(delta) {
+            state.page += delta;
+            if (state.page < 1) state.page = 1;
+            fetchData();
+        }
+
+        // ==================== 加载数据 ====================
         async function fetchData() {
-            const dates = fp.selectedDates;
+            const dates = flatpickrInstance.selectedDates;
             if (dates.length < 1) {
-                alert('请选择日期范围');
+                document.getElementById('emptyState').style.display = 'block';
+                document.getElementById('tableBody').innerHTML = '';
+                document.getElementById('pagination').classList.remove('show');
                 return;
             }
-            
-            const startTime = fp.formatDate(dates[0], "Y-m-d");
-            const endTime = fp.formatDate(dates[dates.length - 1], "Y-m-d");
-            const orgName = document.getElementById('search-org').value.trim();
-            const userName = document.getElementById('search-user').value.trim();
 
-            document.getElementById('scroll-box').innerHTML = '<div class="loading-mask">正在加载数据...</div>';
-
-            const url = currentMode === 'summary' ? URLS.summary : URLS.detail;
-            const body = {
-                startTime: startTime,
-                endTime: endTime,
-                page: currentPage,
-                rows: pageSize,
-                order: sortInfo.key || (currentMode === 'summary' ? 'TotalAbnormalDays' : 'ClockInDate'),
-                sort: sortInfo.asc ? 'asc' : 'desc'
-            };
-
-            if (currentMode === 'summary') {
-                if (orgName) body.orgName = orgName;
-                if (userName) body.userName = userName;
-            } else {
-                body.userId = currentUserId;
-                if (currentOrgId) body.orgId = currentOrgId;
-                if (userName) body.userName = userName;
-            }
+            LoadingOverlay.show(document.querySelector('.table-container'));
+            document.getElementById('emptyState').style.display = 'none';
 
             try {
-                const resp = await fetch(url, {
+                const startTime = flatpickrInstance.formatDate(dates[0], "Y-m-d");
+                const endTime = flatpickrInstance.formatDate(dates[dates.length - 1], "Y-m-d");
+                const orgName = document.getElementById('orgName').value.trim();
+                const userName = document.getElementById('userName').value.trim();
+
+                const url = state.mode === 'summary' ? URLS.summary : URLS.detail;
+                const payload = {
+                    startTime: startTime,
+                    endTime: endTime,
+                    page: state.page,
+                    rows: state.pageSize,
+                    order: state.sortField,
+                    sort: state.sortOrder
+                };
+
+                if (state.mode === 'summary') {
+                    if (orgName) payload.orgName = orgName;
+                    if (userName) payload.userName = userName;
+                } else {
+                    payload.userId = state.userId;
+                    if (state.orgId) payload.orgId = state.orgId;
+                }
+
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
+                    body: JSON.stringify(payload)
                 });
-                const data = await resp.json();
+
+                if (!response.ok) throw new Error('请求失败');
+
+                const data = await response.json();
                 renderTable(data);
-            } catch (e) {
-                document.getElementById('scroll-box').innerHTML = '<div class="loading-mask" style="color:var(--danger-color)">数据加载失败: ' + e.message + '</div>';
+                updatePagination(data.length);
+
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                Toast.error('数据加载失败: ' + error.message);
+                document.getElementById('emptyState').style.display = 'block';
+                document.getElementById('tableBody').innerHTML = '';
+            } finally {
+                LoadingOverlay.hide();
             }
         }
 
-        function showDetail(userId, userName, orgId) {
-            currentMode = 'detail';
-            currentUserId = userId;
-            currentUserName = userName;
-            currentOrgId = orgId || '';
-            currentPage = 1;
-            sortInfo = { key: 'ClockInDate', asc: true };
-            document.getElementById('page-title').innerText = userName + ' - 异常明细';
-            document.getElementById('btn-back').style.display = "inline-block";
-            document.getElementById('search-org').style.display = "none";
-            document.getElementById('search-user').style.display = "none";
-            fetchData();
-        }
-
-        function handleSort(key) {
-            if (sortInfo.key === key) {
-                sortInfo.asc = !sortInfo.asc;
-            } else {
-                sortInfo.key = key;
-                sortInfo.asc = false;
-            }
-            currentPage = 1;
-            fetchData();
-        }
-
+        // ==================== 渲染表格 ====================
         function renderTable(data) {
+            const tbody = document.getElementById('tableBody');
+            const emptyState = document.getElementById('emptyState');
+
             if (!data || data.length === 0) {
-                document.getElementById('scroll-box').innerHTML = '<div class="loading-mask">暂无数据</div>';
-                document.getElementById('pagination').style.display = 'none';
+                tbody.innerHTML = '';
+                emptyState.style.display = 'block';
+                document.getElementById('pagination').classList.remove('show');
                 return;
             }
 
-            let html = '<table>';
-            
-            if (currentMode === 'summary') {
-                // 汇总表格
-                const cols = [
-                    { k: 'userName', t: '姓名' },
-                    { k: 'orgName', t: '部门' },
-                    { k: 'MissingCardDays', t: '缺卡天数' },
-                    { k: 'EarlyLeaveDays', t: '早退天数' },
-                    { k: 'LateAndEarlyLeaveDays', t: '迟到早退天数' },
-                    { k: 'FieldLateDays', t: '外勤迟到天数' },
-                    { k: 'FieldEarlyLeaveDays', t: '外勤早退天数' },
-                    { k: 'SupplementCardDays', t: '补卡天数' },
-                    { k: 'CompensatoryLeaveDays', t: '调休天数' },
-                    { k: 'TotalLeaveDays', t: '请假天数' },
-                    { k: 'TotalAbnormalDays', t: '异常总天数' }
-                ];
+            emptyState.style.display = 'none';
 
-                html += '<thead><tr>';
-                cols.forEach(c => {
-                    const arrow = sortInfo.key === c.k ? (sortInfo.asc ? ' ↑' : ' ↓') : '';
-                    html += `<th onclick="handleSort('${c.k}')">${c.t}${arrow}</th>`;
-                });
-                html += '</tr></thead><tbody>';
-
-                data.forEach((row, idx) => {
-                    html += `<tr class="row-anim" style="animation-delay: ${idx * 0.03}s" onclick="showDetail('${row.userId}', '${row.userName}', '${row.orgId || ''}')">
-                        <td><span style="font-weight:700">${row.userName}</span></td>
-                        <td>${row.orgName || '-'}</td>
-                        <td>${renderBadge(row.missingCardDays, 'danger')}</td>
-                        <td>${renderBadge(row.earlyLeaveDays, 'warning')}</td>
-                        <td>${renderBadge(row.lateAndEarlyLeaveDays, 'warning')}</td>
-                        <td>${renderBadge(row.fieldLateDays, 'info')}</td>
-                        <td>${renderBadge(row.fieldEarlyLeaveDays, 'info')}</td>
-                        <td>${renderBadge(row.supplementCardDays, 'info')}</td>
-                        <td>${renderBadge(row.compensatoryLeaveDays, 'gray')}</td>
-                        <td>${renderBadge(row.totalLeaveDays, 'gray')}</td>
-                        <td><span class="badge badge-danger" style="font-size:14px">${row.totalAbnormalDays}</span></td>
-                    </tr>`;
-                });
+            if (state.mode === 'summary') {
+                renderSummaryTable(data);
             } else {
-                // 明细表格
-                const cols = [
-                    { k: 'ClockInDate', t: '日期' },
-                    { k: 'userName', t: '姓名' },
-                    { k: 'actualClockInTime', t: '打卡时间' },
-                    { k: 'abnormalStatus', t: '异常状态' },
-                    { k: 'TotalAbnormalMinutes', t: '异常分钟数' },
-                    { k: 'remarkSummary', t: '备注' }
-                ];
-
-                html += '<thead><tr>';
-                cols.forEach(c => {
-                    const arrow = sortInfo.key === c.k ? (sortInfo.asc ? ' ↑' : ' ↓') : '';
-                    html += `<th onclick="handleSort('${c.k}')">${c.t}${arrow}</th>`;
-                });
-                html += '</tr></thead><tbody>';
-
-                data.forEach((row, idx) => {
-                    // 格式化日期为中文格式
-                    const date = formatChineseDate(row.clockInDate);
-                    html += `<tr class="row-anim" style="animation-delay: ${idx * 0.03}s">
-                        <td><span style="font-weight:700">${date}</span></td>
-                        <td>${row.userName}</td>
-                        <td style="font-family: monospace; font-size:12px">${row.actualClockInTime || '-'}</td>
-                        <td style="color:var(--danger-color); font-weight:600">${row.abnormalStatus || '-'}</td>
-                        <td><span class="badge badge-warning">${row.totalAbnormalMinutes || 0} 分钟</span></td>
-                        <td style="font-size:12px; color:var(--text-secondary)">${row.remarkSummary || '-'}</td>
-                    </tr>`;
-                });
+                renderDetailTable(data);
             }
-
-            html += '</tbody></table>';
-            document.getElementById('scroll-box').innerHTML = html;
-            
-            // 显示分页
-            document.getElementById('pagination').style.display = 'flex';
-            renderPagination(data.length);
         }
 
+        // ==================== 渲染汇总表格 ====================
+        function renderSummaryTable(data) {
+            const columns = [
+                { key: 'userName', label: '姓名', sortable: true },
+                { key: 'orgName', label: '部门', sortable: true },
+                { key: 'MissingCardDays', label: '缺卡天数', sortable: true },
+                { key: 'EarlyLeaveDays', label: '早退天数', sortable: true },
+                { key: 'LateAndEarlyLeaveDays', label: '迟到早退天数', sortable: true },
+                { key: 'FieldLateDays', label: '外勤迟到天数', sortable: true },
+                { key: 'FieldEarlyLeaveDays', label: '外勤早退天数', sortable: true },
+                { key: 'SupplementCardDays', label: '补卡天数', sortable: true },
+                { key: 'CompensatoryLeaveDays', label: '调休天数', sortable: true },
+                { key: 'TotalLeaveDays', label: '请假天数', sortable: true },
+                { key: 'TotalAbnormalDays', label: '异常总天数', sortable: true }
+            ];
+
+            // 更新表头
+            const thead = document.getElementById('tableHeader');
+            thead.innerHTML = columns.map(col => {
+                const arrow = state.sortField === col.key
+                    ? (state.sortOrder === 'asc' ? ' ↑' : ' ↓')
+                    : '';
+                const sortableClass = col.sortable ? 'sortable' : '';
+                const onclick = col.sortable ? `onclick="handleSort('${col.key}')"` : '';
+                return `<th class="${sortableClass}" ${onclick} style="text-align: center;">${col.label}${arrow}</th>`;
+            }).join('');
+
+            // 渲染数据行
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = data.map(row => `
+                <tr onclick="showDetail('${row.userId}', '${row.userName}', '${row.orgId || ''}')">
+                    <td style="font-weight: 600;">${row.userName || '-'}</td>
+                    <td><span class="badge badge-gray">${row.orgName || '-'}</span></td>
+                    <td style="text-align: center;">${renderBadge(row.missingCardDays, 'danger')}</td>
+                    <td style="text-align: center;">${renderBadge(row.earlyLeaveDays, 'warning')}</td>
+                    <td style="text-align: center;">${renderBadge(row.lateAndEarlyLeaveDays, 'warning')}</td>
+                    <td style="text-align: center;">${renderBadge(row.fieldLateDays, 'info')}</td>
+                    <td style="text-align: center;">${renderBadge(row.fieldEarlyLeaveDays, 'info')}</td>
+                    <td style="text-align: center;">${renderBadge(row.supplementCardDays, 'info')}</td>
+                    <td style="text-align: center;">${renderBadge(row.compensatoryLeaveDays, 'gray')}</td>
+                    <td style="text-align: center;">${renderBadge(row.totalLeaveDays, 'gray')}</td>
+                    <td style="text-align: center;">
+                        <span class="badge badge-danger" style="font-size: 14px; font-weight: 700;">${row.totalAbnormalDays || 0}</span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // ==================== 渲染明细表格 ====================
+        function renderDetailTable(data) {
+            const columns = [
+                { key: 'ClockInDate', label: '日期', sortable: true },
+                { key: 'userName', label: '姓名', sortable: false },
+                { key: 'actualClockInTime', label: '打卡时间', sortable: false },
+                { key: 'abnormalStatus', label: '异常状态', sortable: false },
+                { key: 'TotalAbnormalMinutes', label: '异常分钟数', sortable: true },
+                { key: 'remarkSummary', label: '备注', sortable: false }
+            ];
+
+            // 更新表头
+            const thead = document.getElementById('tableHeader');
+            thead.innerHTML = columns.map(col => {
+                const arrow = state.sortField === col.key
+                    ? (state.sortOrder === 'asc' ? ' ↑' : ' ↓')
+                    : '';
+                const sortableClass = col.sortable ? 'sortable' : '';
+                const onclick = col.sortable ? `onclick="handleSort('${col.key}')"` : '';
+                return `<th class="${sortableClass}" ${onclick}>${col.label}${arrow}</th>`;
+            }).join('');
+
+            // 渲染数据行
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = data.map(row => `
+                <tr>
+                    <td class="font-mono" style="font-size: 13px; font-weight: 600;">${formatChineseDate(row.clockInDate)}</td>
+                    <td style="font-weight: 600;">${row.userName || '-'}</td>
+                    <td class="font-mono" style="font-size: 13px;">${row.actualClockInTime || '-'}</td>
+                    <td><span class="badge badge-danger">${row.abnormalStatus || '-'}</span></td>
+                    <td style="text-align: center;">
+                        <span class="badge badge-warning">${row.totalAbnormalMinutes || 0} 分钟</span>
+                    </td>
+                    <td style="font-size: 13px; color: var(--text-secondary);">${row.remarkSummary || '-'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // ==================== 渲染徽章 ====================
         function renderBadge(value, type) {
             if (!value || value === 0) return '-';
             return `<span class="badge badge-${type}">${value}</span>`;
         }
 
-        function renderPagination(dataCount) {
-            let html = '';
-            if (currentPage > 1) {
-                html += `<span class="page-btn" onclick="changePage(${currentPage - 1})">上一页</span>`;
+        // ==================== 更新分页 ====================
+        function updatePagination(dataCount) {
+            const pagination = document.getElementById('pagination');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const currentPageEl = document.getElementById('currentPage');
+            const dataCountEl = document.getElementById('dataCount');
+
+            if (dataCount === 0) {
+                pagination.classList.remove('show');
+                return;
             }
-            html += `<span class="page-btn active">第 ${currentPage} 页 (${dataCount} 条)</span>`;
-            // 如果返回的数据等于pageSize，说明可能还有下一页
-            if (dataCount === pageSize) {
-                html += `<span class="page-btn" onclick="changePage(${currentPage + 1})">下一页</span>`;
-            }
-            document.getElementById('pagination').innerHTML = html;
+
+            pagination.classList.add('show');
+            currentPageEl.textContent = state.page;
+            dataCountEl.textContent = dataCount;
+
+            prevBtn.disabled = state.page <= 1;
+            nextBtn.disabled = dataCount < state.pageSize;
+
         }
 
-        function changePage(page) {
-            currentPage = page;
-            fetchData();
-        }
-
+        // ==================== 格式化中文日期 ====================
         function formatChineseDate(dateStr) {
             if (!dateStr) return '-';
-            const date = new Date(dateStr);
-            if (isNaN(date.getTime())) return '-';
-            const year = date.getFullYear();
-            const month = date.getMonth() + 1;
-            const day = date.getDate();
-            return `${year}年${month}月${day}日`;
+            try {
+                const date = new Date(dateStr);
+                const year = date.getFullYear();
+                const month = date.getMonth() + 1;
+                const day = date.getDate();
+                return `${year}年${month}月${day}日`;
+            } catch {
+                return dateStr;
+            }
         }
     </script>
 </body>
-
 </html>

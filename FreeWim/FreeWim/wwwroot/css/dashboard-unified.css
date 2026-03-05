@@ -1,0 +1,451 @@
+/*
+ * Dashboard 统一子页面样式
+ * 所有子页面必须使用此样式,不再支持独立访问
+ * 设计系统: Data-Dense Dashboard + Enterprise Blue
+ */
+
+:root {
+    /* Dashboard 主题色 - 与 Dashboard.html 完全一致 */
+    --primary-color: #1E40AF;
+    --secondary-color: #3B82F6;
+    --accent-color: #F59E0B;
+    --bg-color: #F8FAFC;
+    --text-primary: #1E3A8A;
+    --text-secondary: #64748B;
+    --border-color: #E2E8F0;
+    --glass-bg: rgba(255, 255, 255, 0.95);
+    --hover-bg: rgba(30, 64, 175, 0.08);
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+
+    /* 布局常量 */
+    --filter-height: 80px;
+    --table-header-height: 48px;
+}
+
+/* ==================== 全局重置 ==================== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Fira Sans', -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif !important;
+    background: var(--bg-color) !important;
+    color: var(--text-primary) !important;
+    overflow: hidden !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ==================== 页面布局 ==================== */
+.page-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100%;
+    overflow: hidden;
+}
+
+/* 顶部筛选区 - 固定 */
+.filter-section {
+    flex-shrink: 0;
+    background: white;
+    border-bottom: 1px solid var(--border-color);
+    padding: 12px 20px;
+    box-shadow: var(--shadow-sm);
+    z-index: 10;
+}
+
+.filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+}
+
+/* 内容区 - 可滚动 */
+.content-section {
+    flex: 1;
+    overflow: auto;
+    padding: 20px 24px;
+}
+
+/* ==================== 表格样式 ==================== */
+.table-container {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    overflow: auto; /* 允许横向和纵向滚动 */
+    height: 100%; /* 改为100%以填充父容器 */
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 800px; /* 确保表格有最小宽度,触发横向滚动 */
+}
+
+/* 冻结表头 - 横向和纵向滚动都保持可见 */
+.data-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10; /* 提高z-index确保在其他元素之上 */
+    background: #F9FAFB;
+}
+
+.data-table th {
+    position: sticky;
+    top: 0;
+    background: #F9FAFB !important;
+    color: var(--text-secondary) !important;
+    font-weight: 600 !important;
+    font-size: 12px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px;
+    padding: 14px 16px !important;
+    text-align: left !important;
+    border-bottom: 2px solid var(--border-color) !important;
+    white-space: nowrap;
+    /* 添加阴影以增强表头的视觉分离 */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* 可排序表头 */
+.data-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.data-table th.sortable:hover {
+    background: #F3F4F6 !important;
+    color: var(--primary-color) !important;
+}
+
+.data-table th.sortable::after {
+    content: '⇅';
+    margin-left: 6px;
+    opacity: 0.3;
+    font-size: 10px;
+}
+
+.data-table th.sortable.asc::after {
+    content: '↑';
+    opacity: 1;
+    color: var(--primary-color);
+}
+
+.data-table th.sortable.desc::after {
+    content: '↓';
+    opacity: 1;
+    color: var(--primary-color);
+}
+
+.data-table td {
+    padding: 12px 16px !important;
+    border-bottom: 1px solid #F3F4F6 !important;
+    color: var(--text-primary) !important;
+    font-size: 14px !important;
+}
+
+.data-table tbody tr {
+    transition: background-color 0.15s;
+}
+
+.data-table tbody tr:hover {
+    background: rgba(30, 64, 175, 0.03) !important;
+}
+
+/* ==================== 表单控件 ==================== */
+.form-input,
+.form-select,
+input[type="text"],
+input[type="date"],
+input[type="number"],
+select {
+    background: white !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    color: var(--text-primary) !important;
+    font-family: 'Fira Sans', sans-serif !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+    outline: none !important;
+}
+
+.form-input:focus,
+.form-select:focus,
+input:focus,
+select:focus {
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1) !important;
+}
+
+/* ==================== 按钮 ==================== */
+.btn,
+button:not(.unstyled) {
+    background: var(--primary-color) !important;
+    color: white !important;
+    border: none !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    font-family: 'Fira Sans', sans-serif !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s, transform 0.15s !important;
+    outline: none !important;
+}
+
+.btn:hover,
+button:not(.unstyled):hover {
+    background: var(--secondary-color) !important;
+}
+
+.btn:active,
+button:not(.unstyled):active {
+    transform: scale(0.98) !important;
+}
+
+.btn:focus-visible,
+button:not(.unstyled):focus-visible {
+    box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.3) !important;
+}
+
+.btn-secondary {
+    background: #6B7280 !important;
+}
+
+.btn-secondary:hover {
+    background: #4B5563 !important;
+}
+
+/* ==================== 徽章/标签 ==================== */
+.badge {
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    display: inline-block !important;
+}
+
+.badge-success {
+    background: #D1FAE5 !important;
+    color: #065F46 !important;
+}
+
+.badge-danger {
+    background: #FEE2E2 !important;
+    color: #991B1B !important;
+}
+
+.badge-warning {
+    background: #FEF3C7 !important;
+    color: #92400E !important;
+}
+
+.badge-info {
+    background: #DBEAFE !important;
+    color: #1E40AF !important;
+}
+
+.badge-gray {
+    background: #F3F4F6 !important;
+    color: #6B7280 !important;
+}
+
+/* ==================== 卡片 ==================== */
+.card {
+    background: white !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    box-shadow: var(--shadow-sm) !important;
+    padding: 20px !important;
+    margin-bottom: 20px !important;
+}
+
+/* ==================== 统计卡片 ==================== */
+.stat-card {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: 'Fira Code', monospace;
+}
+
+/* ==================== 图表容器 ==================== */
+.chart-container {
+    width: 100% !important;
+    height: 350px !important;
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+}
+
+/* ==================== 加载状态 ==================== */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9) !important;
+    backdrop-filter: blur(4px) !important;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    flex-direction: column;
+}
+
+.loading-overlay.active {
+    display: flex;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(30, 64, 175, 0.2) !important;
+    border-top-color: var(--primary-color) !important;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ==================== 分页 ==================== */
+.pagination {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 0;
+}
+
+.pagination button {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 12px;
+    background: white !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+.pagination button:hover:not(:disabled) {
+    background: var(--hover-bg) !important;
+    border-color: var(--primary-color) !important;
+}
+
+.pagination button.active {
+    background: var(--primary-color) !important;
+    color: white !important;
+    border-color: var(--primary-color) !important;
+}
+
+.pagination button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed !important;
+}
+
+/* ==================== 滚动条 ==================== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 768px) {
+    .filter-section {
+        padding: 12px 16px;
+    }
+
+    .content-section {
+        padding: 16px;
+    }
+
+    .filter-row {
+        gap: 8px;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 10px 12px !important;
+        font-size: 13px !important;
+    }
+}
+
+/* ==================== 无障碍 ==================== */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* 键盘焦点可见性 */
+*:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* ==================== 工具类 ==================== */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.font-mono { font-family: 'Fira Code', monospace; }
+.cursor-pointer { cursor: pointer; }
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.gap-2 { gap: 8px; }
+.gap-4 { gap: 16px; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.mb-4 { margin-bottom: 16px; }
+.mt-4 { margin-top: 16px; }

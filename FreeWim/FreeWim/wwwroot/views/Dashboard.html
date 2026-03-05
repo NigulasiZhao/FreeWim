@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FreeWim 管理中心</title>
+    <script src="/lib/echarts/echarts.min.js"></script>
+    <script src="/lib/gridjs/gridjs.umd.js"></script>
+    <script src="/lib/flatpickr/flatpickr.min.js"></script>
+    <script src="/lib/flatpickr/zh.js"></script>
+    <script src="/lib/alpine/alpine.min.js" defer></script>
+    <link rel="stylesheet" href="/lib/fontawesome/all.min.css" />
+    <link rel="stylesheet" href="/lib/flatpickr/material_blue.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 260px;
+            --sidebar-collapsed-width: 70px;
+            /* 现代紫蓝渐变配色 - 更柔和专业 */
+            --primary-color: #6366F1;
+            /* Indigo 500 - 主色调 */
+            --secondary-color: #8B5CF6;
+            /* Violet 500 - 次要色 */
+            --accent-color: #EC4899;
+            /* Pink 500 - 强调色 */
+            --bg-color: #F9FAFB;
+            /* Gray 50 - 背景色 */
+            --text-primary: #111827;
+            /* Gray 900 - 主文字 */
+            --text-secondary: #6B7280;
+            /* Gray 500 - 次要文字 */
+            --border-color: #E5E7EB;
+            /* Gray 200 - 边框 */
+            --glass-bg: rgba(255, 255, 255, 0.95);
+            --hover-bg: rgba(99, 102, 241, 0.08);
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Fira Sans', -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* 支持减少动画偏好 */
+        @media (prefers-reduced-motion: reduce) {
+
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* 主布局 */
+        .app-container {
+            display: flex;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* 侧边栏 */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: white;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            z-index: 100;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .sidebar.collapsed {
+            width: var(--sidebar-collapsed-width);
+        }
+
+        /* Logo区域 */
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 70px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .logo i {
+            color: var(--primary-color);
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .logo-text {
+            transition: opacity 0.2s;
+        }
+
+        .sidebar.collapsed .logo-text {
+            opacity: 0;
+            width: 0;
+        }
+
+        /* 折叠按钮 */
+        .toggle-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: var(--bg-color);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            transition: background-color 0.2s, color 0.2s, transform 0.15s;
+            flex-shrink: 0;
+        }
+
+        .toggle-btn:hover {
+            background: var(--hover-bg);
+            color: var(--primary-color);
+        }
+
+        .toggle-btn:active {
+            transform: scale(0.95);
+        }
+
+        .toggle-btn:focus-visible {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+
+        .sidebar.collapsed .toggle-btn i {
+            transform: rotate(180deg);
+        }
+
+        /* 导航菜单 */
+        .nav-menu {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        .nav-menu::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .nav-menu::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 3px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            margin-bottom: 4px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s, transform 0.15s;
+            color: var(--text-primary);
+            text-decoration: none;
+            position: relative;
+        }
+
+        .nav-item:hover {
+            background: var(--hover-bg);
+            transform: translateX(2px);
+        }
+
+        .nav-item.active {
+            background: var(--primary-color);
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+
+        .nav-item:focus-visible {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+
+        .nav-item:active {
+            transform: scale(0.98);
+        }
+
+        .nav-item i {
+            width: 24px;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .nav-item-text {
+            margin-left: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: opacity 0.2s;
+        }
+
+        .sidebar.collapsed .nav-item-text {
+            opacity: 0;
+            width: 0;
+            margin: 0;
+        }
+
+        .sidebar.collapsed .nav-item {
+            justify-content: center;
+            padding: 12px;
+        }
+
+        /* 主内容区 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* 顶部栏 */
+        .topbar {
+            height: 70px;
+            background: white;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            box-shadow: var(--shadow-sm);
+            z-index: 50;
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        /* 内容容器 */
+        .content-wrapper {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .page-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: auto;
+            padding: 0;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+            pointer-events: none;
+        }
+
+        .page-content.active {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .page-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .page-content::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 4px;
+        }
+
+        /* iframe容器 */
+        .iframe-container {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            display: block;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                z-index: 1000;
+                transform: translateX(-100%);
+            }
+
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+
+            .sidebar.collapsed {
+                transform: translateX(-100%);
+            }
+
+            .topbar {
+                padding: 0 15px;
+            }
+
+            .page-content {
+                padding: 15px;
+            }
+        }
+
+        /* 加载动画 */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(0, 122, 255, 0.2);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* 移动端菜单按钮 */
+        .mobile-menu-btn {
+            display: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            background: var(--bg-color);
+            border: none;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            transition: background-color 0.2s, transform 0.15s;
+        }
+
+        .mobile-menu-btn:hover {
+            background: var(--hover-bg);
+        }
+
+        .mobile-menu-btn:active {
+            transform: scale(0.95);
+        }
+
+        .mobile-menu-btn:focus-visible {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-menu-btn {
+                display: flex;
+            }
+        }
+
+        /* 遮罩层 */
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 999;
+        }
+
+        .overlay.active {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fas fa-chart-line"></i>
+                    <span class="logo-text">FreeWim</span>
+                </div>
+                <button class="toggle-btn" onclick="toggleSidebar()" aria-label="折叠侧边栏" title="折叠侧边栏">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+            </div>
+
+            <nav class="nav-menu" role="navigation" aria-label="主导航">
+                <a class="nav-item active" data-page="attendance-dashboard"
+                    onclick="navigateTo('attendance-dashboard', '考勤数据总览', event)" role="button" tabindex="0"
+                    aria-label="考勤数据总览">
+                    <i class="fas fa-tachometer-alt" aria-hidden="true"></i>
+                    <span class="nav-item-text">考勤数据总览</span>
+                </a>
+                <a class="nav-item" data-page="work-hours" onclick="navigateTo('work-hours', '工时排行榜', event)"
+                    role="button" tabindex="0" aria-label="工时排行榜">
+                    <i class="fas fa-trophy" aria-hidden="true"></i>
+                    <span class="nav-item-text">工时排行榜</span>
+                </a>
+                <a class="nav-item" data-page="dayreport-dashboard"
+                    onclick="navigateTo('dayreport-dashboard', '工作报告统计', event)" role="button" tabindex="0"
+                    aria-label="工作报告统计">
+                    <i class="fas fa-chart-bar" aria-hidden="true"></i>
+                    <span class="nav-item-text">工作报告统计</span>
+                </a>
+                <a class="nav-item" data-page="overtime-apply" onclick="navigateTo('overtime-apply', '加班申请查询', event)"
+                    role="button" tabindex="0" aria-label="加班申请查询">
+                    <i class="fas fa-clock" aria-hidden="true"></i>
+                    <span class="nav-item-text">加班申请查询</span>
+                </a>
+                <a class="nav-item" data-page="leave-apply" onclick="navigateTo('leave-apply', '调休申请查询', event)"
+                    role="button" tabindex="0" aria-label="调休申请查询">
+                    <i class="fas fa-file-alt" aria-hidden="true"></i>
+                    <span class="nav-item-text">调休申请查询</span>
+                </a>
+                <a class="nav-item" data-page="attendance-abnormal"
+                    onclick="navigateTo('attendance-abnormal', '考勤异常汇总', event)" role="button" tabindex="0"
+                    aria-label="考勤异常汇总">
+                    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                    <span class="nav-item-text">考勤异常汇总</span>
+                </a>
+                <a class="nav-item" data-page="week-overtime" onclick="navigateTo('week-overtime', '周末加班统计', event)"
+                    role="button" tabindex="0" aria-label="周末加班统计">
+                    <i class="fas fa-calendar-week" aria-hidden="true"></i>
+                    <span class="nav-item-text">周末加班统计</span>
+                </a>
+                <a class="nav-item" data-page="yinuo" onclick="navigateTo('yinuo', '使用情况汇总', event)" role="button"
+                    tabindex="0" aria-label="使用情况汇总">
+                    <i class="fas fa-users" aria-hidden="true"></i>
+                    <span class="nav-item-text">使用情况汇总</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 顶部栏 -->
+            <header class="topbar">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="打开菜单" title="打开菜单">
+                        <i class="fas fa-bars" aria-hidden="true"></i>
+                    </button>
+                    <h1 class="page-title" id="pageTitle">考勤数据总览</h1>
+                </div>
+                <div class="user-info">
+                    <div class="user-avatar">U</div>
+                </div>
+            </header>
+
+            <!-- 内容区域 -->
+            <div class="content-wrapper">
+                <div class="loading-overlay" id="loadingOverlay">
+                    <div class="spinner"></div>
+                </div>
+
+                <!-- 考勤数据总览 -->
+                <div class="page-content active" id="page-attendance-dashboard">
+                    <iframe class="iframe-container" src="/views/AttendanceDashBoard.html"></iframe>
+                </div>
+
+                <!-- 工时排行榜 -->
+                <div class="page-content" id="page-work-hours">
+                    <iframe class="iframe-container" src="/views/WorkHours.html"></iframe>
+                </div>
+
+                <!-- 工作报告统计 -->
+                <div class="page-content" id="page-dayreport-dashboard">
+                    <iframe class="iframe-container" src="/views/DayReportDashBoard.html"></iframe>
+                </div>
+
+                <!-- 加班申请查询 -->
+                <div class="page-content" id="page-overtime-apply">
+                    <iframe class="iframe-container" src="/views/OvertimePlanApply.html"></iframe>
+                </div>
+
+                <!-- 调休申请查询 -->
+                <div class="page-content" id="page-leave-apply">
+                    <iframe class="iframe-container" src="/views/LeaveApply.html"></iframe>
+                </div>
+
+                <!-- 考勤异常汇总 -->
+                <div class="page-content" id="page-attendance-abnormal">
+                    <iframe class="iframe-container" src="/views/AttendanceAbnormal.html"></iframe>
+                </div>
+
+                <!-- 周末加班统计 -->
+                <div class="page-content" id="page-week-overtime">
+                    <iframe class="iframe-container" src="/views/WeekOverTime.html"></iframe>
+                </div>
+
+                <!-- 使用情况汇总 -->
+                <div class="page-content" id="page-yinuo">
+                    <iframe class="iframe-container" src="/views/Yinuo.html"></iframe>
+                </div>
+            </div>
+        </main>
+
+        <!-- 移动端遮罩 -->
+        <div class="overlay" id="overlay" onclick="closeMobileMenu()"></div>
+    </div>
+
+    <script>
+        // 侧边栏折叠
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('collapsed');
+            localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+        }
+
+        // 移动端菜单
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            sidebar.classList.add('mobile-open');
+            overlay.classList.add('active');
+        }
+
+        function closeMobileMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            sidebar.classList.remove('mobile-open');
+            overlay.classList.remove('active');
+        }
+
+        // 页面导航
+        function navigateTo(pageId, title, event) {
+            event.preventDefault();
+
+            // 更新标题
+            document.getElementById('pageTitle').textContent = title;
+            document.title = title + ' - FreeWim 管理中心';
+
+            // 更新导航激活状态
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+                item.setAttribute('aria-current', 'false');
+            });
+            event.currentTarget.classList.add('active');
+            event.currentTarget.setAttribute('aria-current', 'page');
+
+            // 切换页面内容
+            document.querySelectorAll('.page-content').forEach(page => {
+                page.classList.remove('active');
+            });
+            document.getElementById('page-' + pageId).classList.add('active');
+
+            // 移动端关闭菜单
+            if (window.innerWidth <= 768) {
+                closeMobileMenu();
+            }
+
+            // 保存当前页面
+            localStorage.setItem('currentPage', pageId);
+        }
+
+        // 键盘导航支持
+        document.addEventListener('keydown', (e) => {
+            // ESC键关闭移动端菜单
+            if (e.key === 'Escape') {
+                closeMobileMenu();
+            }
+
+            // Enter或Space键激活导航项
+            if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('nav-item')) {
+                e.preventDefault();
+                e.target.click();
+            }
+        });
+
+        // 页面加载时恢复状态
+        window.addEventListener('DOMContentLoaded', () => {
+            // 恢复侧边栏状态
+            const sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            if (sidebarCollapsed) {
+                document.getElementById('sidebar').classList.add('collapsed');
+            }
+
+            // 恢复当前页面
+            const currentPage = localStorage.getItem('currentPage');
+            if (currentPage) {
+                const navItem = document.querySelector(`[data-page="${currentPage}"]`);
+                if (navItem) {
+                    const title = navItem.querySelector('.nav-item-text').textContent;
+                    document.getElementById('pageTitle').textContent = title;
+
+                    document.querySelectorAll('.nav-item').forEach(item => {
+                        item.classList.remove('active');
+                    });
+                    navItem.classList.add('active');
+
+                    document.querySelectorAll('.page-content').forEach(page => {
+                        page.classList.remove('active');
+                    });
+                    document.getElementById('page-' + currentPage).classList.add('active');
+                }
+            }
+        });
+
+        // 响应式处理
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                closeMobileMenu();
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -139,32 +139,12 @@ app.UseStaticFiles(); // 启用 wwwroot 文件夹
 app.MapGet("/dashboard", async context =>
 {
     context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "AttendanceDashBoard.html"));
-});
-app.MapGet("/daydashboard", async context =>
-{
-    context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "DayReportDashBoard.html"));
+    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "Dashboard.html"));
 });
 app.MapGet("/daka", async context =>
 {
     context.Response.ContentType = "text/html";
     await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "AttendanceApplication.html"));
-});
-app.MapGet("/weekovertiem", async context =>
-{
-    context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "WeekOverTime.html"));
-});
-app.MapGet("/workhours", async context =>
-{
-    context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "WorkHours.html"));
-});
-app.MapGet("/yinuo", async context =>
-{
-    context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "Yinuo.html"));
 });
 app.MapGet("/network", async context =>
 {
@@ -176,26 +156,10 @@ app.MapGet("/trafficstatistics", async context =>
     context.Response.ContentType = "text/html";
     await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "TrafficMonitoring.html"));
 });
-app.MapGet("/bnormalattendance", async context =>
-{
-    context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "AttendanceAbnormal.html"));
-});
 app.MapGet("/annualreport", async context =>
 {
     context.Response.ContentType = "text/html";
     await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "AnnualReport.html"));
-});
-app.MapGet("/overtime", async context =>
-{
-    context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "OvertimePlanApply.html"));
-});
-app.MapGet("/leaveapply", async context =>
-{
-    context.Response.ContentType = "text/html";
-    await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"),
-        "LeaveApply.html"));
 });
 app.MapGet("/", () => Results.Redirect("/scalar"));
 app.Run();

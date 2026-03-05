@@ -17,6 +17,7 @@ yarn-error.log*
 .idea
 .vscode
 .vs
+.claude
 
 #upload  directories and files
 GisPlateformV2.0/GISServerForCore2.0/Export/

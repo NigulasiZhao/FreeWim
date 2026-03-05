@@ -1,0 +1,240 @@
+/*
+ * Dashboard 子页面统一样式
+ * 用于所有嵌入 Dashboard.html 的子页面
+ * 确保视觉一致性和无缝集成
+ */
+
+:root {
+    /* 与 Dashboard 主题色保持一致 */
+    --primary-color: #1E40AF;
+    --secondary-color: #3B82F6;
+    --accent-color: #F59E0B;
+    --bg-color: #F8FAFC;
+    --text-primary: #1E3A8A;
+    --text-secondary: #64748B;
+    --border-color: #E2E8F0;
+    --glass-bg: rgba(255, 255, 255, 0.95);
+    --hover-bg: rgba(30, 64, 175, 0.08);
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* 重置子页面的 body 样式 */
+body {
+    font-family: 'Fira Sans', -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif !important;
+    background: var(--bg-color) !important;
+    color: var(--text-primary) !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* 隐藏子页面的标题（Dashboard 已有） */
+body > h1:first-child,
+body > header h1,
+.page-title,
+.header-section h1 {
+    display: none !important;
+}
+
+/* 统一卡片样式 */
+.glass-card,
+.card,
+.control-panel,
+.table-wrapper,
+.chart-section,
+.detail-table-container {
+    background: white !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    box-shadow: var(--shadow-sm) !important;
+    padding: 20px !important;
+    margin-bottom: 20px !important;
+}
+
+/* 统一按钮样式 */
+button,
+.btn,
+.ios-btn,
+.search-btn {
+    background: var(--primary-color) !important;
+    color: white !important;
+    border: none !important;
+    padding: 10px 20px !important;
+    border-radius: 8px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s, transform 0.15s !important;
+}
+
+button:hover,
+.btn:hover,
+.ios-btn:hover,
+.search-btn:hover {
+    background: var(--secondary-color) !important;
+}
+
+button:active,
+.btn:active,
+.ios-btn:active,
+.search-btn:active {
+    transform: scale(0.98) !important;
+}
+
+/* 统一输入框样式 */
+input[type="text"],
+input[type="date"],
+input[type="number"],
+select,
+.ios-date {
+    background: white !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    color: var(--text-primary) !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+input:focus,
+select:focus {
+    outline: none !important;
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1) !important;
+}
+
+/* 统一表格样式 */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th {
+    background: #F9FAFB !important;
+    color: var(--text-secondary) !important;
+    font-weight: 600 !important;
+    font-size: 12px !important;
+    text-transform: uppercase !important;
+    padding: 12px 16px !important;
+    text-align: left !important;
+    border-bottom: 1px solid var(--border-color) !important;
+}
+
+td {
+    padding: 12px 16px !important;
+    border-bottom: 1px solid #F3F4F6 !important;
+    color: var(--text-primary) !important;
+    font-size: 14px !important;
+}
+
+tr:hover td {
+    background: rgba(30, 64, 175, 0.03) !important;
+}
+
+/* 移除子页面的装饰性背景 */
+.blob,
+.blob-1,
+.blob-2,
+.blob-3,
+.liquid-bg {
+    display: none !important;
+}
+
+/* 统一标签/徽章样式 */
+.badge,
+.tag {
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    display: inline-block !important;
+}
+
+.badge-green,
+.tag-normal {
+    background: #D1FAE5 !important;
+    color: #065F46 !important;
+}
+
+.badge-red,
+.tag-late {
+    background: #FEE2E2 !important;
+    color: #991B1B !important;
+}
+
+.badge-yellow,
+.tag-overtime {
+    background: #FEF3C7 !important;
+    color: #92400E !important;
+}
+
+.badge-gray {
+    background: #F3F4F6 !important;
+    color: #6B7280 !important;
+}
+
+/* 统一图表容器 */
+.chart-container,
+#trendChart,
+#monthlyTrendChart,
+#sixMonthsTrendChart {
+    width: 100% !important;
+    height: 350px !important;
+}
+
+/* 统一加载动画 */
+.loading-overlay,
+.loading-mask {
+    background: rgba(255, 255, 255, 0.9) !important;
+    backdrop-filter: blur(4px) !important;
+}
+
+.spinner {
+    border: 3px solid rgba(30, 64, 175, 0.2) !important;
+    border-top-color: var(--primary-color) !important;
+}
+
+/* 统一滚动条 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    body {
+        padding: 15px !important;
+    }
+
+    .glass-card,
+    .card,
+    .control-panel {
+        padding: 15px !important;
+    }
+}
+
+/* 支持减少动画偏好 */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

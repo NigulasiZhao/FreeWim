@@ -1,437 +1,261 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>使用情况汇总</title>
+    <script src="/js/dashboard-adapter.js"></script>
+    <link rel="stylesheet" href="/css/dashboard-unified.css">
     <link rel="stylesheet" href="/lib/flatpickr/material_blue.css">
-    <style>
-        :root {
-            --primary-color: #007AFF;
-            --glass-bg: rgba(255, 255, 255, 0.3);
-            --glass-border: rgba(255, 255, 255, 0.4);
-            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
-            --text-main: #1d1d1f;
-            --text-secondary: #515154;
-            --ios-green: #34C759;
-        }
-
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif;
-            background: linear-gradient(135deg, #e0e7ff 0%, #f3f4f6 100%);
-            background-attachment: fixed;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding: 20px 0;
-            overflow: hidden;
-            position: relative;
-        }
-
-        /* 动态背景球 */
-        .blob {
-            position: fixed;
-            border-radius: 50%;
-            filter: blur(80px);
-            z-index: -1;
-            opacity: 0.6;
-            animation: float 15s infinite ease-in-out;
-        }
-
-        .blob-1 {
-            top: -10%;
-            right: -10%;
-            width: 500px;
-            height: 500px;
-            background: #c7d2fe;
-        }
-
-        .blob-2 {
-            bottom: -5%;
-            left: -5%;
-            width: 400px;
-            height: 400px;
-            background: #ddd6fe;
-            animation-delay: -2s;
-        }
-
-        .blob-3 {
-            top: 20%;
-            left: 10%;
-            width: 300px;
-            height: 300px;
-            background: #bae6fd;
-            animation-delay: -5s;
-        }
-
-        @keyframes float {
-
-            0%,
-            100% {
-                transform: translate(0, 0) scale(1);
-            }
-
-            50% {
-                transform: translate(40px, 60px) scale(1.1);
-            }
-        }
-
-        /* 主容器 */
-        .glass-container {
-            width: 95%;
-            max-width: 1400px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-radius: 28px;
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--glass-shadow);
-            padding: 25px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            height: calc(100vh - 40px);
-            box-sizing: border-box;
-        }
-
-        /* 头部 */
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        .title-area {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        h1 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--text-main);
-            letter-spacing: -0.5px;
-        }
-
-        .btn-back {
-            color: var(--primary-color);
-            cursor: pointer;
-            font-weight: 500;
-            display: none;
-            padding: 6px 12px;
-            border-radius: 10px;
-            background: rgba(0, 122, 255, 0.1);
-            transition: 0.2s;
-        }
-
-        .btn-back:active {
-            transform: scale(0.95);
-        }
-
-        /* 筛选器 */
-        .controls {
-            display: flex;
-            background: rgba(255, 255, 255, 0.4);
-            padding: 4px;
-            border-radius: 14px;
-            border: 1px solid var(--glass-border);
-            align-items: center;
-        }
-
-        .date-picker {
-            background: transparent;
-            border: none;
-            padding: 8px 15px;
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--primary-color);
-            outline: none;
-            width: 220px;
-            text-align: center;
-        }
-
-        .btn-query {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 8px 20px;
-            border-radius: 11px;
-            font-weight: 600;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2);
-        }
-
-        /* 表格样式 */
-        .table-wrapper {
-            overflow: auto;
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            position: relative;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            min-width: 1100px;
-        }
-
-        th {
-            position: sticky;
-            top: 0;
-            z-index: 20;
-            background: rgba(255, 255, 255, 0.7);
-            backdrop-filter: blur(10px);
-            text-align: left;
-            padding: 14px 16px;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-            cursor: pointer;
-        }
-
-        /* 首列锁定 */
-        td:first-child,
-        th:first-child {
-            position: sticky;
-            left: 0;
-            z-index: 10;
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(10px);
-            width: 200px;
-            border-right: 1px solid rgba(0, 0, 0, 0.03);
-        }
-
-        th:first-child {
-            z-index: 30;
-        }
-
-        td {
-            padding: 16px;
-            font-size: 14px;
-            color: var(--text-main);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        tbody tr:hover td {
-            background: rgba(255, 255, 255, 0.4) !important;
-        }
-
-        /* 数据组件 */
-        .rate-container {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .rate-bar-bg {
-            width: 60px;
-            height: 6px;
-            background: rgba(0, 0, 0, 0.05);
-            border-radius: 3px;
-            overflow: hidden;
-        }
-
-        .rate-bar-fill {
-            height: 100%;
-            background: var(--primary-color);
-            border-radius: 3px;
-        }
-
-        .badge {
-            padding: 4px 8px;
-            border-radius: 8px;
-            font-size: 11px;
-            font-weight: 700;
-        }
-
-        .badge-green {
-            background: rgba(52, 199, 89, 0.15);
-            color: #248a3d;
-        }
-
-        .badge-gray {
-            background: rgba(0, 0, 0, 0.05);
-            color: #666;
-        }
-
-        .loading-mask {
-            padding: 100px 0;
-            text-align: center;
-            color: var(--text-secondary);
-            font-weight: 500;
-        }
-
-        /* 动画 */
-        @keyframes rowIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .row-anim {
-            animation: rowIn 0.4s ease forwards;
-        }
-    </style>
+    <script src="/js/dashboard-utils.js"></script>
 </head>
-
 <body>
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
-    <div class="blob blob-3"></div>
+    <div class="page-container">
+        <!-- 筛选区 - 固定顶部 -->
+        <div class="filter-section">
+            <div class="filter-row">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-calendar-alt" style="color: var(--text-secondary); font-size: 14px;"></i>
+                    <input type="text" id="dateRange" class="form-input" placeholder="选择日期范围" readonly style="width: 240px;">
+                </div>
 
-    <div class="glass-container">
-        <header class="header">
-            <div class="title-area">
-                <span class="btn-back" id="btn-back" onclick="initPage()">❮ 返回</span>
-                <h1 id="page-title">部门概览看板</h1>
-            </div>
-            <div class="controls">
-                <input type="text" id="date-range" class="date-picker">
-                <button class="btn-query" onclick="fetchData()">查询数据</button>
-            </div>
-        </header>
+                <div style="flex: 1;"></div>
 
-        <div class="table-wrapper" id="scroll-box">
-            <div class="loading-mask">请先选择日期范围</div>
+                <button class="btn btn-secondary" id="backBtn" onclick="initPage()" style="display: none;">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>返回</span>
+                </button>
+
+                <button class="btn btn-primary" onclick="fetchData()">
+                    <i class="fas fa-search"></i>
+                    <span>查询数据</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 内容区 - 可滚动 -->
+        <div class="content-section" style="display: flex; flex-direction: column;">
+            <div class="table-container" style="flex: 1;">
+                <div id="emptyState" class="empty-state">
+                    <p>请先选择日期范围</p>
+                </div>
+                <div id="tableWrapper" style="display: none;">
+                    <table class="data-table" id="dataTable">
+                        <thead id="tableHead"></thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
     <script src="/lib/flatpickr/flatpickr.min.js"></script>
     <script src="/lib/flatpickr/zh.js"></script>
     <script>
+        // ==================== 全局状态 ====================
         const URLS = {
             dept: '/api/PmisAndZentao/orgPage',
             user: '/api/PmisAndZentao/personPage'
         };
 
-        let fp, currentRows = [], isDeptMode = true, sortInfo = { key: 'onlineRate', asc: false };
-
-        window.onload = () => {
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            fp = flatpickr("#date-range", {
-                mode: "range", locale: "zh", dateFormat: "Y-m-d", defaultDate: [yesterday, yesterday]
-            });
-            initPage();
+        let state = {
+            mode: 'dept', // 'dept' or 'user'
+            currentOrgId: null,
+            currentRows: [],
+            sortField: 'onlineRate',
+            sortOrder: 'desc'
         };
 
+        let flatpickrInstance = null;
+
+        // ==================== 初始化 ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            initDatePicker();
+            initPage();
+        });
+
+        // ==================== 初始化日期选择器 ====================
+        function initDatePicker() {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            flatpickrInstance = flatpickr("#dateRange", {
+                mode: "range",
+                locale: "zh",
+                dateFormat: "Y-m-d",
+                defaultDate: [yesterday, yesterday]
+            });
+        }
+
+        // ==================== 初始化页面 ====================
         function initPage() {
-            isDeptMode = true;
-            sortInfo = { key: 'onlineRate', asc: false };
-            document.getElementById('page-title').innerText = "部门概览看板";
-            document.getElementById('btn-back').style.display = "none";
+            state.mode = 'dept';
+            state.sortField = 'onlineRate';
+            state.sortOrder = 'desc';
+            document.getElementById('backBtn').style.display = 'none';
             fetchData();
         }
 
+        // ==================== 加载数据 ====================
         async function fetchData() {
-            const dates = fp.selectedDates;
-            if (dates.length < 1) return;
-            const start = fp.formatDate(dates[0], "Y-m-d") + " 00:00:00";
-            const end = fp.formatDate(dates[dates.length - 1], "Y-m-d") + " 23:59:59";
-
-            document.getElementById('scroll-box').innerHTML = '<div class="loading-mask">正在加载数据...</div>';
-
-            try {
-                const resp = await fetch(isDeptMode ? URLS.dept : URLS.user, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ startTime: start, endTime: end, orgIds: isDeptMode ? ["1", "2", "11", "60", "58", "53", "38", "35", "34", "14", "9", "52", "48", "32", "24", "22", "8", "56", "108", "109", "5", "80", "71", "105", "106", "3", "43", "33", "23", "15", "7", "6", "59", "57", "51", "77", "47", "46", "45", "44", "42", "41", "31", "30", "29", "26", "25", "21", "19", "18", "17", "13", "4", "49", "79", "76", "73", "69", "67", "40", "70", "39", "78", "68", "20", "72", "65", "62", "107", "104", "1762768804865126401", "1759130558729895938", "1754062725373243393", "1754063095117918209", "1840657742874861569", "1887766346995871745"] : [window.currentOrgId] })
-                });
-                const json = await resp.json();
-                currentRows = json.Response.rows || [];
-                render();
-            } catch (e) {
-                document.getElementById('scroll-box').innerHTML = '<div class="loading-mask" style="color:#ff3b30">数据同步失败，请检查Token效期</div>';
-            }
-        }
-
-        async function showUser(orgId, orgName) {
-            window.currentOrgId = orgId;
-            isDeptMode = false;
-            sortInfo = { key: 'pcDurationH', asc: false };
-            document.getElementById('page-title').innerText = orgName;
-            document.getElementById('btn-back').style.display = "inline-block";
-            fetchData();
-        }
-
-        function handleSort(key) {
-            if (sortInfo.key === key) sortInfo.asc = !sortInfo.asc;
-            else { sortInfo.key = key; sortInfo.asc = false; }
-            render();
-        }
-
-        function render() {
-            if (!currentRows.length) {
-                document.getElementById('scroll-box').innerHTML = '<div class="loading-mask">该时段下无相关业务数据</div>';
+            const dates = flatpickrInstance.selectedDates;
+            if (dates.length < 1) {
+                Toast.warning('请选择日期范围');
                 return;
             }
 
-            currentRows.sort((a, b) => {
-                let v1 = a[sortInfo.key] ?? 0, v2 = b[sortInfo.key] ?? 0;
-                return sortInfo.asc ? (v1 > v2 ? 1 : -1) : (v1 < v2 ? 1 : -1);
+            const start = flatpickrInstance.formatDate(dates[0], "Y-m-d") + " 00:00:00";
+            const end = flatpickrInstance.formatDate(dates[dates.length - 1], "Y-m-d") + " 23:59:59";
+
+            LoadingOverlay.show(document.querySelector('.table-container'));
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('tableWrapper').style.display = 'none';
+
+            try {
+                const orgIds = ["1", "2", "11", "60", "58", "53", "38", "35", "34", "14", "9", "52", "48", "32", "24", "22", "8", "56", "108", "109", "5", "80", "71", "105", "106", "3", "43", "33", "23", "15", "7", "6", "59", "57", "51", "77", "47", "46", "45", "44", "42", "41", "31", "30", "29", "26", "25", "21", "19", "18", "17", "13", "4", "49", "79", "76", "73", "69", "67", "40", "70", "39", "78", "68", "20", "72", "65", "62", "107", "104", "1762768804865126401", "1759130558729895938", "1754062725373243393", "1754063095117918209", "1840657742874861569", "1887766346995871745"];
+
+                const payload = {
+                    startTime: start,
+                    endTime: end,
+                    orgIds: state.mode === 'dept' ? orgIds : [state.currentOrgId]
+                };
+
+                const response = await fetch(state.mode === 'dept' ? URLS.dept : URLS.user, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const json = await response.json();
+                state.currentRows = json.Response.rows || [];
+                renderTable();
+
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                Toast.error('数据同步失败，请检查Token效期');
+                document.getElementById('emptyState').innerHTML = '<p style="color: #EF4444;">数据同步失败，请检查Token效期</p>';
+                document.getElementById('emptyState').style.display = 'block';
+            } finally {
+                LoadingOverlay.hide();
+            }
+        }
+
+        // ==================== 切换到用户视图 ====================
+        function showUser(orgId, orgName) {
+            state.currentOrgId = orgId;
+            state.mode = 'user';
+            state.sortField = 'pcDurationH';
+            state.sortOrder = 'desc';
+            document.getElementById('pageTitle').textContent = orgName;
+            document.getElementById('backBtn').style.display = 'inline-block';
+            fetchData();
+        }
+
+        // ==================== 排序逻辑 ====================
+        function handleSort(field) {
+            if (state.sortField === field) {
+                state.sortOrder = state.sortOrder === 'desc' ? 'asc' : 'desc';
+            } else {
+                state.sortField = field;
+                state.sortOrder = 'desc';
+            }
+            renderTable();
+        }
+
+        // ==================== 渲染表格 ====================
+        function renderTable() {
+            if (!state.currentRows.length) {
+                document.getElementById('emptyState').innerHTML = '<p>该时段下无相关业务数据</p>';
+                document.getElementById('emptyState').style.display = 'block';
+                document.getElementById('tableWrapper').style.display = 'none';
+                return;
+            }
+
+            // 排序数据
+            state.currentRows.sort((a, b) => {
+                let v1 = a[state.sortField] ?? 0;
+                let v2 = b[state.sortField] ?? 0;
+                return state.sortOrder === 'asc' ? (v1 > v2 ? 1 : -1) : (v1 < v2 ? 1 : -1);
             });
 
-            const cols = isDeptMode ? [
-                { k: 'orgNameAll', t: '部门名称' }, { k: 'onlineRate', t: '上线率' }, { k: 'personNum', t: '总人数' },
-                { k: 'onlineNum', t: '上线数' }, { k: 'useRate', t: '使用占比' }, { k: 'sendMessageTotal', t: '消息总量' },
-                { k: 'sendMessagePersonNum', t: '发送人数' },
-                //{ k: 'installDesktopNum', t: '桌面端' },
-                //{ k: 'installAppNum', t: '移动端' }, 
-                { k: 'staDay', t: '日期' }
+            // 定义列配置
+            const columns = state.mode === 'dept' ? [
+                { key: 'orgNameAll', label: '部门名称', width: '200px' },
+                { key: 'onlineRate', label: '上线率', width: '100px' },
+                { key: 'personNum', label: '总人数', width: '100px' },
+                { key: 'onlineNum', label: '上线数', width: '100px' },
+                { key: 'useRate', label: '使用占比', width: '100px' },
+                { key: 'sendMessageTotal', label: '消息总量', width: '100px' },
+                { key: 'sendMessagePersonNum', label: '发送人数', width: '100px' },
+                { key: 'staDay', label: '日期', width: '120px' }
             ] : [
-                { k: 'userName', t: '姓名' }, { k: 'staDay', t: '日期' }, { k: 'pcDurationH', t: '时长(H)' }, { k: 'sendMessageTotal', t: '消息' },
-                { k: 'sn', t: '工号' }, { k: 'appOnlineNum', t: '上线次数' }, { k: 'installDesktop', t: '桌面端' },
-                { k: 'installApp', t: '移动端' }, { k: 'pcVersion', t: '桌面版本' }, { k: 'nativeVersion', t: '移动版本' }
+                { key: 'userName', label: '姓名', width: '120px' },
+                { key: 'staDay', label: '日期', width: '120px' },
+                { key: 'pcDurationH', label: '时长(H)', width: '100px' },
+                { key: 'sendMessageTotal', label: '消息', width: '100px' },
+                { key: 'sn', label: '工号', width: '100px' },
+                { key: 'appOnlineNum', label: '上线次数', width: '100px' },
+                { key: 'installDesktop', label: '桌面端', width: '100px' },
+                { key: 'installApp', label: '移动端', width: '100px' },
+                { key: 'pcVersion', label: '桌面版本', width: '120px' },
+                { key: 'nativeVersion', label: '移动版本', width: '120px' }
             ];
 
-            let html = '<table><thead><tr>';
-            cols.forEach(c => {
-                const arrow = sortInfo.key === c.k ? (sortInfo.asc ? ' ↑' : ' ↓') : '';
-                html += `<th onclick="handleSort('${c.k}')">${c.t}${arrow}</th>`;
+            // 渲染表头
+            let headHtml = '<tr>';
+            columns.forEach(col => {
+                const sortClass = state.sortField === col.key ? (state.sortOrder === 'asc' ? 'asc' : 'desc') : '';
+                headHtml += `<th class="sortable ${sortClass}" style="min-width: ${col.width};" onclick="handleSort('${col.key}')">${col.label}</th>`;
             });
-            html += '</tr></thead><tbody>';
+            headHtml += '</tr>';
+            document.getElementById('tableHead').innerHTML = headHtml;
 
-            currentRows.forEach((row, idx) => {
-                html += `<tr class="row-anim" style="animation-delay: ${idx * 0.03}s" ${isDeptMode ? `onclick="showUser('${row.orgId}', '${row.orgNameAll.split('>').pop()}')"` : ''}>`;
-                cols.forEach((col, cIdx) => {
-                    let v = row[col.k];
-                    let display = v ?? '-';
-                    if (cIdx === 0) display = `<span style="font-weight:700">${v.split('>').pop()}</span>`;
-                    else if (col.k === 'onlineRate' || col.k === 'useRate') {
-                        display = `<div class="rate-container"><span>${Number(v).toFixed(1)}%</span><div class="rate-bar-bg"><div class="rate-bar-fill" style="width:${v}%"></div></div></div>`;
-                    } else if (col.k === 'pcDurationH') {
-                        display = `<span style="color:var(--primary-color); font-weight:700">${Number(v || 0).toFixed(1)}</span>`;
-                    } else if (col.k.includes('install') && !isDeptMode) {
-                        display = v == 1 ? '<span class="badge badge-green">已安装</span>' : '<span class="badge badge-gray">未发现</span>';
-                    } else if (col.k === 'sendMessageTotal' && v > 0) {
-                        display = `<span style="color:var(--ios-green); font-weight:700">${v}</span>`;
-                    } else if (col.k === 'staDay') display = v.split(' ')[0];
+            // 渲染表体
+            let bodyHtml = '';
+            state.currentRows.forEach(row => {
+                const rowClick = state.mode === 'dept' ? `onclick="showUser('${row.orgId}', '${row.orgNameAll.split('>').pop()}')" style="cursor: pointer;"` : '';
+                bodyHtml += `<tr ${rowClick}>`;
 
-                    html += `<td>${display}</td>`;
+                columns.forEach((col, idx) => {
+                    let value = row[col.key];
+                    let display = value ?? '-';
+
+                    // 特殊格式化
+                    if (idx === 0) {
+                        display = `<span style="font-weight: 600;">${value.split('>').pop()}</span>`;
+                    } else if (col.key === 'onlineRate' || col.key === 'useRate') {
+                        const percent = Number(value).toFixed(1);
+                        display = `
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span>${percent}%</span>
+                                <div style="width: 60px; height: 6px; background: #E5E7EB; border-radius: 3px; overflow: hidden;">
+                                    <div style="width: ${value}%; height: 100%; background: #1E40AF; border-radius: 3px;"></div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (col.key === 'pcDurationH') {
+                        display = `<span style="color: #1E40AF; font-weight: 600;">${Number(value || 0).toFixed(1)}</span>`;
+                    } else if ((col.key === 'installDesktop' || col.key === 'installApp') && state.mode === 'user') {
+                        display = value == 1
+                            ? '<span class="badge badge-success">已安装</span>'
+                            : '<span class="badge badge-secondary">未发现</span>';
+                    } else if (col.key === 'sendMessageTotal' && value > 0) {
+                        display = `<span style="color: #10B981; font-weight: 600;">${value}</span>`;
+                    } else if (col.key === 'staDay') {
+                        display = value.split(' ')[0];
+                    }
+
+                    bodyHtml += `<td>${display}</td>`;
                 });
-                html += '</tr>';
+                bodyHtml += '</tr>';
             });
-            document.getElementById('scroll-box').innerHTML = html + '</tbody></table>';
+            document.getElementById('tableBody').innerHTML = bodyHtml;
+
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('tableWrapper').style.display = 'block';
         }
     </script>
 </body>
-
 </html>
