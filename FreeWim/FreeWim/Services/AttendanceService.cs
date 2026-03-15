@@ -19,6 +19,37 @@ public class AttendanceService(
     PmisService pmisService)
 {
     /// <summary>
+    /// 获取打卡记录通过外围接口
+    /// </summary>
+    /// <param name="date"></param>
+    /// <param name="sn"></param>
+    /// <returns></returns>
+    public async Task<List<ZktItem>> GetPunchCardRecordsFromExternalApi(string date, string sn)
+    {
+        var httpRequestHelper = new HttpRequestHelper();
+        var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
+
+        var startDateTime = DateTime.Parse(date + " 00:00:00");
+        var endDateTime = DateTime.Parse(date + " 23:59:59");
+
+        var response = await httpRequestHelper.PostAsync(
+            pmisInfo.ZkUrl + "/api/v2/transaction/get/?key=" + pmisInfo.ZkKey,
+            new
+            {
+                starttime = startDateTime.ToString("yyyy-MM-dd HH:mm:ss"),
+                endtime = endDateTime.ToString("yyyy-MM-dd HH:mm:ss")
+            });
+
+        var result = await response.Content.ReadAsStringAsync();
+        var resultModel = JsonConvert.DeserializeObject<ZktResponse>(result);
+
+        // Filter by SN if provided
+        var filteredRecords = resultModel?.Data?.Items?.Where(item => item.Sn == sn).ToList();
+
+        return filteredRecords ?? new List<ZktItem>();
+    }
+
+    /// <summary>
     /// 根据日期获取当日工时
     /// </summary>
     /// <param name="date"></param>
@@ -222,35 +253,71 @@ public class AttendanceService(
         var listOfPersonnel = configuration.GetSection("ListOfPersonnel").Get<List<ListOfPersonnel>>();
         if (listOfPersonnel != null)
         {
-            var realNameList = listOfPersonnel.Select(e => e.RealName).ToList();
             var response = httpRequestHelper.PostAsync(
                 pmisInfo.ZkUrl + "/api/v2/transaction/get/?key=" + pmisInfo.ZkKey,
                 new
                 {
-                    starttime = DateTime.Now.AddMinutes(-10).ToString("yyyy-MM-dd HH:mm:ss"),
-                    endtime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                    starttime = DateTime.Now.ToString("yyyy-MM-dd") + " 00:00:00",
+                    endtime = DateTime.Now.ToString("yyyy-MM-dd") + " 23:59:59",
+                    sn = pmisInfo.ZkSN
                 }).Result;
             var result = response.Content.ReadAsStringAsync().Result;
             var resultModel = JsonConvert.DeserializeObject<ZktResponse>(result);
             if (resultModel?.Data is { Count: > 0 })
             {
-                var personList = resultModel.Data.Items?.Where(e => e is { Alias: "郑州", Deptname: "郑州驻外办" }).ToList();
-                if (personList is { Count: > 0 })
-                    foreach (var person in personList)
+                // 1. 基础过滤与非空校验
+                var personList = resultModel.Data.Items?
+                    .Where(e => e is { Alias: "郑州", Deptname: "郑州驻外办" } && !string.IsNullOrEmpty(e.Checktime))
+                    .ToList() ?? new List<ZktItem>();
+
+                if (personList.Count == 0) return;
+
+// 2. 一次性从数据库查询当天已存在的打卡记录 (避免循环查询)
+// 假设 clockintime 是字符串或日期，通过参数化查询提高安全性
+                var existingRecords = dbConnection.Query<(string Name, string ClockTime)>(
+                    $"SELECT name, clockintime FROM public.checkinwarning WHERE to_char(clockintime,'yyyy-mm-dd') = '{DateTime.Now:yyyy-MM-dd}'"
+                ).ToHashSet();
+
+// 3. 计算差集：找出在 personList 中但不在数据库中的记录
+                var newRecords = personList
+                    .Where(p => !existingRecords.Contains((p.Ename, p.Checktime)))
+                    .ToList();
+
+                if (newRecords.Count == 0) return;
+
+// 4. 准备批量插入的数据和推送消息
+                var insertList = new List<object>();
+                var sbMessage = new StringBuilder(pushMessage);
+
+                foreach (var person in newRecords)
+                {
+                    // 查找人员花名
+                    var staff = listOfPersonnel.FirstOrDefault(e => e.RealName == person.Ename);
+                    if (staff != null)
                     {
-                        var checktime = person.Checktime;
-                        var waringcount = dbConnection.Query<int>(
-                                $@"SELECT COUNT(0) FROM public.checkinwarning WHERE name = '{person.Ename}' AND clockintime = '{checktime}'")
-                            .First();
-                        if (waringcount > 0) continue;
-                        if (checktime == null) continue;
-                        if (listOfPersonnel.FirstOrDefault(e => e.RealName == person.Ename) != null)
-                            pushMessage += listOfPersonnel.FirstOrDefault(e => e.RealName == person.Ename)!.FlowerName +
-                                           "-打卡时间:" +
-                                           DateTime.Parse(checktime).ToString("HH:mm:ss") + "\n";
-                        dbConnection.Execute(
-                            $@"INSERT INTO public.checkinwarning(id,name,clockintime) VALUES('{Guid.NewGuid()}','{person.Ename}','{checktime}')");
+                        var timeStr = DateTime.Parse(person.Checktime).ToString("HH:mm:ss");
+                        sbMessage.Append($"{staff.FlowerName}-打卡时间:{timeStr}\n");
                     }
+
+                    // 准备插入对象
+                    insertList.Add(new
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = person.Ename,
+                        Clockintime = person.Checktime
+                    });
+                }
+
+// 5. 批量执行插入 (Dapper 支持传入集合进行批量操作)
+                if (insertList.Count > 0)
+                {
+                    dbConnection.Execute(
+                        "INSERT INTO public.checkinwarning(id, name, clockintime) VALUES(@Id, @Name, @Clockintime)",
+                        insertList
+                    );
+                }
+
+                pushMessage = sbMessage.ToString();
             }
         }
 

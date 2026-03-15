@@ -22,6 +22,65 @@ public class AttendanceRecordController(
     PushMessageService
         pushMessageService) : Controller
 {
+
+    /// <summary>
+    /// 日期打卡数据查询
+    /// </summary>
+    /// <param name="date"></param>
+    /// <param name="sn"></param>
+    /// <returns></returns>
+    [Tags("考勤")]
+    [EndpointSummary("日期打卡数据查询")]
+    [HttpGet]
+    public async Task<ActionResult> PunchCardQuery(string date, string sn)
+    {
+        var records = await attendanceService.GetPunchCardRecordsFromExternalApi(date, sn);
+
+        // Group by pin and select the earliest check-in and latest check-out
+        var result = records.GroupBy(r => r.Pin)
+            .Select(g =>
+            {
+                var ename = g.First().Ename;
+                var checkTimes = g.Where(r => DateTime.TryParse(r.Checktime, out _))
+                                  .Select(r => DateTime.Parse(r.Checktime!))
+                                  .OrderBy(dt => dt)
+                                  .ToList();
+
+                DateTime? startTime = null;
+                DateTime? endTime = null;
+
+                if (checkTimes.Count >= 2)
+                {
+                    startTime = checkTimes.First();
+                    endTime = checkTimes.Last();
+                }
+                else if (checkTimes.Count == 1)
+                {
+                    // If only one record, treat it as start time
+                    startTime = checkTimes.First();
+                }
+
+                return new PunchCardQueryOutput
+                {
+                    Ename = ename ?? string.Empty,
+                    StartTime = startTime,
+                    EndTime = endTime
+                };
+            })
+            .ToList();
+
+        return Json(new
+        {
+            ret = 0,
+            msg = $"获取考勤记录 {result.Count} 条。",
+            data = new
+            {
+                count = result.Count,
+                items = result
+            }
+        });
+    }
+
     [Tags("考勤")]
     [EndpointSummary("考勤组件数据查询接口")]
     [HttpGet]

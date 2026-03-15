@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>郑州打卡查询</title>
+
+    <!-- 统一样式和工具库 -->
+    <link rel="stylesheet" href="/css/dashboard-unified.css">
+    <link rel="stylesheet" href="/lib/fontawesome/all.min.css">
+    <script src="/js/dashboard-utils.js"></script>
+</head>
+<body>
+    <div class="page-container">
+        <!-- 顶部筛选区 - 固定 -->
+        <div class="filter-section">
+            <div class="filter-row">
+                <!-- 日期选择 -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-calendar-alt" style="color: var(--text-secondary); font-size: 14px;"></i>
+                    <input type="date" id="queryDate" class="form-input" style="width: 150px;">
+                </div>
+
+                <!-- 设备SN -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-barcode" style="color: var(--text-secondary); font-size: 14px;"></i>
+                    <select id="snSelect" class="form-input" style="width: 180px;"></select>
+                </div>
+
+                <div style="flex: 1;"></div>
+
+                <!-- 查询按钮 -->
+                <button class="btn" onclick="search()" id="searchBtn">
+                    <i class="fas fa-search"></i>
+                    <span>查询数据</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 内容区 - 可滚动 -->
+        <div class="content-section" style="display: flex; flex-direction: column;">
+            <!-- 数据表格 -->
+            <div class="table-container" style="position: relative; flex: 1;">
+                <!-- 全屏加载遮罩 -->
+                <div id="fullLoading" class="loading-overlay">
+                    <div class="spinner" style="width: 40px; height: 40px; border-width: 4px;"></div>
+                    <p style="margin-top: 12px; color: var(--text-secondary); font-size: 14px; font-weight: 500;">正在加载数据...</p>
+                </div>
+
+                <table class="data-table" id="dataTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="sortTable(0)">
+                                姓名
+                                <i class="fas fa-sort sort-icon"></i>
+                            </th>
+                            <th class="sortable" onclick="sortTable(1)">
+                                上班时间
+                                <i class="fas fa-sort sort-icon"></i>
+                            </th>
+                            <th class="sortable" onclick="sortTable(2)">
+                                下班时间
+                                <i class="fas fa-sort sort-icon"></i>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- 数据行将通过 JS 插入 -->
+                    </tbody>
+                </table>
+
+                <!-- 空状态 -->
+                <div id="emptyState" style="display: none; padding: 60px 20px; text-align: center; color: var(--text-secondary);">
+                    <i class="fas fa-inbox" style="font-size: 48px; opacity: 0.3; margin-bottom: 16px;"></i>
+                    <p style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">暂无数据</p>
+                    <p style="font-size: 14px; opacity: 0.7;">请尝试调整筛选条件</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 全局状态 ====================
+        let currentData = [];
+        let sortState = { column: -1, direction: 'asc' };
+
+        // ==================== 初始化 ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            initDate();
+            fetchDevicesAndInitSelect();
+        });
+
+        // ==================== 获取设备列表并初始化下拉框 ====================
+        function fetchDevicesAndInitSelect() {
+            try {
+                // Hardcoded device list based on the provided data
+                const devices = [
+                    { sn: "COIV222160843", alias: "郑州" },
+                    { sn: "COIV222160836", alias: "武汉" },
+                    { sn: "COIV222160767", alias: "济南" },
+                    { sn: "COIV221860566", alias: "大厅西" },
+                    { sn: "COIV221860567", alias: "大厅东" },
+                    { sn: "COIV221860451", alias: "研发大楼负一楼" },
+                    { sn: "7384233540001", alias: "研发大楼一楼" }
+                ];
+
+                const snSelect = document.getElementById('snSelect');
+                snSelect.innerHTML = ''; // 清空现有选项
+
+                let defaultSn = ''; // 用于存储默认SN
+
+                devices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.sn;
+                    option.textContent = device.alias;
+                    snSelect.appendChild(option);
+
+                    // 如果alias是"郑州"，则设置为默认选中
+                    if (device.alias === '郑州') {
+                        defaultSn = device.sn;
+                    }
+                });
+
+                // 设置默认选中项，如果存在郑州，则选中郑州，否则选中第一个
+                if (defaultSn) {
+                    snSelect.value = defaultSn;
+                } else if (devices.length > 0) {
+                    snSelect.value = devices[0].sn;
+                }
+
+                // 设备列表加载完成后再加载考勤数据
+                loadData();
+
+            } catch (error) {
+                console.error('加载设备列表失败:', error);
+                Toast.error('设备列表加载失败: ' + error.message);
+            }
+        }
+
+
+        // ==================== 初始化日期 ====================
+        function initDate() {
+            const today = new Date();
+            document.getElementById('queryDate').value = DateFormatter.format(today);
+        }
+
+        // ==================== 搜索 ====================
+        function search() {
+            loadData();
+        }
+
+        // ==================== 加载数据 ====================
+        async function loadData() {
+            LoadingOverlay.show(document.querySelector('.table-container'));
+            document.getElementById('emptyState').style.display = 'none';
+
+            try {
+                const date = document.getElementById('queryDate').value;
+                const sn = document.getElementById('snSelect').value;
+
+                if (!date || !sn) {
+                    Toast.warning('日期和设备SN都不能为空');
+                    LoadingOverlay.hide();
+                    return;
+                }
+
+                const response = await fetch(`/api/AttendanceRecord/PunchCardQuery?date=${date}&sn=${sn}`);
+
+                if (!response.ok) throw new Error('请求失败');
+
+                const result = await response.json();
+
+                if (result.ret === 0) {
+                    const items = result.data.items || [];
+                    currentData = items;
+                    sortState = { column: -1, direction: 'asc' };
+                    renderTable(items);
+                } else {
+                    throw new Error(result.msg || '查询失败');
+                }
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                Toast.error('数据加载失败: ' + error.message);
+                document.getElementById('tableBody').innerHTML = '';
+                document.getElementById('emptyState').style.display = 'block';
+            } finally {
+                LoadingOverlay.hide();
+            }
+        }
+
+        // ==================== 排序表格 ====================
+        function sortTable(columnIndex) {
+            // 切换排序方向
+            if (sortState.column === columnIndex) {
+                sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortState.column = columnIndex;
+                sortState.direction = 'asc';
+            }
+
+            // 更新表头图标
+            const headers = document.querySelectorAll('th.sortable');
+            headers.forEach((th, index) => {
+                const icon = th.querySelector('.sort-icon');
+                if (index === columnIndex) {
+                    icon.className = sortState.direction === 'asc' ? 'fas fa-sort-up sort-icon' : 'fas fa-sort-down sort-icon';
+                } else {
+                    icon.className = 'fas fa-sort sort-icon';
+                }
+            });
+
+            // 排序数据
+            const sortedData = [...currentData].sort((a, b) => {
+                let aValue, bValue;
+
+                switch (columnIndex) {
+                    case 0: // 姓名
+                        aValue = a.ename || '';
+                        bValue = b.ename || '';
+                        return sortState.direction === 'asc'
+                            ? aValue.localeCompare(bValue, 'zh-CN')
+                            : bValue.localeCompare(aValue, 'zh-CN');
+
+                    case 1: // 上班时间
+                        aValue = a.startTime ? new Date(a.startTime).getTime() : 0;
+                        bValue = b.startTime ? new Date(b.startTime).getTime() : 0;
+                        return sortState.direction === 'asc' ? aValue - bValue : bValue - aValue;
+
+                    case 2: // 下班时间
+                        aValue = a.endTime ? new Date(a.endTime).getTime() : 0;
+                        bValue = b.endTime ? new Date(b.endTime).getTime() : 0;
+                        return sortState.direction === 'asc' ? aValue - bValue : bValue - aValue;
+
+                    default:
+                        return 0;
+                }
+            });
+
+            renderTable(sortedData);
+        }
+
+        // ==================== 渲染表格 ====================
+        function renderTable(data) {
+            const tbody = document.getElementById('tableBody');
+            const emptyState = document.getElementById('emptyState');
+
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+
+            tbody.innerHTML = data.map(item => `
+                <tr>
+                    <td style="font-weight: 600;">${item.ename || '-'}</td>
+                    <td class="font-mono" style="font-size: 13px;">${formatTime(item.startTime)}</td>
+                    <td class="font-mono" style="font-size: 13px;">${formatTime(item.endTime)}</td>
+                </tr>
+            `).join('');
+        }
+
+        // ==================== 格式化时间 ====================
+        function formatTime(dateTimeStr) {
+            if (!dateTimeStr) return '-';
+            try {
+                // 处理 ISO 8601 格式: 2026-03-10T07:34:04
+                let date;
+                if (typeof dateTimeStr === 'string' && dateTimeStr.includes('T')) {
+                    // 替换 T 为空格，确保兼容性
+                    date = new Date(dateTimeStr.replace('T', ' '));
+                } else {
+                    date = new Date(dateTimeStr);
+                }
+
+                if (isNaN(date.getTime())) return '-';
+
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                const seconds = String(date.getSeconds()).padStart(2, '0');
+
+                return `${hours}:${minutes}:${seconds}`;
+            } catch {
+                return '-';
+            }
+        }
+    </script>
+</body>
+</html>

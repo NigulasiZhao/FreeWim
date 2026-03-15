@@ -83,10 +83,10 @@ public class PushMessageService(IConfiguration configuration)
                 if (emailInfo.ReceiveList != null)
                 {
                     var addressList = emailInfo.ReceiveList
-                        .Select(r => new MailboxAddress(r.Name, r.Address))
+                        .Select(r => new MailboxAddress(r.Name, r.Address!))
                         .ToList();
 
-                    sendmessage.From.Add(new MailboxAddress(Encoding.UTF8, title, emailInfo.UserName));
+                    sendmessage.From.Add(new MailboxAddress(Encoding.UTF8, title, emailInfo.UserName!));
                     sendmessage.To.AddRange(addressList);
                 }
 
