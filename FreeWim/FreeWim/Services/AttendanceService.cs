@@ -275,7 +275,7 @@ public class AttendanceService(
 // 2. 一次性从数据库查询当天已存在的打卡记录 (避免循环查询)
 // 假设 clockintime 是字符串或日期，通过参数化查询提高安全性
                 var existingRecords = dbConnection.Query<(string Name, string ClockTime)>(
-                    $"SELECT name, clockintime FROM public.checkinwarning WHERE to_char(clockintime,'yyyy-mm-dd') = '{DateTime.Now:yyyy-MM-dd}'"
+                    $"SELECT name, to_char(clockintime, 'yyyy-mm-dd hh24:mi:ss') FROM public.checkinwarning WHERE to_char(clockintime, 'yyyy-mm-dd') = '{DateTime.Now:yyyy-MM-dd}'"
                 ).ToHashSet();
 
 // 3. 计算差集：找出在 personList 中但不在数据库中的记录
@@ -304,7 +304,7 @@ public class AttendanceService(
                     {
                         Id = Guid.NewGuid(),
                         Name = person.Ename,
-                        Clockintime = person.Checktime
+                        Clockintime = DateTime.Parse(person.Checktime)
                     });
                 }
 
