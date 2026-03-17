@@ -93,6 +93,9 @@ var serviceTypes = assembly.GetTypes()
 
 foreach (var serviceType in serviceTypes) builder.Services.AddSingleton(serviceType);
 
+// 注册MCP服务
+builder.Services.AddSingleton<McpService>();
+
 var app = builder.Build();
 var zh = new CultureInfo("zh-CN");
 zh.DateTimeFormat.FullDateTimePattern = "yyyy-MM-dd HH:mm:ss";

@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 using MySql.Data.MySqlClient;
 using Newtonsoft.Json;
 using Npgsql;
+using FreeWim.Attributes;
 
 namespace FreeWim.Controllers;
 
@@ -626,6 +627,7 @@ limit 10;";
     [Tags("考勤")]
     [EndpointSummary("工时排名")]
     [HttpPost]
+    [McpExposed("ranking_of_working_hours", "工时排名", "考勤")]
     public ActionResult RankingOfWorkingHours(RankingOfWorkingHoursInput input)
     {
         using IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
@@ -684,6 +686,7 @@ FROM ranked_stats ORDER BY {input.Order} {input.Sort} LIMIT {input.Rows} OFFSET 
     [Tags("考勤")]
     [EndpointSummary("高级工时统计")]
     [HttpPost]
+    [McpExposed("advanced_work_hours_statistics", "高级工时统计", "考勤")]
     public ActionResult AdvancedWorkHoursStatistics(RankingOfWorkingHoursInput input)
     {
         using IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
@@ -806,6 +809,7 @@ ORDER BY {mappedOrderField} {input.Sort} LIMIT {input.Rows} OFFSET {offset};",
     [Tags("考勤")]
     [EndpointSummary("考勤异常汇总")]
     [HttpPost]
+    [McpExposed("attendance_abnormal_summary", "考勤异常汇总", "考勤")]
     public ActionResult AttendanceAbnormalSummary(AttendanceAbnormalSummaryInput input)
     {
         using IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
@@ -865,6 +869,7 @@ ORDER BY {mappedOrderField} {input.Sort} LIMIT {input.Rows} OFFSET {offset};",
     [Tags("考勤")]
     [EndpointSummary("考勤异常明细")]
     [HttpPost]
+    [McpExposed("attendance_abnormal_detail", "考勤异常明细", "考勤")]
     public ActionResult AttendanceAbnormalDetail(AttendanceAbnormalDetailInput input)
     {
         using IDbConnection dbConnection = new MySqlConnection(configuration["OAConnection"]);
