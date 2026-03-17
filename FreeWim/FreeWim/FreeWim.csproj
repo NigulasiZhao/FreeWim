@@ -17,11 +17,12 @@
         <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
         <PackageReference Include="MailKit" Version="4.13.0" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
-        <PackageReference Include="Microsoft.Extensions.AI" Version="9.7.0" />
-        <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="9.7.0" />
+        <PackageReference Include="Microsoft.Extensions.AI" Version="10.3.0" />
+        <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.3.0" />
         <PackageReference Include="Microsoft.SemanticKernel.Connectors.OpenAI" Version="1.60.0" />
         <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
         <PackageReference Include="MimeKit" Version="4.15.1" />
+        <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.1.0" />
         <PackageReference Include="MySql.Data" Version="9.5.0" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
         <PackageReference Include="Npgsql" Version="9.0.2" />
