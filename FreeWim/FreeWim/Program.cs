@@ -80,6 +80,10 @@ builder.Services.AddHangfire(config =>
             // 批量删除个数
             DeleteExpiredBatchSize = 1000
         }));
+// 1. 注册 MCP 服务并启用 HTTP (SSE) 传输
+builder.Services.AddMcpServer()
+       .WithHttpTransport() // 启用 HTTP 传输支持
+       .WithToolsFromAssembly(); // 自动扫描当前程序集中标记为 Tool 的类
 builder.Services.AddHangfireServer();
 // 自动注册所有 Service 类（包括 Services 目录下的和根目录下的）
 var assembly = typeof(Program).Assembly;
@@ -92,9 +96,6 @@ var serviceTypes = assembly.GetTypes()
     .ToList();
 
 foreach (var serviceType in serviceTypes) builder.Services.AddSingleton(serviceType);
-
-// 注册MCP服务
-builder.Services.AddSingleton<McpService>();
 
 var app = builder.Build();
 var zh = new CultureInfo("zh-CN");
@@ -165,4 +166,5 @@ app.MapGet("/annualreport", async context =>
     await context.Response.SendFileAsync(Path.Combine(Path.Combine(AppContext.BaseDirectory, "wwwroot", "views"), "AnnualReport.html"));
 });
 app.MapGet("/", () => Results.Redirect("/scalar"));
+app.MapMcp("mcp");
 app.Run();

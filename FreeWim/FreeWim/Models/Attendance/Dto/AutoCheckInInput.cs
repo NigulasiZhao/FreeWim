@@ -1,7 +1,8 @@
-﻿namespace FreeWim.Models.Attendance.Dto;
+﻿using System.ComponentModel;
+namespace FreeWim.Models.Attendance.Dto;
 
 public class AutoCheckInInput
 {
-    public DateTime? SelectTime { get; set; }
-    public string? jobId { get; set; }
+    [Description("选择自动打卡时间")] public DateTime? SelectTime { get; set; }
+    [Description("任务ID")] public string? jobId { get; set; }
 }

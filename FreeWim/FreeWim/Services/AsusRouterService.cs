@@ -3,6 +3,8 @@ using System.Text.Json;
 using Dapper;
 using FreeWim.Models.AsusRouter;
 using Npgsql;
+using ModelContextProtocol.Server;
+using System.ComponentModel;
 
 namespace FreeWim.Services;
 
@@ -10,7 +12,11 @@ namespace FreeWim.Services;
 /// 华硕路由器服务类
 /// 用于获取路由器连接设备信息并存储到数据库
 /// </summary>
-public class AsusRouterService(IConfiguration configuration, TokenService tokenService, ILogger<AsusRouterService> logger)
+[McpServerToolType]
+public class AsusRouterService(
+    IConfiguration configuration,
+    TokenService tokenService,
+    ILogger<AsusRouterService> logger)
 {
     private readonly HttpClient _httpClient = new();
 
@@ -28,16 +34,20 @@ public class AsusRouterService(IConfiguration configuration, TokenService tokenS
             var request = new HttpRequestMessage(HttpMethod.Get, url);
 
             // 设置请求头
-            request.Headers.TryAddWithoutValidation("Accept", "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01");
-            request.Headers.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
+            request.Headers.TryAddWithoutValidation("Accept",
+                "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01");
+            request.Headers.TryAddWithoutValidation("Accept-Language",
+                "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
             request.Headers.TryAddWithoutValidation("Connection", "keep-alive");
             request.Headers.TryAddWithoutValidation("Referer", $"{baseUrl}/device-map/clients.asp");
-            request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0");
+            request.Headers.TryAddWithoutValidation("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0");
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
             // 设置Cookie
             var token = tokenService.GetAsusRouterTokenAsync();
-            var cookie = $"hwaddr=7C:10:C9:E8:6D:C8; apps_last=; bw_rtab=WIRED; maxBandwidth=100; asus_token={token}; clickedItem_tab=0";
+            var cookie =
+                $"hwaddr=7C:10:C9:E8:6D:C8; apps_last=; bw_rtab=WIRED; maxBandwidth=100; asus_token={token}; clickedItem_tab=0";
             request.Headers.TryAddWithoutValidation("Cookie", cookie);
 
             var response = await _httpClient.SendAsync(request);
@@ -314,7 +324,8 @@ public class AsusRouterService(IConfiguration configuration, TokenService tokenS
     /// </summary>
     private static string? GetStringProperty(JsonElement element, string propertyName)
     {
-        if (element.TryGetProperty(propertyName, out var prop)) return prop.ValueKind == JsonValueKind.String ? prop.GetString() : prop.ToString();
+        if (element.TryGetProperty(propertyName, out var prop))
+            return prop.ValueKind == JsonValueKind.String ? prop.GetString() : prop.ToString();
 
         return null;
     }
@@ -339,28 +350,37 @@ public class AsusRouterService(IConfiguration configuration, TokenService tokenS
     /// <param name="mode">模式（hour:按小时, day:按天）</param>
     /// <param name="dura">持续时间（小时数，默认24小时）</param>
     /// <returns>24小时的流量数据数组</returns>
-    public async Task<List<(long Upload, long Download)>> GetDeviceTrafficAsync(string mac, long date, string mode = "hour", int dura = 24)
+    [McpServerTool(Name = "GetDeviceTrafficAsync")]
+    [Description("获取设备流量统计数据")]
+    public async Task<List<(long Upload, long Download)>> GetDeviceTrafficAsync([Description("设备MAC地址")] string mac,
+        [Description("查询日期（Unix时间戳，秒级）")] long date, [Description("模式（hour:按小时, day:按天）")] string mode = "hour",
+        [Description("持续时间（小时数，默认24小时）")] int dura = 24)
     {
         try
         {
             var baseUrl = configuration.GetValue<string>("AsusRouter:RouterIp", "http://192.168.50.1");
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var encodedMac = Uri.EscapeDataString(mac);
-            var url = $"{baseUrl}/getWanTraffic.asp?client={encodedMac}&mode={mode}&dura={dura}&date={date}&_={timestamp}";
+            var url =
+                $"{baseUrl}/getWanTraffic.asp?client={encodedMac}&mode={mode}&dura={dura}&date={date}&_={timestamp}";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
 
             // 设置请求头
-            request.Headers.TryAddWithoutValidation("Accept", "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01");
-            request.Headers.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
+            request.Headers.TryAddWithoutValidation("Accept",
+                "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01");
+            request.Headers.TryAddWithoutValidation("Accept-Language",
+                "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
             request.Headers.TryAddWithoutValidation("Connection", "keep-alive");
             request.Headers.TryAddWithoutValidation("Referer", $"{baseUrl}/TrafficAnalyzer_Statistic.asp");
-            request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0");
+            request.Headers.TryAddWithoutValidation("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0");
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
             // 设置Cookie
             var token = tokenService.GetAsusRouterTokenAsync();
-            var cookie = $"hwaddr=7C:10:C9:E8:6D:C8; apps_last=; bw_rtab=WIRED; maxBandwidth=100; ASUS_TrafficMonitor_unit=1; ASUS_Traffic_unit=2; asus_token={token}; clickedItem_tab=7";
+            var cookie =
+                $"hwaddr=7C:10:C9:E8:6D:C8; apps_last=; bw_rtab=WIRED; maxBandwidth=100; ASUS_TrafficMonitor_unit=1; ASUS_Traffic_unit=2; asus_token={token}; clickedItem_tab=7";
             request.Headers.TryAddWithoutValidation("Cookie", cookie);
 
             var response = await _httpClient.SendAsync(request);
@@ -447,7 +467,8 @@ public class AsusRouterService(IConfiguration configuration, TokenService tokenS
     /// <param name="mac">设备MAC地址</param>
     /// <param name="statDate">统计日期</param>
     /// <param name="trafficData">24小时流量数据</param>
-    public async Task<int> SaveDeviceTrafficToDatabaseAsync(string mac, DateTime statDate, List<(long Upload, long Download)> trafficData)
+    public async Task<int> SaveDeviceTrafficToDatabaseAsync(string mac, DateTime statDate,
+        List<(long Upload, long Download)> trafficData)
     {
         using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
 
@@ -502,28 +523,34 @@ public class AsusRouterService(IConfiguration configuration, TokenService tokenS
     /// <param name="mode">模式（detail:详细统计）</param>
     /// <param name="dura">持续时间（小时数，默认24小时）</param>
     /// <returns>按应用/协议分类的流量数据列表</returns>
-    public async Task<List<(string AppName, long Upload, long Download)>> GetDeviceTrafficDetailAsync(string mac, long date, string mode = "detail", int dura = 24)
+    public async Task<List<(string AppName, long Upload, long Download)>> GetDeviceTrafficDetailAsync(string mac,
+        long date, string mode = "detail", int dura = 24)
     {
         try
         {
             var baseUrl = configuration.GetValue<string>("AsusRouter:RouterIp", "http://192.168.50.1");
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var encodedMac = Uri.EscapeDataString(mac);
-            var url = $"{baseUrl}/getWanTraffic.asp?client={encodedMac}&mode={mode}&dura={dura}&date={date}&_={timestamp}";
+            var url =
+                $"{baseUrl}/getWanTraffic.asp?client={encodedMac}&mode={mode}&dura={dura}&date={date}&_={timestamp}";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
 
             // 设置请求头
-            request.Headers.TryAddWithoutValidation("Accept", "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01");
-            request.Headers.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
+            request.Headers.TryAddWithoutValidation("Accept",
+                "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01");
+            request.Headers.TryAddWithoutValidation("Accept-Language",
+                "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
             request.Headers.TryAddWithoutValidation("Connection", "keep-alive");
             request.Headers.TryAddWithoutValidation("Referer", $"{baseUrl}/TrafficAnalyzer_Statistic.asp");
-            request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0");
+            request.Headers.TryAddWithoutValidation("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0");
             request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
             // 设置Cookie
             var token = tokenService.GetAsusRouterTokenAsync();
-            var cookie = $"hwaddr=7C:10:C9:E8:6D:C8; apps_last=; bw_rtab=WIRED; maxBandwidth=100; ASUS_TrafficMonitor_unit=1; ASUS_Traffic_unit=2; asus_token={token}; clickedItem_tab=7";
+            var cookie =
+                $"hwaddr=7C:10:C9:E8:6D:C8; apps_last=; bw_rtab=WIRED; maxBandwidth=100; ASUS_TrafficMonitor_unit=1; ASUS_Traffic_unit=2; asus_token={token}; clickedItem_tab=7";
             request.Headers.TryAddWithoutValidation("Cookie", cookie);
 
             var response = await _httpClient.SendAsync(request);
@@ -610,7 +637,8 @@ public class AsusRouterService(IConfiguration configuration, TokenService tokenS
     /// <param name="mac">设备MAC地址</param>
     /// <param name="statDate">统计日期</param>
     /// <param name="trafficDetailData">按应用/协议分类的流量数据</param>
-    public async Task<int> SaveDeviceTrafficDetailToDatabaseAsync(string mac, DateTime statDate, List<(string AppName, long Upload, long Download)> trafficDetailData)
+    public async Task<int> SaveDeviceTrafficDetailToDatabaseAsync(string mac, DateTime statDate,
+        List<(string AppName, long Upload, long Download)> trafficDetailData)
     {
         using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
 

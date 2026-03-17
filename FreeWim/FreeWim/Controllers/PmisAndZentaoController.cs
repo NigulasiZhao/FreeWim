@@ -1,7 +1,6 @@
 ﻿using System.ComponentModel;
 using System.Data;
 using Dapper;
-using FreeWim.Attributes;
 using FreeWim.Services;
 using FreeWim.Utils;
 using FreeWim.Models.PmisAndZentao;
@@ -28,7 +27,6 @@ public class PmisAndZentaoController(
     [Tags("禅道")]
     [EndpointSummary("获取禅道Token(有效期24分钟)")]
     [HttpGet]
-    [McpExposed("get_zentao_token", "获取禅道Token", "zentao")]
     public string GetZentaoToken()
     {
         return zentaoService.GetZentaoToken();
@@ -37,7 +35,6 @@ public class PmisAndZentaoController(
     [Tags("禅道")]
     [EndpointSummary("获取我的任务列表")]
     [HttpGet]
-    [McpExposed("get_zentao_tasks", "获取禅道任务列表", "zentao")]
     public string GetMyWorkTask()
     {
         return zentaoService.GetZentaoTask().ToString();
@@ -46,7 +43,6 @@ public class PmisAndZentaoController(
     [Tags("禅道")]
     [EndpointSummary("同步禅道任务")]
     [HttpGet]
-    [McpExposed("sync_zentao_tasks", "同步禅道任务到本地", "zentao")]
     public bool GetZentaoTask()
     {
         return zentaoService.SynchronizationZentaoTask();
@@ -55,8 +51,7 @@ public class PmisAndZentaoController(
     [Tags("禅道")]
     [EndpointSummary("完成任务")]
     [HttpGet]
-    [McpExposed("finish_task", "完成禅道任务", "zentao")]
-    public string FinishTask([Description("任务完成日期")] DateTime finishedDate, [Description("完成工时数")] double totalHours)
+    public string FinishTask(DateTime finishedDate, double totalHours)
     {
         zentaoService.FinishZentaoTask(finishedDate, totalHours);
         return "成功";
@@ -65,8 +60,7 @@ public class PmisAndZentaoController(
     [Tags("禅道")]
     [EndpointSummary("计算工时")]
     [HttpGet]
-    [McpExposed("allocate_work", "计算工时分配", "zentao")]
-    public List<TaskItem> AllocateWork([Description("开始日期")] DateTime startDate, [Description("总工时数")] double totalHours)
+    public List<TaskItem> AllocateWork(DateTime startDate, double totalHours)
     {
         var result = zentaoService.AllocateWork(startDate, totalHours);
         return result;
@@ -75,8 +69,7 @@ public class PmisAndZentaoController(
     [Tags("禅道")]
     [EndpointSummary("根据项目ID获取项目编码")]
     [HttpGet]
-    [McpExposed("get_project_code", "根据项目ID获取项目编码", "zentao")]
-    public string GetProjectCodeForProjectId([Description("禅道项目ID")] string projectId)
+    public string GetProjectCodeForProjectId(string projectId)
     {
         var result = zentaoService.GetProjectCodeForProjectId(projectId);
         return result;
@@ -85,7 +78,6 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("获取PMIS管理员token")]
     [HttpGet]
-    [McpExposed("get_pmis_admin_token", "获取PMIS管理员token", "pmis")]
     public IActionResult GetPmisAdminToken()
     {
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
@@ -96,8 +88,7 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("根据日期计算工时")]
     [HttpGet]
-    [McpExposed("get_work_hours", "根据日期计算工时", "pmis")]
-    public double GetWorkHoursByDate([Description("查询日期，一般默认当前时间")] DateTime date)
+    public double GetWorkHoursByDate(DateTime date)
     {
         var result = attendanceService.GetWorkHoursByDate(date);
         return result;
@@ -106,7 +97,6 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("获取已上报列表")]
     [HttpGet]
-    [McpExposed("query_daily_reports", "查询PMIS日报列表", "pmis")]
     public string QueryMyByDate()
     {
         var json = pmisService.QueryMyByDate();
@@ -116,8 +106,7 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("获取工作明细")]
     [HttpGet]
-    [McpExposed("query_work_details", "获取工作明细", "pmis")]
-    public string QueryByDateAndUserId([Description("查询日期，一般默认当前时间，格式为：yyyy-MM-dd")] string fillDate = "2025-06-27")
+    public string QueryByDateAndUserId(string fillDate = "2025-06-27")
     {
         var attempt = 0;
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
@@ -146,8 +135,7 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("提交工作日志")]
     [HttpGet]
-    [McpExposed("submit_work_log", "提交工作日志", "pmis")]
-    public PMISInsertResponse CommitWorkLogByDate([Description("填报日期，格式为：yyyy-MM-dd")] string fillDate = "2025-06-27")
+    public PMISInsertResponse CommitWorkLogByDate(string fillDate = "2025-06-27")
     {
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var result = pmisService.CommitWorkLogByDate(fillDate, pmisInfo.UserId);
@@ -157,18 +145,16 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("测试推送")]
     [HttpGet]
-    [McpExposed("push_message", "推送消息", "pmis")]
-    public string PushMessage([Description("消息标题")] string Title = "禅道", [Description("消息内容")] string message = "测试消息")
+    public string PushMessage(string Title = "禅道", string message = "测试消息")
     {
         pushMessageService.Push(Title, message + DateTime.Now.ToString(), PushMessageService.PushIcon.Zentao);
         return "";
     }
 
     [Tags("PMIS")]
-    [EndpointSummary("获取项目信息")]
+    [EndpointSummary("通过项目编码获取PMIS项目信息")]
     [HttpGet]
-    [McpExposed("get_project_info", "获取项目信息", "pmis")]
-    public ProjectInfo GetProjectInfo([Description("项目编码")] string projectCode)
+    public ProjectInfo GetProjectInfo(string projectCode)
     {
         var result = pmisService.GetProjectInfo(projectCode);
         return result;
@@ -178,8 +164,7 @@ public class PmisAndZentaoController(
     [Tags("DeepSeek")]
     [EndpointSummary("生成加班理由")]
     [HttpGet]
-    [McpExposed("generate_overtime_content", "生成加班理由", "deepseek")]
-    public string GeneratedOvertimeWorkContent([Description("加班内容描述")] string Content)
+    public string GeneratedOvertimeWorkContent(string Content)
     {
         try
         {
@@ -208,7 +193,6 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("提交加班申请")]
     [HttpGet]
-    [McpExposed("submit_overtime", "提交加班申请", "pmis")]
     public string SubmitOvertime()
     {
         try
@@ -324,7 +308,6 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("获取本周是第几周以及周一到周日的日期")]
     [HttpGet]
-    [McpExposed("get_week_info", "获取周信息", "pmis")]
     public string GetWeekDayInfo()
     {
         var weekInfo = pmisService.GetWeekDayInfo();
@@ -335,7 +318,6 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("周报上报")]
     [HttpGet]
-    [McpExposed("submit_week_work", "提交周报", "pmis")]
     public PMISInsertResponse GetWeekWork()
     {
         var result = pmisService.CommitWorkLogByWeek(pmisService.GetWeekDayInfo());
@@ -345,7 +327,6 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("PMIS组件数据查询接口")]
     [HttpGet]
-    [McpExposed("query_latest_data", "查询最新数据", "pmis")]
     public ActionResult latest()
     {
         using IDbConnection dbConnection = new NpgsqlConnection(configuration["Connection"]);
@@ -367,9 +348,8 @@ public class PmisAndZentaoController(
     }
 
     [Tags("PMIS")]
-    [EndpointSummary("提交所有待处理实际加班申请")]
+    [EndpointSummary("获取实际加班待处理列表")]
     [HttpGet]
-    [McpExposed("query_real_overtime_list", "查询实际加班列表", "pmis")]
     public string RealOverTimeList()
     {
         return pmisService.RealOverTimeList().ToString(Newtonsoft.Json.Formatting.Indented);
@@ -378,8 +358,7 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("根据日期获取考勤数量")]
     [HttpGet]
-    [McpExposed("get_today_clock_in_detail", "获取今日打卡详情", "pmis")]
-    public int GetTodayClockInDetail([Description("打卡日期，格式为：yyyy-MM-dd")] string clockInDate)
+    public int GetTodayClockInDetail(string clockInDate)
     {
         return pmisService.GetTodayClockInDetail(clockInDate);
     }
@@ -393,7 +372,6 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("获取实际加班信息")]
     [HttpGet]
-    [McpExposed("get_overtime_records", "获取实际加班信息", "pmis")]
     public List<OaWorkoverTimeOutput> GetOaWorkoverTime(
         [Description("查询开始日期，一般默认为每月26日如：2025-01-26")] string startTime = "",
         [Description("查询结束日期，一般默认为每月25日如：2025-02-25")] string endTime = "")
@@ -409,7 +387,6 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("导出餐补记录")]
     [HttpPost]
-    [McpExposed("export_overtime_records", "导出加班餐补记录", "pmis")]
     public ActionResult ExportOaWorkoverTime(
         [Description("查询开始日期，一般默认为每月26日如：2025-01-26")]
         string startTime = "",
@@ -495,8 +472,7 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("获取PMIS日报汇总")]
     [HttpPost]
-    [McpExposed("query_job_user_work_sum", "查询日报汇总", "pmis")]
-    public IResult QueryJobUserWorkSum([Description("查询条件")] QueryJobUserWorkSumInput input)
+    public IResult QueryJobUserWorkSum(QueryJobUserWorkSumInput input)
     {
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var targetUrl = pmisInfo.Url.TrimEnd('/') + "/unioa/job/userWorkSum/queryJobUserWorkSum";
@@ -532,8 +508,7 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("获取PMIS日报明细")]
     [HttpPost]
-    [McpExposed("query_user_work_sum_detail", "查询日报明细", "pmis")]
-    public IResult QueryUserWorkSumDetail([Description("查询条件")] QueryUserWorkSumDetailInput input)
+    public IResult QueryUserWorkSumDetail(QueryUserWorkSumDetailInput input)
     {
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var targetUrl = pmisInfo.Url.TrimEnd('/') + "/unioa/job/userWorkSum/queryUserWorkSumDetail";
@@ -566,8 +541,7 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("获取PMIS周报汇总")]
     [HttpPost]
-    [McpExposed("query_job_user_work_week_sum", "查询周报汇总", "pmis")]
-    public IResult QueryJobUserWorkWeekSum([Description("查询条件")] QueryJobUserWorkSumInput input)
+    public IResult QueryJobUserWorkWeekSum(QueryJobUserWorkSumInput input)
     {
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var targetUrl = pmisInfo.Url.TrimEnd('/') + "/unioa/job/userWorkWeekSum/queryJobUserWorkWeekSum";
@@ -604,8 +578,7 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("获取PMIS周报明细")]
     [HttpPost]
-    [McpExposed("query_user_work_week_sum_detail", "查询周报明细", "pmis")]
-    public IResult QueryUserWorkWeekSumDetail([Description("查询条件")] queryUserWorkWeekSumDetailInput input)
+    public IResult QueryUserWorkWeekSumDetail(queryUserWorkWeekSumDetailInput input)
     {
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var targetUrl = pmisInfo.Url.TrimEnd('/') + "/unioa/job/userWorkWeekSum/queryUserWorkWeekSumDetail";
@@ -638,8 +611,7 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("获取一诺部门使用情况")]
     [HttpPost]
-    [McpExposed("query_org_page", "查询部门使用情况", "pmis")]
-    public IResult OrgPage([Description("查询条件")] OrgPageInput input)
+    public IResult OrgPage(OrgPageInput input)
     {
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var targetUrl = pmisInfo.Url.TrimEnd('/') + "/uniwim/message/useSta/orgPage";
@@ -668,8 +640,7 @@ public class PmisAndZentaoController(
     [Tags("PMIS")]
     [EndpointSummary("获取一诺人员使用情况")]
     [HttpPost]
-    [McpExposed("query_person_page", "查询人员使用情况", "pmis")]
-    public IResult PersonPage([Description("查询条件")] OrgPageInput input)
+    public IResult PersonPage(OrgPageInput input)
     {
         var pmisInfo = configuration.GetSection("PMISInfo").Get<PMISInfo>()!;
         var targetUrl = pmisInfo.Url.TrimEnd('/') + "/uniwim/message/useSta/personPage";
